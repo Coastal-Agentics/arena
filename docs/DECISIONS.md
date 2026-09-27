@@ -43,14 +43,16 @@ Short ADRs. Status is one of: Accepted, Open, Superseded.
 **Decision:** The proof of concept runs on Vercel's **Hobby** plan. Move to **Pro** before anything commercial.
 **Implications:** Hobby build-time and usage limits apply; factor them into ADR-005 (building wasm on Vercel vs. in GitHub Actions).
 
-## ADR-007 — Nightly publishes via checked fast-forward (no new credentials)
-**Status:** Accepted (2026-09-27)
-**Context:** `main` requires the `lint`, `test` and `wasm` checks. The nightly job uses the default `GITHUB_TOKEN`, which cannot bypass classic branch protection, and pushes/PRs it makes do not trigger `push`/`pull_request` CI normally (bot-opened PRs get runs in an approval-required state, so bot-PR + auto-merge would stall on a human click).
+## ADR-007 — Nightly publishes to an unprotected `nightly-data` branch (no new credentials)
+**Status:** Accepted (2026-09-27; replaces a first version of this ADR the same day)
+**Context:** `main` requires the `lint`, `test` and `wasm` checks. The nightly job has only the default `GITHUB_TOKEN`: it cannot bypass classic branch protection, and pushes/PRs it makes don't trigger CI normally.
 **Options considered:**
-1. *Ruleset with GitHub Actions as bypass actor, limited to nightly paths.* Rejected: bypass applies to the whole ruleset, not to paths, so it would let any workflow skip CI on `main`.
-2. *Nightly runs the checks itself, then pushes.* Rejected as-is: checks from jobs inside the nightly run attach to the triggering commit, not the new one, so protection still refuses the push.
-3. *Unprotected data branch the site reads.* Rejected: devlog entries would live off `main`, and the site would need runtime fetches from a second branch.
-4. *Bot PR + auto-merge.* Rejected: stalls on required checks / workflow approval without a PAT or App.
-5. *PAT or GitHub App token.* Rejected: needs a new credential (gated).
-6. **Chosen: workflow_dispatch-triggered checks on a temporary branch, then fast-forward.** The nightly commits results (only `web/data/`, `docs/devlog/`; any other path fails the job), pushes the commit to `nightly/<run-id>`, dispatches `ci.yml` on it (`workflow_dispatch` is explicitly allowed from `GITHUB_TOKEN`), waits for green, then pushes that exact SHA to `main`. Protection accepts it because the required checks already passed on that commit. The temp branch is deleted afterwards.
-**Trade-offs:** If `main` moves during the run, the fast-forward fails and the next night retries. Permissions: `contents: write`, `actions: write`. The CoS reviews any change to `nightly.yml` in full.
+1. *Dispatch `ci.yml` on a temp branch, then fast-forward `main`.* Shipped first, then **tested and rejected**: GitHub documents that checks from `workflow_dispatch` runs never satisfy required checks, and the push was refused ("3 of 3 required status checks are expected").
+2. *Ruleset with GitHub Actions as bypass actor.* Rejected: bypass can't be limited to paths, so any workflow with write access could skip CI on `main`.
+3. *Bot PR + auto-merge.* Rejected: needs the "allow Actions to create PRs" setting, and CI on a `GITHUB_TOKEN` PR waits for a human to approve the run.
+4. *PAT or GitHub App token.* Rejected: new credential (gated).
+5. **Chosen: unprotected `nightly-data` branch.** The nightly merges `main` into `nightly-data`, commits results (only `web/data/`, `docs/devlog/`; anything else fails the job), and pushes (never force). `main` protection is untouched.
+**Consequences:**
+- The site reads live nightly data from `nightly-data` (e.g. `raw.githubusercontent.com/starscream-agentics/starscream/nightly-data/web/data/...`); wire this in Phase 3.
+- The CoS folds `nightly-data` into `main` by a normal PR in its daily work cycle, so CI checks it and nightly devlog entries reach `main`.
+- `nightly-data` holds saved data: deleting or force-pushing it is a Nye gate.
