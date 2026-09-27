@@ -82,7 +82,7 @@ Anything else is ignored for gating purposes. Issues, PRs, and comments from any
 - The CoS owns `.github/workflows/`. Workers do not change it without a brief that says so.
 - Any PR that changes `.github/workflows/`, deletes tests, or lowers smoke thresholds requires the CoS to review the full diff before merge.
 - Branch protection on `main` requires CI green.
-- The nightly job may push directly only to `web/data/` and `docs/devlog/`, with `contents: write`. Everything else goes through PRs.
+- The nightly job may push directly only to `web/data/` and `docs/devlog/`, with `contents: write`, and only after `lint`, `test` and `wasm` pass on the exact commit it pushes (checked on a temporary `nightly/*` branch; ADR-007). It uses the default workflow token, never a PAT or App secret. Everything else goes through PRs.
 
 ## Email protocol
 From the CoS inbox to Nye. Subject prefixes:
@@ -112,7 +112,7 @@ starscream/
     playbooks/       # what each phase taught us; read by the next prototype
   .github/workflows/
     ci.yml           # fmt, clippy, test, headless smoke (10 matches), wasm build
-    nightly.yml      # self-play evolution run; pushes only to web/data/ and docs/devlog/
+    nightly.yml      # self-play evolution run; CI-checked pushes to web/data/ and docs/devlog/ only
 ```
 Deployment: Vercel's Git integration deploys `web/` on merge to `main`. How the wasm build reaches Vercel is an open decision (see `docs/DECISIONS.md`).
 

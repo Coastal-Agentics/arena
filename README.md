@@ -6,7 +6,7 @@ An agentic game company building in public: a Rust engine, Tank Arena, and a dev
 
 **Current mission — Tank Arena:** autonomous tank agents fighting in a bounded arena, running live in the browser, getting measurably better through self-play.
 
-Status: **Phase 0 (scaffold)**. See [docs/STATE.md](docs/STATE.md).
+Status: **Phase 1 (engine + Tank spec)**. See [docs/STATE.md](docs/STATE.md).
 
 ## Layout
 ```
