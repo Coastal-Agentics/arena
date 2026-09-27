@@ -1,7 +1,13 @@
-//! Headless match runner. Phase 0: prints placeholder JSON.
+//! Headless match runner: N matches -> JSON summary on stdout. Source of truth for CI.
+//!
+//! Match `i` uses seed `seed + i` (wrapping), so `--matches 1 --seed S+i` reproduces it.
+//! Team 0 is the built-in `Chaser`, team 1 the built-in `Wanderer` placeholder policy.
 
 use clap::Parser;
+use engine::bots::{Chaser, Wanderer};
+use engine::{EndReason, Match, MatchConfig, Replay};
 use serde::Serialize;
+use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
 #[command(
@@ -16,44 +22,120 @@ struct Args {
     /// RNG seed; the same seed reproduces the same matches.
     #[arg(long, default_value_t = 42)]
     seed: u64,
+    /// Optional directory to write one JSON replay per match (`match-<seed>.json`).
+    #[arg(long)]
+    replay_dir: Option<PathBuf>,
+}
+
+#[derive(Serialize, Debug, PartialEq)]
+struct MatchResult {
+    seed: u64,
+    /// Winning team (0 = Chaser, 1 = Wanderer) or null for a draw.
+    winner: Option<u8>,
+    ticks: u32,
+    reason: EndReason,
+    /// Final state hash; identical across runs with the same seed.
+    hash: String,
 }
 
 #[derive(Serialize, Debug)]
 struct Summary {
     matches: u32,
     seed: u64,
-    results: Vec<serde_json::Value>,
+    results: Vec<MatchResult>,
 }
 
-fn run(args: &Args) -> Summary {
-    Summary {
+fn play(seed: u64) -> (MatchResult, Replay) {
+    let mut m = Match::new(MatchConfig::duel(), seed);
+    let mut a = Chaser;
+    let mut b = Wanderer::new(seed ^ 0x5eed);
+    let o = m.run(&mut [&mut a, &mut b]);
+    let replay = m.replay();
+    (
+        MatchResult {
+            seed,
+            winner: o.winner,
+            ticks: o.ticks,
+            reason: o.reason,
+            hash: replay.final_hash.clone(),
+        },
+        replay,
+    )
+}
+
+fn run(args: &Args) -> Result<Summary, String> {
+    if let Some(dir) = &args.replay_dir {
+        std::fs::create_dir_all(dir).map_err(|e| format!("create {}: {e}", dir.display()))?;
+    }
+    let mut results = Vec::with_capacity(args.matches as usize);
+    for i in 0..args.matches {
+        let seed = args.seed.wrapping_add(i as u64);
+        let (res, replay) = play(seed);
+        if let Some(dir) = &args.replay_dir {
+            let path = dir.join(format!("match-{seed}.json"));
+            std::fs::write(&path, replay.to_json())
+                .map_err(|e| format!("write {}: {e}", path.display()))?;
+        }
+        results.push(res);
+    }
+    Ok(Summary {
         matches: args.matches,
         seed: args.seed,
-        results: Vec::new(),
-    }
+        results,
+    })
 }
 
 fn main() {
     let args = Args::parse();
-    let _ = engine::TICK_HZ;
-    let summary = run(&args);
-    println!(
-        "{}",
-        serde_json::to_string(&summary).expect("summary serializes")
-    );
+    match run(&args) {
+        Ok(summary) => println!(
+            "{}",
+            serde_json::to_string(&summary).expect("summary serializes")
+        ),
+        Err(e) => {
+            eprintln!("engine-cli: {e}");
+            std::process::exit(1);
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    fn args(matches: u32, seed: u64) -> Args {
+        Args {
+            matches,
+            seed,
+            replay_dir: None,
+        }
+    }
+
     #[test]
-    fn placeholder_json_shape() {
-        let s = run(&Args {
-            matches: 10,
-            seed: 42,
-        });
-        let json = serde_json::to_string(&s).unwrap();
-        assert_eq!(json, r#"{"matches":10,"seed":42,"results":[]}"#);
+    fn same_seed_same_json() {
+        let a = serde_json::to_string(&run(&args(5, 42)).unwrap()).unwrap();
+        let b = serde_json::to_string(&run(&args(5, 42)).unwrap()).unwrap();
+        assert_eq!(a, b);
+        assert!(a.starts_with(r#"{"matches":5,"seed":42,"results":[{"seed":42,"#));
+    }
+
+    #[test]
+    fn match_i_is_reproducible_alone() {
+        let all = run(&args(4, 100)).unwrap();
+        let third = run(&args(1, 102)).unwrap();
+        assert_eq!(all.results[2], third.results[0]);
+    }
+
+    #[test]
+    fn written_replay_verifies() {
+        let dir = std::env::temp_dir().join(format!("engine-cli-test-{}", std::process::id()));
+        let mut a = args(1, 7);
+        a.replay_dir = Some(dir.clone());
+        let s = run(&a).unwrap();
+        let json = std::fs::read_to_string(dir.join("match-7.json")).unwrap();
+        let r = Replay::from_json(&json).unwrap();
+        let m = r.verify().unwrap();
+        assert_eq!(format!("{:016x}", m.state_hash()), s.results[0].hash);
+        std::fs::remove_dir_all(dir).ok();
     }
 }
