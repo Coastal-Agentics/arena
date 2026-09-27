@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install toolchain (from rust-toolchain.toml)
+        run: rustup toolchain install && rustup show
+      - uses: Swatinem/rust-cache@v2
+      - name: fmt
+        run: cargo fmt --all -- --check
+      - name: clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+  test:
+    name: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install toolchain (from rust-toolchain.toml)
+        run: rustup toolchain install && rustup show
+      - uses: Swatinem/rust-cache@v2
+      - name: test
+        run: cargo test --workspace
+      - name: headless smoke (10 matches)
+        run: cargo run -p engine-cli -- --matches 10 --seed 42
+
+  wasm:
+    name: wasm
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install toolchain (from rust-toolchain.toml)
+        run: rustup toolchain install && rustup show
+      - uses: Swatinem/rust-cache@v2
+      - name: wasm build check
+        run: cargo build -p engine --target wasm32-unknown-unknown

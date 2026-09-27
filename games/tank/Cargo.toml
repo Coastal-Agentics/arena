@@ -1,0 +1,10 @@
+[package]
+name = "tank"
+description = "Tank Arena rules, observations, actions and policies"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+engine = { path = "../../engine" }

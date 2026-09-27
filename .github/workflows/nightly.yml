@@ -1,0 +1,24 @@
+name: Nightly self-play
+
+# May push directly only to web/data/ and docs/devlog/. Everything else goes through PRs.
+on:
+  schedule:
+    - cron: "0 7 * * *" # 07:00 UTC = 3:00 AM America/New_York (EDT)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: nightly
+  cancel-in-progress: false
+
+jobs:
+  self-play:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Self-play evolution (placeholder)
+        run: echo "self-play not yet implemented"
+      # Phase 3: run evolution headless, write results to web/data/ and a devlog
+      # entry to docs/devlog/, then commit only those paths.
