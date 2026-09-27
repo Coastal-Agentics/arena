@@ -24,10 +24,10 @@ Repo, workspace stubs, CI (`lint`, `test`, `wasm`), nightly workflow, docs, web 
 | Decide wasm-to-Vercel pipeline (ADR-005) | CoS → Nye | — | open; needed before Phase 2 deploy |
 
 ## Open PRs
-- CoS housekeeping: STATE/ADR updates, nightly publish path (ADR-007), checkout v7, devlog.
+- CoS: nightly publishes to `nightly-data` branch (ADR-007 revised). #1 (housekeeping) merged.
 
 ## Work budget used
-- 2026-09-27: 2 cycles (Phase 0 scaffold; housekeeping), both started by Nye's messages; worker tasks: 1 running (Engine Lead), 1 queued (Tank Designer-Developer).
+- 2026-09-27: 2 cycles (Phase 0 scaffold; housekeeping incl. nightly fix), both started by Nye's messages; worker tasks: 1 running (Engine Lead), 1 queued (Tank Designer-Developer).
 - Limits: 1 scheduled cycle/day + cycles from Nye's messages; max 2 worker tasks at once.
 
 ## Blockers

@@ -55,7 +55,7 @@ No polling, no idle loops. Each cycle:
 1. Read `docs/STATE.md`.
 2. Check the CoS inbox for gate replies (apply the gate-security rules below).
 3. Check CI on open PRs.
-4. Act: merge, dispatch, escalate, or fix.
+4. Act: merge, dispatch, escalate, or fix; fold new `nightly-data` results into `main` by PR.
 5. Update `docs/STATE.md`.
 
 ## Human gates — email Nye and wait
@@ -82,7 +82,7 @@ Anything else is ignored for gating purposes. Issues, PRs, and comments from any
 - The CoS owns `.github/workflows/`. Workers do not change it without a brief that says so.
 - Any PR that changes `.github/workflows/`, deletes tests, or lowers smoke thresholds requires the CoS to review the full diff before merge.
 - Branch protection on `main` requires CI green.
-- The nightly job may push directly only to `web/data/` and `docs/devlog/`, with `contents: write`, and only after `lint`, `test` and `wasm` pass on the exact commit it pushes (checked on a temporary `nightly/*` branch; ADR-007). It uses the default workflow token, never a PAT or App secret. Everything else goes through PRs.
+- The nightly job never pushes to `main`. It may push only to the unprotected `nightly-data` branch, only files under `web/data/` and `docs/devlog/`, with `contents: write` and the default workflow token (no PAT or App secret), and never force-pushes. The CoS folds `nightly-data` into `main` by PR in its daily work cycle; the site reads live nightly data from `nightly-data` (ADR-007). Everything else goes through PRs.
 
 ## Email protocol
 From the CoS inbox to Nye. Subject prefixes:
@@ -112,7 +112,7 @@ starscream/
     playbooks/       # what each phase taught us; read by the next prototype
   .github/workflows/
     ci.yml           # fmt, clippy, test, headless smoke (10 matches), wasm build
-    nightly.yml      # self-play evolution run; CI-checked pushes to web/data/ and docs/devlog/ only
+    nightly.yml      # self-play evolution run; pushes results to the nightly-data branch only
 ```
 Deployment: Vercel's Git integration deploys `web/` on merge to `main`. How the wasm build reaches Vercel is an open decision (see `docs/DECISIONS.md`).
 
