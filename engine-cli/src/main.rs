@@ -29,6 +29,8 @@ struct Args {
 
 #[derive(Serialize, Debug, PartialEq)]
 struct MatchResult {
+    /// Decimal string: JavaScript cannot represent every u64 exactly.
+    #[serde(with = "engine::json_u64")]
     seed: u64,
     /// Winning team (0 = Chaser, 1 = Wanderer) or null for a draw.
     winner: Option<u8>,
@@ -41,6 +43,7 @@ struct MatchResult {
 #[derive(Serialize, Debug)]
 struct Summary {
     matches: u32,
+    #[serde(with = "engine::json_u64")]
     seed: u64,
     results: Vec<MatchResult>,
 }
@@ -116,7 +119,16 @@ mod tests {
         let a = serde_json::to_string(&run(&args(5, 42)).unwrap()).unwrap();
         let b = serde_json::to_string(&run(&args(5, 42)).unwrap()).unwrap();
         assert_eq!(a, b);
-        assert!(a.starts_with(r#"{"matches":5,"seed":42,"results":[{"seed":42,"#));
+        assert!(a.starts_with(r#"{"matches":5,"seed":"42","results":[{"seed":"42","#));
+    }
+
+    #[test]
+    fn seeds_are_js_safe_strings() {
+        let s = run(&args(2, u64::MAX)).unwrap();
+        let v: serde_json::Value = serde_json::to_value(&s).unwrap();
+        assert_eq!(v["seed"], "18446744073709551615");
+        assert_eq!(v["results"][0]["seed"], "18446744073709551615");
+        assert_eq!(v["results"][1]["seed"], "0"); // wrapping_add
     }
 
     #[test]

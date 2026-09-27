@@ -1,7 +1,7 @@
 //! Match lifecycle: config, entities, fixed-step update, end conditions.
 
 use crate::angle::{self, Heading};
-use crate::arena::{circles_overlap, Arena, Rect};
+use crate::arena::{circles_overlap, segment_circle_entry, Arena, Rect};
 use crate::policy::{
     Action, Observation, Policy, ProjectileObs, SelfObs, TankObs, WallObs,
     MAX_OBSERVED_PROJECTILES, MAX_OBSERVED_TANKS,
@@ -345,9 +345,18 @@ impl Match {
     /// mean "do nothing"; actions for dead tanks are ignored. Returns the outcome once
     /// the match has ended (further calls are no-ops).
     ///
-    /// Step order: tanks in id order (turn, move with collision, fire), then existing
-    /// projectiles (move, hit tanks, hit walls, expire), then new shots are added,
-    /// deaths are applied, and end conditions are checked.
+    /// Step order:
+    /// 1. every living tank turns and computes its move against the tick-start
+    ///    positions of the others (axis-separated: walls clamp, obstacles and tanks
+    ///    block the axis);
+    /// 2. moves are applied simultaneously; any tank whose new circle would overlap
+    ///    another tank's new circle is held at its old position (repeated until
+    ///    stable), so the result does not depend on tank id order;
+    /// 3. tanks fire in id order (spread is drawn from the match RNG in that order);
+    /// 4. existing projectiles sweep their whole per-tick segment: the earliest
+    ///    contact with an enemy tank (at its post-move position) or a wall/obstacle
+    ///    wins, ties go to the tank, then to the lower tank id;
+    /// 5. new shots are added, deaths applied, end conditions checked.
     pub fn step(&mut self, actions: &[Action]) -> Option<Outcome> {
         if self.outcome.is_some() {
             return self.outcome;
@@ -361,6 +370,9 @@ impl Match {
         let r = params.radius;
         let mut spawned = Vec::new();
 
+        // 1. Intents against the tick-start snapshot.
+        let old: Vec<Vec2> = self.tanks.iter().map(|t| t.pos).collect();
+        let mut moves: Vec<(Vec2, Vec2)> = old.iter().map(|&p| (p, Vec2::ZERO)).collect();
         for (i, &a) in recorded.iter().enumerate() {
             if !self.tanks[i].alive {
                 continue;
@@ -373,10 +385,8 @@ impl Match {
                 .turret
                 .wrapping_add_signed((a.turret_turn * params.turret_turn_rate as f32) as i16);
             let want = angle::dir(t.heading) * (a.throttle * params.max_speed * DT);
-            let start = t.pos;
-            let mut pos = start;
+            let mut pos = old[i];
             let mut vel = want;
-            // Axis-separated move: walls clamp, obstacles and other tanks block the axis.
             for axis in 0..2 {
                 let mut cand = pos;
                 cand[axis] += want[axis];
@@ -385,7 +395,7 @@ impl Match {
                     || self
                         .tanks
                         .iter()
-                        .any(|o| o.alive && o.id != i && circles_overlap(o.pos, r, cand, r));
+                        .any(|o| o.alive && o.id != i && circles_overlap(old[o.id], r, cand, r));
                 if blocked {
                     vel[axis] = 0.0;
                 } else {
@@ -393,9 +403,37 @@ impl Match {
                     pos = cand;
                 }
             }
+            moves[i] = (pos, vel);
+        }
+
+        // 2. Apply simultaneously; hold back tanks whose new positions collide.
+        // Tick-start positions never overlap, so this converges (at worst everyone holds).
+        loop {
+            let mut changed = false;
+            for i in 0..n {
+                if !self.tanks[i].alive || moves[i].0 == old[i] {
+                    continue;
+                }
+                let clash = (0..n).any(|j| {
+                    j != i && self.tanks[j].alive && circles_overlap(moves[j].0, r, moves[i].0, r)
+                });
+                if clash {
+                    moves[i] = (old[i], Vec2::ZERO);
+                    changed = true;
+                }
+            }
+            if !changed {
+                break;
+            }
+        }
+
+        // 3. Fire.
+        for (i, &a) in recorded.iter().enumerate() {
+            if !self.tanks[i].alive {
+                continue;
+            }
             let t = &mut self.tanks[i];
-            t.pos = pos;
-            t.vel = vel;
+            (t.pos, t.vel) = moves[i];
             if t.cooldown > 0 {
                 t.cooldown -= 1;
             }
@@ -423,20 +461,31 @@ impl Match {
 
         let mut keep = Vec::with_capacity(self.projectiles.len() + spawned.len());
         for mut pr in std::mem::take(&mut self.projectiles) {
-            pr.pos += pr.vel;
-            let hit = self.tanks.iter().position(|t| {
-                t.alive && t.team != pr.team && (t.pos - pr.pos).length_squared() < r * r
-            });
-            if let Some(ti) = hit {
-                self.tanks[ti].hp -= pr.damage;
-                self.events.push(Event::Hit {
-                    target: ti,
-                    owner: pr.owner,
-                    damage: pr.damage,
-                });
-                continue;
+            // 4. Swept collision over the whole tick: no tunnelling at any speed.
+            let mut hit: Option<(f32, usize)> = None;
+            for t in self.tanks.iter().filter(|t| t.alive && t.team != pr.team) {
+                if let Some(tt) = segment_circle_entry(pr.pos, pr.vel, t.pos, r) {
+                    if hit.is_none_or(|(bt, _)| tt < bt) {
+                        hit = Some((tt, t.id));
+                    }
+                }
             }
-            if self.config.arena.point_blocked(pr.pos) || pr.ttl <= 1 {
+            let wall = self.config.arena.segment_blocked_at(pr.pos, pr.vel);
+            pr.pos += pr.vel;
+            match (hit, wall) {
+                (Some((tt, ti)), w) if w.is_none_or(|wt| tt <= wt) => {
+                    self.tanks[ti].hp -= pr.damage;
+                    self.events.push(Event::Hit {
+                        target: ti,
+                        owner: pr.owner,
+                        damage: pr.damage,
+                    });
+                    continue;
+                }
+                (_, Some(_)) => continue,
+                _ => {}
+            }
+            if pr.ttl <= 1 {
                 continue;
             }
             pr.ttl -= 1;
@@ -701,6 +750,93 @@ mod tests {
         assert!(!m.tanks()[1].alive);
         assert!(m.step(&[fire]).is_some(), "stepping after end is a no-op");
         assert_eq!(m.tick(), out.ticks);
+    }
+
+    #[test]
+    fn fast_projectile_does_not_tunnel_through_tank() {
+        // 100 units/tick: from the muzzle at x=117 the shot's tick end points are
+        // x=217, 317, 417... Tank 1 at x=250 (radius 16) contains none of them, so an
+        // end-point-only check would let the shot pass straight through. Sweeping hits.
+        let mut cfg = empty_config(vec![
+            at(0, 100.0, 200.0, 0),
+            at(1, 250.0, 200.0, QUARTER_TURN),
+        ]);
+        cfg.arena = Arena::new(1000.0, 400.0);
+        cfg.params.projectile_speed = 100.0 * TICK_HZ as f32;
+        let muzzle = 100.0 + 16.0 + 1.0;
+        for k in 1..=8 {
+            let x: f32 = muzzle + 100.0 * k as f32;
+            assert!((x - 250.0).abs() >= 16.0, "end point {x} would already hit");
+        }
+        let mut m = Match::new(cfg, 1);
+        let fire = Action {
+            fire: true,
+            ..Default::default()
+        };
+        m.step(&[fire]); // spawns at the muzzle; its first move is next tick
+        assert_eq!(m.projectiles().len(), 1);
+        m.step(&[]); // 117 -> 217: short of the tank
+        assert!(m.events().is_empty());
+        assert_eq!(m.projectiles().len(), 1);
+        m.step(&[]); // 217 -> 317: passes through x = 250
+        assert!(
+            m.events().iter().any(|e| matches!(
+                e,
+                Event::Hit {
+                    target: 1,
+                    owner: 0,
+                    ..
+                }
+            )),
+            "events: {:?}",
+            m.events()
+        );
+        assert!(m.projectiles().is_empty());
+        assert_eq!(m.tanks()[1].hp, 100 - 20);
+    }
+
+    #[test]
+    fn fast_projectile_does_not_tunnel_through_obstacle() {
+        // Thin wall between the tanks. The shot's end points (217, 317) straddle it and
+        // 317 lies inside tank 1 (x = 320), so an end-point check would hit through the
+        // wall. Sweeping finds the wall first (t ~ 0.33) before the tank (t ~ 0.87).
+        let mut cfg = empty_config(vec![
+            at(0, 100.0, 200.0, 0),
+            at(1, 320.0, 200.0, QUARTER_TURN),
+        ]);
+        cfg.arena = cfg
+            .arena
+            .with_obstacle(Rect::new(Vec2::new(250.0, 100.0), Vec2::new(255.0, 300.0)));
+        cfg.params.projectile_speed = 100.0 * TICK_HZ as f32;
+        let mut m = Match::new(cfg, 1);
+        let fire = Action {
+            fire: true,
+            ..Default::default()
+        };
+        m.step(&[fire]);
+        for _ in 0..5 {
+            m.step(&[]);
+            assert!(!m.events().iter().any(|e| matches!(e, Event::Hit { .. })));
+        }
+        assert!(m.projectiles().is_empty());
+        assert_eq!(m.tanks()[1].hp, 100);
+    }
+
+    #[test]
+    fn movement_does_not_depend_on_tank_id_order() {
+        // The same head-on duel with the ids swapped ends in the same positions.
+        let left = at(0, 100.0, 200.0, 0);
+        let right = at(1, 300.0, 200.0, from_degrees(180));
+        let mut a = Match::new(empty_config(vec![left.clone(), right.clone()]), 1);
+        let mut b = Match::new(empty_config(vec![right, left]), 1);
+        for _ in 0..200 {
+            a.step(&[drive(), drive()]);
+            b.step(&[drive(), drive()]);
+        }
+        assert_eq!(a.tanks()[0].pos, b.tanks()[1].pos);
+        assert_eq!(a.tanks()[1].pos, b.tanks()[0].pos);
+        let gap = a.tanks()[1].pos.x - a.tanks()[0].pos.x;
+        assert!((32.0..40.0).contains(&gap), "gap={gap}");
     }
 
     #[test]
