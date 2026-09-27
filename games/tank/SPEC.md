@@ -1,6 +1,6 @@
 # Tank Arena — SPEC (draft for GATE-002)
 
-Units: engine units (u), ticks at 60 Hz, headings in BAU (65536 = 1 turn, 0 = +X, CCW, Y-up). Numbers are starting values, tuned later by playtest and self-play.
+Units: engine units (u), ticks at 60 Hz, headings in BAU (65536 = 1 turn, 0 = +X, CCW, Y-up). Numbers are starting values.
 
 ## Arena
 - 800 × 600, walled (`MatchConfig::duel()` layout): two pillars `Rect` (250,200)–(300,400) and (500,200)–(550,400). Pillars give cover and break sniper sight lines; the open middle lane rewards aggression.
@@ -8,24 +8,31 @@ Units: engine units (u), ticks at 60 Hz, headings in BAU (65536 = 1 turn, 0 = +X
   - **Duel (1v1):** (100,300) facing 0°; (700,300) facing 180°.
   - **2v2 / FFA-4:** corners (100,100), (700,100), (100,500), (700,500), facing the centre. 2v2 teams are left vs right; FFA gives each tank its own team.
 
-## Tanks (symmetric; policies differ only in behaviour)
-| Param (`TankParams`) | Value | Meaning |
+## Tanks
+One tank type with three adjustable stats (integer levels 1–5, default 3). **All tanks use the defaults in scripted matches unless a config says otherwise**; level 3 equals `TankParams::default()`.
+
+| Stat | Maps to (`TankParams`) | L1 | L2 | **L3 (default)** | L4 | L5 |
+|---|---|---|---|---|---|---|
+| Attack | projectile_damage | 12 | 16 | **20** | 24 | 28 |
+| Speed | max_speed (u/s) / turn_rate (BAU/tick) | 90 / 273 | 105 / 318 | **120 / 364** | 135 / 410 | 150 / 455 |
+| Defense | max_hp | 60 | 80 | **100** | 120 | 140 |
+
+Attack changes damage only (cooldown stays fixed, so fire rhythm stays readable). Speed scales hull move and turn together. Defense is plain HP, not damage reduction: simple integer maths, readable hits-to-kill (3–7 at default attack). Optional fair-loadout rule for custom configs: levels sum to 9.
+
+Fixed for everyone:
+| Param | Value | Meaning |
 |---|---|---|
 | radius | 16 | circle collider |
-| max_speed | 120 u/s | 2 u/tick, forward or reverse |
-| turn_rate | 364 BAU/tick | hull ~120°/s |
 | turret_turn_rate | 546 BAU/tick | turret ~180°/s, world-relative (hull turning does not drag it) |
-| max_hp | 100 | |
-| projectile_damage | 20 | 5 hits to kill |
-| fire_cooldown | 45 ticks | 0.75 s; fastest kill 180 ticks (3 s) |
-| projectile_speed | 360 u/s | 6 u/tick, 3× tank speed |
+| fire_cooldown | 45 ticks | 0.75 s; fastest default kill 180 ticks (3 s) |
+| projectile_speed | 360 u/s | 6 u/tick, 3× default tank speed |
 | projectile_ttl | 120 ticks | range 720 u |
 | projectile_spread | 256 BAU | ±1.4° |
 
-At 400 u a shell flies ~67 ticks while a target can move ~133 u: long shots need lead and can be dodged. No friendly fire. Tanks block each other and obstacles; walls clamp.
+At 400 u a shell flies ~67 ticks while a default tank can move ~133 u: long shots need lead and can be dodged. No friendly fire. Tanks block each other and obstacles; walls clamp.
 
 ## Match end
-Last team standing wins. Simultaneous wipe = draw. Time limit 7200 ticks (120 s); at the limit the team with more total HP wins, equal HP = draw (see Engine asks). Target: median match 30–60 s, < 10% draws.
+Last team standing wins. Simultaneous wipe = draw. Time limit 7200 ticks (120 s); reaching it is a draw. Target: median match 30–60 s, < 10% draws.
 
 ## Observation and Action (tank-only)
 Keep the engine's current shapes. **Observation:** `tick`; `me` (pos, vel, heading, turret, hp, max_hp, cooldown, radius); `enemies`/`allies` nearest-first (≤ 4; id, team, pos, rel, dist_sq, vel, heading, turret, hp); `projectiles` nearest-first (≤ 8; pos, rel, dist_sq, vel, owner_team); `walls` distances; `arena_size`; `obstacles`. Full information, no fog. Add `los: bool` per tank. **Action:** `throttle`, `turn`, `turret_turn` in [-1, 1], `fire: bool`.
@@ -38,7 +45,7 @@ Shared: target = `enemies[0]`. Lead aim point `L = rel + vel · (dist / 6)` (dis
 Intended triangle: kiter > charger > sniper > kiter. Acceptance: every pairing 55–80% over 200 mirrored seeds.
 
 ## What makes it fun to watch
-Visible shells you can see coming, and near-miss dodges. Three readable personalities: the rusher, the dancer, the camper. Pillars create peek-and-hide moments. Lead aim makes long hits feel earned. HP bars and a 2-minute cap keep drama; comebacks possible (5 hits).
+Visible shells you can see coming, and near-miss dodges. Three readable personalities: the rusher, the dancer, the camper. Pillars create peek-and-hide moments. Lead aim makes long hits feel earned. HP bars and a 2-minute cap keep up the drama; comebacks possible (5 hits).
 
 ## Known engine limits
 - Hits check only the projectile end point per tick. Safe while speed < 2·radius per tick (~1900 u/s); tunnelling appears beyond that.
@@ -48,6 +55,6 @@ Visible shells you can see coming, and near-miss dodges. Three readable personal
 ## Engine asks
 1. Swept projectile hits (segment vs circle/rect, dot products, no sqrt), so faster shells can't tunnel.
 2. `Arena::segment_clear(a, b)` line-of-sight helper, and `los` on `TankObs`.
-3. HP tiebreak at the tick limit (`EndReason::HpTiebreak`, optional in `MatchConfig`).
-4. Movement order fairness: alternate id order by tick parity (or resolve moves simultaneously).
-5. Optional stationary accuracy: spread 128 BAU when still, 256 when moving (gives the sniper an identity).
+3. Movement order fairness: alternate id order by tick parity (or resolve moves simultaneously).
+4. Optional stationary accuracy: spread 128 BAU when still, 256 when moving (gives the sniper an identity).
+5. Per-tank stats: optional `TankSpawn.params: Option<TankParams>` (falls back to `MatchConfig.params`); sim uses each tank's speed, turn rate, HP and damage (radius stays shared). Add `max_hp` to `TankObs`. Bump `REPLAY_FORMAT`.
