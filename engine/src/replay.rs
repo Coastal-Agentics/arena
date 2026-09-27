@@ -7,13 +7,17 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 
 /// Bumped whenever the replay format or sim semantics change incompatibly.
-pub const REPLAY_FORMAT: u32 = 1;
+/// v2: swept projectile collision + simultaneous movement (v1 replays no longer
+/// reproduce), seed written as a decimal string (numbers still accepted on read).
+pub const REPLAY_FORMAT: u32 = 2;
 
 /// A recorded match.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Replay {
     pub format: u32,
     pub engine_version: String,
+    /// Serialized as a decimal string (JS-safe); a JSON number is also accepted.
+    #[serde(with = "crate::json_u64")]
     pub seed: u64,
     pub config: MatchConfig,
     /// One entry per tick; each is indexed by tank id.
