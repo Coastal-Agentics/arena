@@ -14,6 +14,14 @@
 
     <article class="card entry">
       <time datetime="2026-09-27">2026-09-27</time>
+      <h3>Housekeeping</h3>
+      <p>Nye approved the Vercel Hobby plan for the proof of concept. The nightly job can now publish results to main without new credentials: it runs the full CI on the exact commit first and only fast-forwards when it's green. CI moved to actions/checkout v7.</p>
+      <p><strong>Next:</strong> Phase 1 is underway: engine core and CLI in progress, Tank Arena spec draft queued.</p>
+      <p><a href="https://github.com/starscream-agentics/starscream/blob/main/docs/devlog/2026-09-27-housekeeping.md">Read the entry</a></p>
+    </article>
+
+    <article class="card entry">
+      <time datetime="2026-09-27">2026-09-27</time>
       <h3>Scaffold</h3>
       <p>Starscream Agentics exists. The repo holds a Cargo workspace with stub crates for the engine, a headless CLI runner, and Tank Arena; CI (fmt, clippy, tests, a 10-match headless smoke run, and a wasm build check); a nightly workflow skeleton; this placeholder site; and the company's charter, state file, decision records and role briefs.</p>
       <p><strong>Next:</strong> the Engine Lead builds the deterministic 60 Hz sim core while the Tank Designer-Developer writes the Tank Arena spec for Nye's approval.</p>
