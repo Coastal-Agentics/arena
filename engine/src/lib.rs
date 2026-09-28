@@ -3,17 +3,21 @@
 //! * Fixed 60 Hz step ([`TICK_HZ`], [`DT`]); no wall clock anywhere.
 //! * All randomness from a seeded `ChaCha8Rng` owned by the [`Match`]; policies bring their own.
 //! * Headings are integer binary angle units with a compile-time sin/cos table ([`angle`]);
-//!   collision uses squared distances, so the sim core calls no `sin`/`cos`/`atan2`/`sqrt`.
+//!   the sim core calls no `sin`/`cos`/`atan2`. Overlap tests use squared distances; the
+//!   swept projectile test uses `sqrt`, which IEEE-754 requires to be correctly rounded.
 //! * Same seed + same actions → bit-identical state on the same platform ([`Match::state_hash`]).
 //! * No OS/threads/time dependencies: builds for `wasm32-unknown-unknown`.
 //!
 //! Extension points for rule crates: [`TankParams`] (speeds, HP, cooldown, projectile
 //! stats), [`MatchConfig`] (arena, obstacles, spawns, tick limit), and per-step
-//! [`Event`]s (fired/hit/destroyed). Projectiles are generic straight-line shots.
+//! [`Event`]s (fired/hit/destroyed). Projectiles are generic straight-line shots with
+//! swept (segment) collision, so fast shots cannot tunnel through tanks or obstacles.
+//! Seeds in JSON are decimal strings ([`json_u64`]) so JavaScript reads them exactly.
 
 pub mod angle;
 pub mod arena;
 pub mod bots;
+pub mod json_u64;
 pub mod policy;
 pub mod replay;
 pub mod sim;
@@ -86,6 +90,25 @@ mod tests {
             assert_eq!(back.tanks(), m.tanks());
             assert_eq!(back.projectiles(), m.projectiles());
         }
+    }
+
+    #[test]
+    fn replay_seed_is_a_string_and_numbers_still_load() {
+        let m = play(u64::MAX);
+        let json = m.replay().to_json();
+        assert!(json.contains(r#""seed":"18446744073709551615""#), "{json}");
+        Replay::from_json(&json)
+            .unwrap()
+            .verify()
+            .expect("reproduces");
+        // Older writers (and hand-written JSON) used a plain number: still accepted.
+        let numeric = json.replace(
+            r#""seed":"18446744073709551615""#,
+            r#""seed":18446744073709551615"#,
+        );
+        let r = Replay::from_json(&numeric).expect("numeric seed parses");
+        assert_eq!(r.seed, u64::MAX);
+        r.verify().expect("reproduces");
     }
 
     #[test]
