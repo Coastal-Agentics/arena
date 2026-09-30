@@ -46,9 +46,45 @@ jobs:
             git checkout -B "$DATA_BRANCH" origin/main
           fi
 
-      - name: Self-play evolution (placeholder)
-        run: echo "self-play not yet implemented"
-        # Phase 3: run evolution headless; write results to web/data/ and a field note to docs/fieldnotes/.
+      # GATE-003 M2: nightly evolution (docs/plans/GATE-003-nightly-spec.md). Publishes to
+      # nightly-data only; the job never promotes a champion. A champion above 70% vs Gen 0
+      # is HELD (status "experimental") and the CoS tells Nye (GATE-003 Resolved Q2).
+      - name: Install toolchain (from rust-toolchain.toml)
+        run: rustup toolchain install && rustup show
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Self-play evolution (GATE-003 M1)
+        run: |
+          set -euo pipefail
+          OUT=web/data/evolution
+          mkdir -p "$OUT"
+          RESUME=""
+          if [ -f "$OUT/state.json" ]; then RESUME="--resume"; fi
+          cargo run -p tank --release --locked --example evolve -- run \
+            --out "$OUT" --seed 1 --generations 100 --minutes 30 \
+            --threads "$(nproc)" --commit "$(git rev-parse HEAD)" $RESUME
+
+      - name: Re-verify the champion by hash
+        run: cargo run -p tank --release --locked --example evolve -- verify --out web/data/evolution --threads "$(nproc)"
+
+      - name: Size caps and promotion status
+        run: |
+          set -euo pipefail
+          OUT=web/data/evolution
+          total=$(cat "$OUT"/*.json | wc -c)
+          if [ "$total" -gt 5000000 ]; then echo "::error::$OUT is $total B (cap 5 MB)"; exit 1; fi
+          git add -A web/data
+          changed=$(git diff --cached --name-only --diff-filter=d -- web/data | xargs -r cat | wc -c)
+          if [ "$changed" -gt 200000 ]; then echo "::error::nightly change is $changed B (cap 200 KB)"; exit 1; fi
+          status=$(jq -r .held_out.status "$OUT/champion.json")
+          label=$(jq -r .label "$OUT/champion.json")
+          gen=$(jq -r .generation "$OUT/champion.json")
+          rate=$(jq -r .held_out.win_rate "$OUT/champion.json")
+          echo "Gen $gen champion $label: $rate vs Gen 0 on 1,000 held-out seeds, status $status" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$status" = "experimental" ]; then
+            echo "::warning::Gen $gen ($label) wins $rate vs the scripted field (> 70%): HELD from promotion, labeled experimental. CoS: tell Nye."
+          fi
 
       - name: Probe output
         if: ${{ inputs.probe }}
