@@ -116,7 +116,8 @@ export class WasmMatch {
         wasm.__wbg_wasmmatch_free(ptr, 0);
     }
     /**
-     * Final-state hash as 16 hex digits (matches `engine-cli` output).
+     * Current state hash as 16 hex digits; at the end of a Chaser vs Wanderer match
+     * it equals `engine-cli`'s `hash` for the same seed.
      * @returns {string}
      */
     stateHash() {
@@ -164,6 +165,8 @@ export class WasmMatch {
         }
     }
     /**
+     * A duel: `seed` as a decimal string, then two bot names (`Chaser` or `Wanderer`,
+     * case-insensitive). Bad input throws a JS `Error`.
      * @param {string} seed
      * @param {string} team0
      * @param {string} team1
@@ -193,6 +196,7 @@ export class WasmMatch {
         return ret !== 0;
     }
     /**
+     * Ticks simulated so far.
      * @returns {number}
      */
     tick() {
@@ -200,6 +204,7 @@ export class WasmMatch {
         return ret >>> 0;
     }
     /**
+     * True once the match has ended.
      * @returns {boolean}
      */
     isOver() {

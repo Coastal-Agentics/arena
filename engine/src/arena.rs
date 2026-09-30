@@ -1,6 +1,9 @@
 //! Arena geometry and collision primitives. Overlap tests use squared distances; the
 //! swept segment tests use one IEEE-754 `sqrt` (correctly rounded on every target, so
 //! still bit-deterministic) to find the entry time.
+//!
+//! Coordinates are world units in a Y-up frame: the arena spans `(0, 0)` (bottom-left)
+//! to [`Arena::size`] (top-right).
 
 use glam::Vec2;
 use serde::{Deserialize, Serialize};
@@ -8,11 +11,21 @@ use serde::{Deserialize, Serialize};
 /// Axis-aligned rectangle given by its min and max corners.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Rect {
+    /// Bottom-left corner (smallest x and y).
     pub min: Vec2,
+    /// Top-right corner (largest x and y).
     pub max: Vec2,
 }
 
 impl Rect {
+    /// Rectangle from its `min` and `max` corners (not reordered or validated).
+    ///
+    /// ```
+    /// use engine::{Rect, Vec2};
+    /// let r = Rect::new(Vec2::new(10.0, 10.0), Vec2::new(20.0, 20.0));
+    /// assert!(r.contains(Vec2::new(10.0, 15.0))); // edges count as inside
+    /// assert!(!r.contains(Vec2::new(21.0, 15.0)));
+    /// ```
     pub fn new(min: Vec2, max: Vec2) -> Self {
         Self { min, max }
     }
@@ -62,12 +75,25 @@ impl Rect {
 /// Bounded rectangular arena spanning `(0,0)` to `size`, with optional obstacles.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Arena {
+    /// Width (`x`) and height (`y`) in world units.
     pub size: Vec2,
+    /// Solid axis-aligned obstacles. Tanks cannot enter them; projectiles die on them.
+    /// Defaults to empty when missing from JSON.
     #[serde(default)]
     pub obstacles: Vec<Rect>,
 }
 
 impl Arena {
+    /// Empty arena of the given width and height.
+    ///
+    /// ```
+    /// use engine::{Arena, Rect, Vec2};
+    /// let a = Arena::new(100.0, 50.0)
+    ///     .with_obstacle(Rect::new(Vec2::new(40.0, 0.0), Vec2::new(60.0, 20.0)));
+    /// assert_eq!(a.obstacles.len(), 1);
+    /// assert!(a.circle_in_bounds(Vec2::new(20.0, 25.0), 10.0));
+    /// assert_eq!(a.clamp_circle(Vec2::new(-5.0, 60.0), 10.0), Vec2::new(10.0, 40.0));
+    /// ```
     pub fn new(width: f32, height: f32) -> Self {
         Self {
             size: Vec2::new(width, height),
@@ -75,6 +101,7 @@ impl Arena {
         }
     }
 
+    /// Builder: add an obstacle and return the arena.
     pub fn with_obstacle(mut self, r: Rect) -> Self {
         self.obstacles.push(r);
         self

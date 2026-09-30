@@ -1,5 +1,17 @@
 //! Replays: config + seed + per-tick actions. Playback re-simulates, so a replay is
 //! both a viewer input and a determinism check (the final state hash must match).
+//!
+//! ```
+//! use engine::bots::{Chaser, Wanderer};
+//! use engine::{Match, MatchConfig, Replay};
+//!
+//! let mut m = Match::new(MatchConfig::duel(), 7);
+//! m.run(&mut [&mut Chaser, &mut Wanderer::new(7 ^ 0x5eed)]);
+//! let json = m.replay().to_json();
+//! let replay = Replay::from_json(&json).expect("parses");
+//! let again = replay.verify().expect("reproduces");
+//! assert_eq!(again.state_hash(), m.state_hash());
+//! ```
 
 use crate::policy::Action;
 use crate::sim::{Match, MatchConfig, Outcome};
@@ -14,11 +26,14 @@ pub const REPLAY_FORMAT: u32 = 2;
 /// A recorded match.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Replay {
+    /// [`REPLAY_FORMAT`] of the writer. [`Replay::from_json`] rejects any other value.
     pub format: u32,
+    /// `engine` crate version of the writer (informational; not checked on load).
     pub engine_version: String,
     /// Serialized as a decimal string (JS-safe); a JSON number is also accepted.
     #[serde(with = "crate::json_u64")]
     pub seed: u64,
+    /// The full match config (arena, spawns, tank params, tick limit).
     pub config: MatchConfig,
     /// One entry per tick; each is indexed by tank id.
     pub actions: Vec<Vec<Action>>,
@@ -31,14 +46,22 @@ pub struct Replay {
 /// Why a replay failed to load or reproduce.
 #[derive(Debug, PartialEq)]
 pub enum ReplayError {
+    /// The JSON did not parse into a [`Replay`] (message from `serde_json`).
     Json(String),
+    /// The `format` field is not [`REPLAY_FORMAT`]; carries the value found.
     Format(u32),
+    /// Re-simulation ended with a different outcome than the recorded one.
     OutcomeMismatch {
+        /// Recorded outcome.
         expected: Option<Outcome>,
+        /// Outcome after re-simulating.
         got: Option<Outcome>,
     },
+    /// Re-simulation ended in a different state than the recorded `final_hash`.
     HashMismatch {
+        /// Recorded `final_hash`.
         expected: String,
+        /// Hash after re-simulating (16 lowercase hex digits).
         got: String,
     },
 }
@@ -61,6 +84,8 @@ impl fmt::Display for ReplayError {
 impl std::error::Error for ReplayError {}
 
 impl Replay {
+    /// Snapshot a match (finished or not): its config, seed, action history, outcome
+    /// and current state hash, tagged with [`REPLAY_FORMAT`] and the engine version.
     pub fn from_match(m: &Match) -> Self {
         Self {
             format: REPLAY_FORMAT,
@@ -73,10 +98,13 @@ impl Replay {
         }
     }
 
+    /// Serialize to compact JSON (see `docs/engine/replay-format.md`).
     pub fn to_json(&self) -> String {
         serde_json::to_string(self).expect("replay serializes")
     }
 
+    /// Parse JSON and check `format == REPLAY_FORMAT`. Does not re-simulate; call
+    /// [`Replay::verify`] for that.
     pub fn from_json(s: &str) -> Result<Self, ReplayError> {
         let r: Replay = serde_json::from_str(s).map_err(|e| ReplayError::Json(e.to_string()))?;
         if r.format != REPLAY_FORMAT {
@@ -85,7 +113,8 @@ impl Replay {
         Ok(r)
     }
 
-    /// Re-simulate the whole replay and return the resulting match.
+    /// Re-simulate the whole replay and return the resulting match. Does not compare
+    /// anything; see [`Replay::verify`].
     pub fn play(&self) -> Match {
         let mut m = Match::new(self.config.clone(), self.seed);
         for a in &self.actions {
@@ -124,6 +153,7 @@ pub struct ReplayPlayer {
 }
 
 impl ReplayPlayer {
+    /// Start playback at tick 0 (the match is created from the replay's config and seed).
     pub fn new(replay: Replay) -> Self {
         let state = Match::new(replay.config.clone(), replay.seed);
         Self {
@@ -145,10 +175,12 @@ impl ReplayPlayer {
         }
     }
 
+    /// The re-simulated match as of the last applied tick.
     pub fn state(&self) -> &Match {
         &self.state
     }
 
+    /// True once every recorded tick has been applied.
     pub fn is_finished(&self) -> bool {
         self.cursor >= self.replay.actions.len()
     }
