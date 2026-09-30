@@ -1,4 +1,4 @@
-//! Tank Arena game rules on top of the Starscream engine.
+//! Tank Arena game rules on top of the Coastal Agentics Arena engine.
 //!
 //! Phase 0 stub. The Tank Designer-Developer writes `SPEC.md` first (Phase 1),
 //! then implements rules once Nye approves the spec.
