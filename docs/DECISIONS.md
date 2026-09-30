@@ -71,7 +71,7 @@ Short ADRs. Status is one of: Accepted, Proposed, Open, Superseded.
 **Why:** Coastal Agentics trains robots; the same core should later carry other bodies. Keeping game logic out of the core keeps it small and reusable.
 **Correction (2026-09-30):** The code does not match this yet. Today the tank specifics live in `engine/`: the `Tank` and `Projectile` entities, `TankParams`, `TankSpawn`, `MatchConfig::duel` and the tank step rules (driving, turret, firing, hits) in `sim.rs`; the tank `Observation`/`Action` pair, with the `Policy` trait typed on them, in `policy.rs`; and the placeholder policies `Chaser` and `Wanderer` in `bots.rs`. `games/tank` is a stub (`GAME_NAME`, `tick_hz()`) waiting on the Tank Arena spec (GATE-002). See `docs/engine/`.
 **Future work:** Move the tank-specific code from `engine/` into `games/tank` so `engine/` is the generic core this ADR describes. Not scheduled; no code has moved.
-**Amendment proposed (2026-09-30):** ADR-014 (Proposed) plans this move in two phases (bots first, then a generic core with a `Rules` trait) and puts the transition re-exports in `games/tank`, never in `engine`.
+**Amended by ADR-014 (2026-09-30):** the move is planned in two phases (bots first, then a generic core with a `Rules` trait). Only the generic core inside `engine/` (B1) is approved; moving the tank rules into `games/tank` is deferred until a second Rust game exists. Transition re-exports, if ever needed, live in `games/tank`, never in `engine`.
 
 ## ADR-010 — The Rust core is a candidate browser viewer for Saltmarsh
 **Status:** Open (candidate, 2026-09-30)
@@ -94,8 +94,8 @@ Short ADRs. Status is one of: Accepted, Proposed, Open, Superseded.
 **Decision:** The `starscream-agentics` GitHub org is **not** renamed. It stays the home for simulations; this repo and its site remain at `https://starscream-agentics.github.io/arena/`. A separate `coastal-agentics` org will host the company site at `https://coastal-agentics.github.io` later (not scheduled).
 **Consequences:** No URL change for the arena site, the repo or `nightly-data` links. The "rename org" task and blocker are closed.
 
-## ADR-014 — Phase B: a generic sim core, with the tank rules in `games/tank`
-**Status:** Proposed (2026-09-30; drafted by Shockwave for Soundwave and Blitzwing). Amends ADR-009: it plans the "Future work" move in two phases and fixes where the transition re-exports live.
+## ADR-014 — Phase B: a generic sim core (moving the tank rules to `games/tank` deferred)
+**Status:** Accepted (2026-09-30; CoS decision on internal architecture, no founder gate). Amends ADR-009: it plans the "Future work" move in two phases and fixes where any transition re-exports live. **Only step B1 is approved**; B2–B5 are deferred (see Sequencing).
 **Context:** Blitzwing proposed moving the tank code out of `engine/` in two phases. **Phase A** moves the placeholder bots: Blitzwing copies `Chaser` and `Wanderer` into `games/tank` with hash-pinned tests, then an engine PR switches `engine-cli` and `engine-wasm` to those copies and deletes `engine::bots`. **Phase B**, this ADR, makes the sim core generic. What is tank-specific in `engine/` on `main` (`d4db1c5`, which includes the #16 API):
 - `sim.rs`:
   - config types: `TankParams` (including `projectile_spread_still`), `TankSpawn` (including `params: Option<TankParams>`), and `MatchConfig` with `duel()` and `tank_params()`;
@@ -110,7 +110,12 @@ Callers today:
 - `engine-cli` and `engine-wasm` import `engine::{Match, MatchConfig, …}` and `engine::bots`.
 - On the unmerged `tank/rules-v1` branch (no PR yet), `games/tank` builds loadouts, policies and match specs on `engine::{Match, MatchConfig, TankParams, TankSpawn, Observation, TankObs, Action, Policy, …}`, and `engine-wasm` gains a dependency on `tank`.
 
-**Decision (proposed):** `engine` keeps everything that makes a match deterministic and replayable, and knows nothing about tanks. `games/tank` (crate `tank`) implements the tank rules against a trait. Trait sketch (**a sketch, not code on `main`**; names and signatures are open):
+**Decision:**
+- **Approved now: B1 only.** `engine` gets a generic core: a `Rules` trait and `Match`, `Policy` and `Replay` generic over it. The tank rules are implemented as `TankRules` **still inside `engine`**, behind the same public names and paths.
+- **Deferred: B2–B5**, the move of the tank rules into `games/tank`. They wait until a second Rust game actually exists. The next project, Saltmarsh, is Python/MuJoCo (ADR-010), so B2–B5 may never be needed.
+- **End state, if B2–B5 go ahead:** `engine` keeps everything that makes a match deterministic and replayable and knows nothing about tanks, while `games/tank` (crate `tank`) implements the tank rules against the trait.
+
+Trait sketch (**a sketch, not code on `main`**; B1 settles the exact signatures):
 ```rust
 // engine (sketch)
 pub trait Rules {
@@ -141,15 +146,17 @@ pub struct Replay<R: Rules> { /* format, engine_version, seed, config: R::Config
   - `Replay<R>`, `ReplayPlayer<R>`, `verify`, `setup_hash` (FNV-1a over the seed's LE bytes and `serde_json` of `R::Config`), `REPLAY_FORMAT`;
   - `Outcome`/`EndReason` (team winner, reasons);
   - `angle`, `arena`, `json_u64`.
-- **Moves to `games/tank`:**
-  - `TankRules`, and the config types `TankParams`, `TankSpawn` and `MatchConfig` (renaming it is an open question);
+- **In B1, stays in `engine`** (as `TankRules` and the existing types), and **would move to `games/tank` only in the deferred B2–B5:**
+  - `TankRules`, and the config types `TankParams`, `TankSpawn` and `MatchConfig` (names kept);
   - the entities and events: `Tank`, `Projectile`, `Event`;
   - the step, observe and end rules;
   - `Action`, `Observation` and the `*Obs` types;
-  - the bots (already moved by Phase A), and the tank tests, including the hash pins.
+  - the bots (moved separately by Phase A), and the tank tests, including the hash pins.
+- **Names are kept** (`MatchConfig`, `Match`, `Observation`, `Action`, and the rest) to keep churn down.
+- **B1 keeps every existing path compiling.** For example, `pub type Match = generic::Match<TankRules>` (the module name is not settled), and a default type parameter on the trait, `pub trait Policy<R: Rules = TankRules>`, so `impl Policy for Chaser`, `&mut dyn Policy` and the closure impl keep working. The default-parameter pattern was checked in a scratch crate on 2026-09-30. B1 settles the exact mechanism.
 - **Generics for rules, trait objects for policies**, as today: `Match<R>` is monomorphized with one instantiation (`TankRules`), so there is static dispatch and no expected size or speed cost. That is expected, not measured: B1 below must measure both. Policies stay `&mut dyn Policy<R>`. A `dyn Rules` is not an option with associated types unless the types are erased (e.g. JSON), which would cost speed and type safety.
 
-Dependency graph, today (`main`) and after Phase B:
+Dependency graph, today (`main`) and after the deferred B2–B5. B1 changes only `engine`'s internals, so after B1 the graph is still the "Today" one:
 ```mermaid
 flowchart LR
   subgraph today["Today (main)"]
@@ -159,7 +166,7 @@ flowchart LR
     w1[engine-wasm] --> e1
     p1[web/pkg + web/arena.js] -.->|built from| w1
   end
-  subgraph after["After Phase B"]
+  subgraph after["After B2-B5 (deferred)"]
     e2[engine: generic core, Rules trait]
     t2[games/tank: TankRules, tank types, bots, policies, re-exports] --> e2
     c2[engine-cli] --> t2
@@ -171,13 +178,13 @@ flowchart LR
 ```
 (After Phase A and rules-v1, and before Phase B, `engine-cli` and `engine-wasm` already depend on `tank` as well as `engine`.)
 
-**Where the transition re-exports live:** `engine` **cannot** re-export the tank types during the transition, as Blitzwing's draft had it. `tank` depends on `engine`, so `engine` depending on `tank` is a cycle. Cargo rejects it outright, even as an optional dependency ("cyclic package dependency"; checked with two scratch crates on 2026-09-30). Every re-export points "down" the graph. Two options:
+**Where transition re-exports would live** (only relevant if B2–B5 go ahead; B1 needs none): `engine` **cannot** re-export the tank types during the transition, as Blitzwing's draft had it. `tank` depends on `engine`, so `engine` depending on `tank` is a cycle. Cargo rejects it outright, even as an optional dependency ("cyclic package dependency"; checked with two scratch crates on 2026-09-30). Every re-export points "down" the graph. Two options:
 1. **In `games/tank` (recommended).** `tank` re-exports the tank types while they still live in `engine` (`pub use engine::{Match, MatchConfig, TankParams, Observation, …}`). Callers switch their imports to `tank::…`, and then the types move into `tank` behind the same paths, so callers don't change again. Later, `pub type Match = engine::Match<TankRules>` keeps `tank::Match` as the name callers use.
 2. **In a thin facade crate** (e.g. `arena-tank`) that depends on `engine` and `tank` and re-exports both.
 
 Recommendation: option 1. After Phase A, `engine-cli` and `engine-wasm` already depend on `tank`, and `tank` is where ADR-009 says the tank types belong. So its re-exports are the final paths, not a temporary shim, and callers change imports exactly once. A facade adds a crate, a graph node and a second import switch when it is removed, and saves nothing: callers must leave `engine::` paths either way. Cost: `tank` carries `pub use engine::…` lines for a while, in Blitzwing's crate.
 
-**Determinism and compatibility (acceptance for every Phase B PR):**
+**Determinism and compatibility (acceptance for B1, and for any later Phase B PR):**
 - **Hashes byte-identical.** `documented_hashes_are_unchanged` stays green with the same constants: seed 42 (tick 447, `03722b5e86d38fac`), 7 (276, `51234f61b02b5784`, setup `0b24ce74f45e9a27`), 101 (274, `baf3fcb2cbb76c06`, setup `9cfd58498bbe3f85`) and u64::MAX (532, `f1d983e88de5d020`). When the tank tests move, the constants move unchanged.
 - **Smoke run.** `engine-cli --matches 10 --seed 42` output and the 200-seed run (seeds 0–199) are byte-identical to the previous `main`.
 - **`web/pkg`.** Rebuilt in every PR that touches `engine`, `engine-wasm` or `tank`; CI's drift check passes. The wasm bytes will change (code layout); the behaviour must not. Headless Chrome must give the native ticks and hashes for seeds 0, 7, 42, 43, 1234 and u64::MAX, plus a per-tank loadout.
@@ -187,34 +194,40 @@ Recommendation: option 1. After Phase A, `engine-cli` and `engine-wasm` already 
   - `skip_serializing_if` on `params` and `projectile_spread_still` kept.
 
   Serde doesn't write type names or paths, so moving or renaming the Rust type doesn't change the JSON. Any field change would change every setup hash.
-- **`REPLAY_FORMAT` stays 4 and `setup_hash` is unchanged**, because Phase B changes neither the file shape nor the sim semantics. Formats 2 and 3 keep loading, and `FieldNotInFormat` keeps working through `Rules::check_format`. A bump comes only with a real shape change. The likely one: a `game` field naming the rules, once a second `Rules` implementation exists (format 5, reading older files as tank). Not in Phase B.
+- **`REPLAY_FORMAT` stays 4 and `setup_hash` is unchanged**, because Phase B changes neither the file shape nor the sim semantics. Formats 2 and 3 keep loading, and `FieldNotInFormat` keeps working through `Rules::check_format`. A bump comes only with a real shape change.
+- **Known limit, accepted:** replays don't record which game they belong to; every replay is a Tank Arena replay. Revisit only if a second game exists. That would be format 5, adding a `game` field and reading older files as tank.
+- **`Outcome`/`EndReason` stay generic in `engine`** (team winner; `last_standing`, `all_destroyed`, `tick_limit`), so the replay's `outcome` doesn't change.
 
-**Sequencing** (after Phase A, #16 (merged as `d4db1c5`) and rules-v1 merge; one PR at a time; `main` green after each):
-1. **B1, Shockwave (`engine`):** add `Rules`, `Match<R>`, `Policy<R>`, `Replay<R>` and a small test-only rules impl. Implement `TankRules` **inside `engine` for now**, with `pub type Match = generic::Match<TankRules>` (module name open) and the same public names. No caller changes. Hash pins, smoke run and `web/pkg` checks as above; report the wasm size and native speed against `main`.
-2. **B2, Blitzwing (`games/tank`):** add the `tank` re-exports (option 1) and switch `tank`'s own code to them. No behaviour change.
-3. **B3, Shockwave (`engine-cli`, `engine-wasm`):** switch imports from `engine::` tank paths to `tank::`, and rebuild `web/pkg`.
-4. **B4, joint (`engine` and `games/tank`):** move `TankRules`, the tank types and the tank tests from `engine` into `tank`, replacing the re-exports with the real definitions; delete them from `engine`. Callers don't change. Both owners review.
-5. **B5, Shockwave (docs):** update `docs/engine/`, and mark ADR-009 and ADR-014 as implemented.
+**Sequencing** (one PR at a time; `main` green after each). **Only B1 is approved.** It starts after rules-v1 merges (#16 already merged as `d4db1c5`). Phase A is a separate track and can land before or after B1, because B1 keeps `engine::Policy` and `engine::Observation` working.
+1. **B1, Shockwave (`engine`), approved:** add `Rules`, `Match<R>`, `Policy<R>`, `Replay<R>` and a small test-only rules impl. Implement `TankRules` **inside `engine`**, keeping the existing public names and paths. No caller changes. Hash pins, smoke run and `web/pkg` checks as above; report the wasm size and native speed against `main`.
+2. **B2–B5: deferred** until a second Rust game exists (may never happen: Saltmarsh is Python/MuJoCo). If they go ahead:
+   - **B2, Blitzwing (`games/tank`):** add the `tank` re-exports (option 1) and switch `tank`'s own code to them. No behaviour change.
+   - **B3, Shockwave (`engine-cli`, `engine-wasm`):** switch imports from `engine::` tank paths to `tank::`, and rebuild `web/pkg`.
+   - **B4, Blitzwing (`games/tank`, removing the code from `engine`):** move `TankRules`, the tank types and the tank tests from `engine` into `tank`, replacing the re-exports with the real definitions. Callers don't change. Shockwave reviews the `engine` side.
+   - **B5, Shockwave (docs):** update `docs/engine/`, and mark ADR-009's move as done.
+
+**Ownership:** Shockwave (Engine Lead) owns the generic core and the `Rules` trait. Blitzwing owns the tank step rules once they live in `games/tank` (after B4). Whoever owns the rules does the moves.
 
 **Risks:**
 - **A silent determinism break.** Moving the step code can reorder float operations or RNG draws. Mitigation: move code verbatim, run the checks above in every PR, and put no behaviour changes in B1–B4.
 - **A bigger wasm or a slower CLI** from generic code. Mitigation: B1 measures both against `main`.
 - **Replay coupling.** `REPLAY_FORMAT` is one engine-level number while some fields it gates live in the tank config, so a tank config change needs an engine format bump. `Rules::check_format` keeps that visible.
-- **Churn for Blitzwing** while rules-v1 and the Customize tab are in flight. Mitigation: start after rules-v1 merges; B2 is small.
+- **Churn for Blitzwing** while the Customize tab is in flight. Mitigation: B1 starts only after rules-v1 merges and changes no caller.
+- **A half-done move.** With B2–B5 deferred, the tank rules stay in `engine/` indefinitely behind a generic core, and ADR-009's end state stays unmet. Accepted: B1 alone still separates the core from the rules.
 - **Scope creep** into a second game. Out of scope: Phase B adds no second `Rules`.
 
 **Alternatives considered:**
 - **Leave it as is** (ADR-009's correction stands). No risk, but every tank change stays an engine PR, the core can't carry another body (ADR-010), and ADR-009 stays unmet.
-- **Generic core only** (B1 alone, `TankRules` stays in `engine`). Most of the design win and low risk, but ownership doesn't change. B1 is a safe stopping point if B4 is deferred.
+- **Generic core only** (B1 alone, `TankRules` stays in `engine`). Most of the design win and low risk, but ownership doesn't change. **Chosen for now.**
 - **Move the tank code wholesale without a generic core** (each game owns its own `Match` and replay). Simplest move, but it duplicates the tick loop, RNG ownership, hashing and replay verification per game.
 - **`dyn Rules` instead of generics.** Rejected above.
 - **A facade crate** for re-exports (option 2). Not recommended.
 - **Re-exports in `engine`.** Impossible (the crate cycle).
 
-**Open questions:**
-1. **Soundwave:** does Phase B need a founder gate, or is it CoS-level? And when: straight after rules-v1, or after the Customize tab ships?
-2. **Blitzwing:** who authors B4 (the physical move into `games/tank`)? And afterwards, who owns the tank step rules (`games/tank`) versus the tick loop (`engine`)?
-3. **Both:** keep the names `MatchConfig`, `Match`, `Observation` and `Action` in `tank`, or rename (e.g. `TankConfig`)? The JSON doesn't change either way.
-4. **Both:** should `Outcome`/`EndReason` (team winner) stay generic in `engine`, or become an associated type? Keeping them avoids any replay change.
-5. **Both:** is B1 alone enough for now, deferring B4 until a second game (e.g. Saltmarsh, ADR-010) needs the core?
-6. **Soundwave:** is it acceptable that a replay doesn't name its game until a second `Rules` exists (then format 5)?
+**Resolved (Soundwave, 2026-09-30):**
+1. **Gate and timing:** no founder gate (CoS decision on internal architecture). Work starts after rules-v1 merges, not after the Customize tab.
+2. **Ownership:** whoever owns the rules does the moves. Blitzwing does B4 and owns the tank step rules afterwards; Shockwave (Engine Lead) owns the generic core and the `Rules` trait.
+3. **Names:** keep the existing type names (`MatchConfig`, `Match`, `Observation`, `Action`) to minimize churn.
+4. **`Outcome`/`EndReason`:** stay generic in `engine`.
+5. **Scope:** only B1 is approved (the generic core, with the tank rules still in `engine`). B2–B5 are deferred until a second Rust game actually exists. The next project, Saltmarsh, is Python/MuJoCo, so they may never be needed.
+6. **Replays and games:** replays don't record which game they belong to. Accepted as a known limit; revisit (format 5) only if a second game exists.

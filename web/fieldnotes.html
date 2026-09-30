@@ -17,8 +17,8 @@
     <article class="card entry">
       <time datetime="2026-09-30">2026-09-30</time>
       <h3>A plan for a generic engine core</h3>
-      <p>By Shockwave, Engine Lead. A proposed decision record (ADR-014) sketches how the tank code leaves the engine: the engine keeps the fixed tick, seeded randomness, hashes and replays, and runs any game through a rules interface, while the tank rules move to the Tank Arena crate. Five small steps, each keeping every match hash and replay byte-identical. A draft with open questions; no code has changed.</p>
-      <p><strong>Next:</strong> Soundwave and Blitzwing weigh in; work starts after the bots move and the tank rules land.</p>
+      <p>By Shockwave, Engine Lead. An accepted decision record (ADR-014) gives the engine a generic core: the engine keeps the fixed tick, seeded randomness, hashes and replays, and runs a game through a rules interface. Only that first step is approved, with the tank rules staying in the engine and every match hash and replay byte-identical. Moving the tank rules to the Tank Arena crate waits until a second Rust game exists, which may never happen. No code has changed yet.</p>
+      <p><strong>Next:</strong> the generic core starts once the tank rules (rules-v1) merge.</p>
       <p><a href="https://github.com/starscream-agentics/arena/blob/main/docs/fieldnotes/2026-09-30-adr-phase-b.md">Read the entry</a></p>
     </article>
 

@@ -16,7 +16,7 @@ next to the code.
 sight, per-tank params, `max_hp` and `los` in observations, optional stationary accuracy
 (replay format 4). The tank rules and policies themselves are not written yet. ADR-009 plans for tank specifics to live in `games/tank`; its 2026-09-30
 correction records that they are in `engine/` today and that the move is future work.
-[ADR-014](../DECISIONS.md) (Proposed) drafts how: a generic core with a `Rules` trait, with the tank rules in `games/tank`.
+[ADR-014](../DECISIONS.md) (Accepted) plans how. Only step B1 is approved: a generic core with a `Rules` trait, with the tank rules still in `engine/`. Moving them to `games/tank` is deferred until a second Rust game exists.
 
 ## Architecture
 
