@@ -1,4 +1,4 @@
-// Starscream arena viewer: plain JS, no build step. Loads the engine (web/pkg, built
+// Coastal Agentics arena viewer: plain JS, no build step. Loads the engine (web/pkg, built
 // from engine-wasm by scripts/build-wasm.sh) and renders its JSON state on a canvas.
 // Engine coordinates are Y-up with angles counter-clockwise; the canvas is Y-down,
 // so we flip Y and negate angles when drawing.

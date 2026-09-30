@@ -2,7 +2,7 @@ name: Nightly self-play
 
 # Publishes nightly results WITHOUT new credentials and WITHOUT touching protected main (ADR-007):
 #   - results are committed to the unprotected `nightly-data` branch (never force-pushed)
-#   - only web/data/ and docs/devlog/ may change; anything else fails the job
+#   - only web/data/ and docs/fieldnotes/ may change; anything else fails the job
 #   - `nightly-data` merges main first, so a CoS PR `nightly-data -> main` shows only new results
 #   - the site reads live nightly data from `nightly-data`; the CoS folds it into main by PR
 on:
@@ -48,7 +48,7 @@ jobs:
 
       - name: Self-play evolution (placeholder)
         run: echo "self-play not yet implemented"
-        # Phase 3: run evolution headless; write results to web/data/ and a devlog entry to docs/devlog/.
+        # Phase 3: run evolution headless; write results to web/data/ and a field note to docs/fieldnotes/.
 
       - name: Probe output
         if: ${{ inputs.probe }}
@@ -62,8 +62,8 @@ jobs:
           if git diff --cached --quiet; then
             echo "No new results."
           else
-            if git diff --cached --name-only | grep -vE '^(web/data/|docs/devlog/)'; then
-              echo "::error::Nightly may only change web/data/ and docs/devlog/ (files above are outside)."
+            if git diff --cached --name-only | grep -vE '^(web/data/|docs/fieldnotes/)'; then
+              echo "::error::Nightly may only change web/data/ and docs/fieldnotes/ (files above are outside)."
               exit 1
             fi
             git commit -m "nightly: results $(date -u +%Y-%m-%d) [run ${{ github.run_id }}]"

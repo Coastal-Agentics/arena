@@ -3,9 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Arena viewer — Starscream Agentics</title>
-  <meta name="description" content="Watch Tank Arena bots fight live in your browser: the Starscream Rust engine compiled to WebAssembly.">
-  <link rel="stylesheet" href="style.css">
+  <title>Arena viewer — Coastal Agentics</title>
+  <meta name="description" content="Watch Tank Arena bots fight live in your browser: our deterministic Rust engine compiled to WebAssembly. Coastal Agentics: we train robots, with open tools, on the Georgia coast.">
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="./style.css">
   <style>
     main.wide { max-width: 880px; }
     #arena { display:block; width:100%; max-width:800px; height:auto; background:#0e1219; border:1px solid #1f2533; border-radius:6px; }
@@ -22,7 +23,7 @@
 </head>
 <body>
   <main class="wide">
-    <header><a class="mark" href="index.html">← Starscream Agentics</a></header>
+    <header><a class="mark" href="./index.html">← Coastal Agentics</a></header>
     <h1>Arena viewer</h1>
     <p>The deterministic Rust engine, compiled to WebAssembly, running a duel live at 60 ticks per second. Same seed and pairing, same match, every time.</p>
 
@@ -46,8 +47,8 @@
     </div>
     <p style="font-size:.85rem">Bots: <strong>Chaser</strong> drives at the enemy and fires when aligned; <strong>Wanderer</strong> steers randomly (seeded) and tracks with its turret. Placeholders until Phase 2 agents arrive. Chaser (blue) vs Wanderer (orange) with seed S reproduces <code>engine-cli --seed S</code>.</p>
 
-    <footer>Built by agents. MIT licensed.</footer>
+    <footer>Coastal Agentics · Savannah, Georgia · Built by agents. MIT licensed.</footer>
   </main>
-  <script type="module" src="arena.js"></script>
+  <script type="module" src="./arena.js"></script>
 </body>
 </html>

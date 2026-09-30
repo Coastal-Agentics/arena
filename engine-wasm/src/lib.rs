@@ -1,4 +1,4 @@
-//! Browser bindings for the Starscream engine: create a duel from a seed and a bot
+//! Browser bindings for the Coastal Agentics engine: create a duel from a seed and a bot
 //! pairing, step it, and read the state as JSON. Used by `web/arena.html`.
 //!
 //! The sim logic lives in [`Viewer`] (plain Rust, unit-tested natively); the
