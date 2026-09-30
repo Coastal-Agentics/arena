@@ -1,6 +1,7 @@
 //! Tank Arena game rules on top of the Coastal Agentics Arena engine.
 //!
 //! Implements `games/tank/SPEC.md` (GATE-002, approved):
+//! * [`bots`]: the placeholder `Chaser` and `Wanderer` (copied from `engine::bots`);
 //! * [`loadout`]: the 9-point Attack/Speed/Defense budget, the 19 valid loadouts,
 //!   presets, the level → [`engine::TankParams`] mapping, hits-to-kill and the
 //!   Customize-triangle snap;
@@ -13,12 +14,14 @@
 //! The tank entity, `TankParams`, `TankSpawn`, the step rules and the tank
 //! `Observation`/`Action` still live in `engine/` (see ADR-009).
 
+pub mod bots;
 pub mod loadout;
 pub mod los;
 pub mod matchup;
 pub mod policies;
 pub mod rules;
 
+pub use bots::{Chaser, Wanderer};
 pub use loadout::{Loadout, LoadoutError, Preset};
 pub use matchup::{MatchSpec, TankSpec};
 pub use policies::{Behavior, Charger, ChargerParams, Kiter, KiterParams, Sniper, SniperParams};
