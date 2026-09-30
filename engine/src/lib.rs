@@ -220,6 +220,9 @@ mod tests {
             .verify()
             .expect("v2 verifies (outcome and final hash only)");
         assert_eq!(back.state_hash(), m.state_hash());
+        // Documented limit: without a setup hash, v2 can't see config edits.
+        let v2_edited = edit(&v2, |v| v["config"]["arena"]["obstacles"] = json!([]));
+        assert!(Replay::from_json(&v2_edited).unwrap().verify().is_ok());
         // Upgrade: verify, then re-record.
         let up = back.replay();
         assert_eq!(up.format, 3);
