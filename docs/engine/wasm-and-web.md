@@ -247,12 +247,13 @@ loop (#27); 303,694 with the generic core (ADR-014 B1, #30).
 3. run `./scripts/build-wasm.sh`;
 4. fail if `git diff --exit-code -- web/pkg` shows a change, or `git status --porcelain --
    web/pkg` shows untracked files;
-5. run the headless browser check (`scripts/check-viewer-browser.py`, Playwright with the
+5. set up Node 22 and run the [parity check](determinism.md#native-vs-wasm-parity)
+   (`node scripts/check-parity.mjs`, added in #32 from [CI specs](ci-specs.md) (a));
+6. run the headless browser check (`scripts/check-viewer-browser.py`, Playwright with the
    image's Chrome).
 
-So a PR with a stale or non-reproducible `web/pkg` goes red. The job runs on `ubuntu-24.04`
-by name (#29). The [parity check](determinism.md#native-vs-wasm-parity)'s Node step is
-specified for this job in [CI specs](ci-specs.md) and is not wired in yet.
+So a PR with a stale or non-reproducible `web/pkg`, or one whose wasm disagrees with the
+native parity manifest, goes red. The job runs on `ubuntu-24.04` by name (#29).
 
 ## Deploy: GitHub Pages
 
