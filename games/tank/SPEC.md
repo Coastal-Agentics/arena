@@ -48,8 +48,8 @@ Intended triangle: kiter > charger > sniper > kiter. Acceptance: every pairing 5
 Visible shells you can see coming, and near-miss dodges. Three readable personalities: the rusher, the dancer, the camper. Pillars create peek-and-hide moments. Lead aim makes long hits feel earned. HP bars and a 2-minute cap keep up the drama; comebacks possible (5 hits).
 
 ## Known engine limits
-- Hits check only the projectile end point per tick. Safe while speed < 2·radius per tick (~1900 u/s); tunnelling appears beyond that.
-- Tanks move in id order: slight bias to tank 0 in collisions. Evaluate with side-swapped seeds.
+- Swept hits (PR #6) treat target tanks as stationary within a tick; negligible at these speeds.
+- Movement is simultaneous (PR #6); a tank that would collide stays put that tick. Still evaluate with side-swapped seeds.
 - Placeholder bots are lopsided (Wanderer wins ~98% vs Chaser); balance is judged only on the three policies above.
 
 ## Engine asks
