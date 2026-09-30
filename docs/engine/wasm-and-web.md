@@ -216,7 +216,7 @@ JSDoc. Panic locations (file:line) are compiled into the wasm, so moving code li
 the bytes. PR #12 was an example: rustdoc-only edits changed both files.
 
 Size: `engine_wasm_bg.wasm` is 303,694 bytes (105,297 with `gzip -9`) with the generic core
-(ADR-014 B1), against 302,941 (105,295) on `main` just before it (#28): 753 bytes more,
+(ADR-014 B1), against 302,941 (105,295) on `main` at `5a4fdd4` (#29): 753 bytes more,
 2 bytes more gzipped. History: 161,993 (64,526 gzipped) before `withConfig`; 247,799 (88,900)
 with it, mostly `serde_json`'s deserializer; 303,811 with rules v1 (#18, the `tank` crate and
 its catalog); 303,841 after the bots moved to `games/tank` (#22); 302,941 after the evolution

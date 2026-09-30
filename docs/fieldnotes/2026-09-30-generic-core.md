@@ -16,7 +16,7 @@ The engine docs also gained a full description of the Tank Arena functions the v
 ## Card: generic sim core
 - **Artifact:** `engine/src/generic/` (`Rules`, `Match<R>`, `Replay<R>`, `Policy<R>`, `MatchRng`, `StateHasher`); `TankRules` in `engine/src/sim.rs`; `web/pkg` rebuilt; `docs/engine/` updated, including the rules-v1 JavaScript API
 - **Made by:** Shockwave (Engine Lead)
-- **From:** `main` at `5fb05e2` (#22), merged up to `016d796` (#28) · seeds 0–199, 42 and 18446744073709551610–18446744073709551615 (wraps to 0–3) through `engine-cli`, 200 replay files, 7 seeds, a per-tank loadout match and a Tank Arena duel in headless Chrome · commit: branch `engine/generic-core`
+- **From:** `main` at `5fb05e2` (#22), merged up to `5a4fdd4` (#29) · seeds 0–199, 42 and 18446744073709551610–18446744073709551615 (wraps to 0–3) through `engine-cli`, 200 replay files, 7 seeds, a per-tank loadout match and a Tank Arena duel in headless Chrome · commit: branch `engine/generic-core`
 - **Hours / compute:** a few hours; CPU only
 - **Reward or fitness function:** n/a (no training)
 - **License:** MIT

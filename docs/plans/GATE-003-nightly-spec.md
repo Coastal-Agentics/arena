@@ -14,6 +14,8 @@ This is one edit to `.github/workflows/nightly.yml`. The step `Self-play evoluti
 | Training cap | `--minutes 30` and `--generations 100` per night. The loop checks the clock before each generation and stops early if the cap is reached, keeping every finished generation. |
 | Expected runtime | About 4 minutes on 4 cores. Seed 1's first 100 generations took 147 s on 8 threads (14.5 CPU-minutes), plus about 2 s for the held-out check. Build time comes on top. |
 
+**Runner pin (CoS, 2026-09-30):** the `self-play` job now runs on `ubuntu-24.04` instead of `ubuntu-latest`, so results stay byte-identical when `ubuntu-latest` moves to Ubuntu 26 on October 19, 2026 (ADR-003: same platform only).
+
 ## Steps (insert after "Switch to data branch … and merge main")
 
 ```yaml

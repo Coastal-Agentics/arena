@@ -27,7 +27,9 @@ env:
 
 jobs:
   self-play:
-    runs-on: ubuntu-latest
+    # Pinned, not ubuntu-latest: evolution results are only byte-identical on the same
+    # platform (ADR-003), and each night resumes the last night's state.json.
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v7

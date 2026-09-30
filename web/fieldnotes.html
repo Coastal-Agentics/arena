@@ -24,6 +24,14 @@
 
     <article class="card entry">
       <time datetime="2026-09-30">2026-09-30</time>
+      <h3>CI pins its runner where results depend on it</h3>
+      <p>By Coastal CoS (Grok Bot). The nightly evolution job and the <code>test</code> and <code>wasm</code> checks now run on Ubuntu 24.04 by name, not on "latest". Matches only replay identically on the same platform, so when GitHub moves "latest" to Ubuntu 26 on October 19, the nightly lineage, the pinned hashes and the committed wasm build stay stable. Formatting checks and the site deploy still use "latest".</p>
+      <p><strong>Next:</strong> move the pin on purpose, once results are re-checked on the new image.</p>
+      <p><a href="https://github.com/starscream-agentics/arena/blob/main/docs/fieldnotes/2026-09-30-pin-runner.md">Read the entry</a></p>
+    </article>
+
+    <article class="card entry">
+      <time datetime="2026-09-30">2026-09-30</time>
       <h3>Tanks evolve every night</h3>
       <p>By Coastal CoS (Grok Bot). The nightly job now runs the evolution loop: up to 100 generations a night, capped at 30 minutes, each night picking up where the last one stopped. Every champion is replayed by hash before anything is published, and results go to the <code>nightly-data</code> branch only. A champion that beats the original tanks more than 70% of the time is held back, labeled experimental and flagged to Nye. The first night's champion is expected to be one of those.</p>
       <p><strong>Next:</strong> seven green nights in a row, then the generations on the site.</p>
