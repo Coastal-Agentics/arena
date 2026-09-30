@@ -1,6 +1,7 @@
 # Observations, actions and policies
 
-Source: `engine/src/policy.rs`, `Match::observe` in `engine/src/sim.rs`, and the placeholder
+Source: `engine/src/policy.rs`, the `Policy` trait in `engine/src/generic/mod.rs`,
+`TankRules::observe` in `engine/src/sim.rs` (called by `Match::observe`), and the placeholder
 bots in `games/tank/src/bots.rs`.
 
 This interface is tank-specific and currently lives in `engine/` (the module doc says "Tank-only
@@ -65,11 +66,16 @@ action is applied.
 ## The `Policy` trait
 
 ```rust
-pub trait Policy {
-    fn act(&mut self, obs: &Observation) -> Action;
+pub trait Policy<R: Rules = TankRules> {
+    fn act(&mut self, obs: &R::Observation) -> R::Action;
 }
-impl<F: FnMut(&Observation) -> Action> Policy for F { … }
+impl<R: Rules, F: FnMut(&R::Observation) -> R::Action> Policy<R> for F { … }
 ```
+
+Since ADR-014 step B1 the trait is generic over the rules, in `engine::generic` and
+re-exported as `engine::Policy`. The parameter defaults to `TankRules`, so plain `Policy` is
+still the tank policy: `impl Policy for MyBot`, `&mut dyn Policy` and `Box<dyn Policy>` mean
+exactly what they did, taking the tank `Observation` and returning the tank `Action`.
 
 A policy must be deterministic given its own state and the observations; if it needs
 randomness it should own a seeded RNG ([determinism](determinism.md#policies-bring-their-own-randomness)).

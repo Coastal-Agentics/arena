@@ -100,7 +100,8 @@ Short ADRs. Status is one of: Accepted, Proposed, Open, Superseded.
 **Progress (2026-09-30):**
 - **Phase A is done.** In step 1 (#19, Blitzwing), the bots were copied into `games/tank` with their hash pins. In step 2 (Shockwave), `engine-cli` and `engine-wasm` switched to `tank::{Chaser, Wanderer}` and `engine::bots` was deleted.
 - **Hash pins.** The Chaser vs Wanderer pins named below (`documented_hashes_are_unchanged`, plus the seeds 0–199 digest) now live in `games/tank/src/bots.rs`. `engine` pins its own hashes with test-only policies (`engine/src/testing.rs`), and `engine-cli` pins the rows its docs quote.
-- **rules-v1** has merged (#18). B1 has not started.
+- **rules-v1** has merged (#18).
+- **B1 is built, pending merge (PR #PRNUM, Shockwave).** `engine::generic` holds `Rules`, `Match<R>`, `Replay<R>`, `ReplayPlayer<R>`, `Policy<R = TankRules>`, `MatchRng` and `StateHasher`; `TankRules` implements `Rules` inside `engine`, and `engine::Match`, `Replay` and `ReplayPlayer` are aliases for the tank instances. `engine-cli`, `engine-wasm` and `games/tank` compile unchanged. `engine-cli` output (seeds 0–199 and others), 200 replay files and the wasm hashes in headless Chrome are byte-identical to `main`; run time is unchanged within noise. The trait signatures are the sketch's, unchanged; the details that differ are in the note below.
 **Context:** Blitzwing proposed moving the tank code out of `engine/` in two phases. **Phase A** moves the placeholder bots: Blitzwing copies `Chaser` and `Wanderer` into `games/tank` with hash-pinned tests, then an engine PR switches `engine-cli` and `engine-wasm` to those copies and deletes `engine::bots`. **Phase B**, this ADR, makes the sim core generic. What is tank-specific in `engine/` on `main` (`d4db1c5`, which includes the #16 API):
 - `sim.rs`:
   - config types: `TankParams` (including `projectile_spread_still`), `TankSpawn` (including `params: Option<TankParams>`), and `MatchConfig` with `duel()` and `tank_params()`;
@@ -144,6 +145,15 @@ pub struct Match<R: Rules> { /* config, seed, rng, tick, state, events, outcome,
 pub trait Policy<R: Rules> { fn act(&mut self, obs: &R::Observation) -> R::Action; }
 pub struct Replay<R: Rules> { /* format, engine_version, seed, config: R::Config, actions, outcome, final_hash, setup_hash */ }
 ```
+**Note (2026-09-30, B1 as built):** the `Rules` trait landed with exactly the sketch's associated types and functions. The details the sketch left open, or that came out differently:
+- The module is `engine::generic` (`generic::Match`, `generic::Replay`, `generic::ReplayPlayer`, `generic::Policy`). The crate root also re-exports `Rules`, `MatchRng`, `StateHasher`, `TankRules` and `TankState`.
+- `MatchRng` is a newtype over the `ChaCha8Rng`. Only the engine can construct it, and it exposes just `next_u32` and `next_u64` (plus `Clone` and `Debug`), so a rules crate can't seed its own match RNG.
+- `StateHasher` is a public FNV-1a builder (`new`, `write_u64`, `finish`).
+- `Outcome` and `EndReason` moved into `generic` and are re-exported from `sim` and the crate root, so their paths are unchanged. `ReplayError`, `REPLAY_FORMAT` and `OLDEST_READABLE_FORMAT` also live in `generic`, re-exported from `engine::replay`.
+- `setup_hash` is generic over `C: Serialize` (same bytes as before for `MatchConfig`). `Replay::from_json` calls `R::check_format` after the format-range and `setup_hash` checks, the same order as before.
+- `ReplayPlayer<R>` has hand-written `Clone` and `Debug` impls, because `derive` failed on the nested associated-type bounds. No extra bounds were added to the trait.
+- `State` must be a public type, so the tank state is a public `TankState` with read-only accessors, and `Match<R>` gained `state()`. The tank accessors (`tanks()`, `projectiles()`, `tank_params()`) are an `impl` on `Match<TankRules>`.
+- `outcome()` is also called once at tick 0 (from `Match::new`), as the old code checked the end condition on creation.
 - **Stays in `engine`, generic:**
   - the fixed 60 Hz tick loop (`Match<R>::new`, `step`, `step_policies`, `run`), `TICK_HZ`, `DT`;
   - the single `ChaCha8Rng` (`seed_from_u64`), owned by `Match` and lent to `init`/`step` only, so each rules crate documents its own draw order and nothing else draws;
