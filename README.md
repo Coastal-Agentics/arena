@@ -34,6 +34,7 @@ cargo build -p engine --target wasm32-unknown-unknown
 - [State](docs/STATE.md): what's happening now
 - [Decisions](docs/DECISIONS.md): architecture decision records
 - [Card](docs/CARD.md): provenance card for every shipped artifact
+- [Engine](docs/engine/): how the engine, engine-cli, replays and the wasm viewer work
 - [Roles](docs/roles/): worker briefs
 - [Field notes](docs/fieldnotes/): one entry per merged PR
 - [Playbooks](docs/playbooks/): what each phase taught us
