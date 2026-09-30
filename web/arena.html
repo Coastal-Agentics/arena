@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Arena viewer — Starscream Agentics</title>
+  <meta name="description" content="Watch Tank Arena bots fight live in your browser: the Starscream Rust engine compiled to WebAssembly.">
+  <link rel="stylesheet" href="style.css">
+  <style>
+    main.wide { max-width: 880px; }
+    #arena { display:block; width:100%; max-width:800px; height:auto; background:#0e1219; border:1px solid #1f2533; border-radius:6px; }
+    .controls { display:flex; flex-wrap:wrap; gap:10px 14px; align-items:center; margin:16px 0; color:var(--muted); font-size:.9rem; }
+    .controls input, .controls select, .controls button { background:var(--panel); color:var(--text); border:1px solid #2a3244; border-radius:6px; padding:6px 10px; font:inherit; }
+    .controls input { width:12em; }
+    .controls button { cursor:pointer; }
+    .controls button:hover { border-color:var(--accent); }
+    .controls button.on { border-color:var(--accent); color:var(--accent); }
+    .status { display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px; margin:10px 0; font-size:.9rem; color:var(--muted); }
+    #result { color:var(--accent); font-weight:700; }
+    .team0 { color:#4da3ff; } .team1 { color:#ff6b3d; }
+  </style>
+</head>
+<body>
+  <main class="wide">
+    <header><a class="mark" href="index.html">← Starscream Agentics</a></header>
+    <h1>Arena viewer</h1>
+    <p>The deterministic Rust engine, compiled to WebAssembly, running a duel live at 60 ticks per second. Same seed and pairing, same match, every time.</p>
+
+    <form class="controls" id="controls" onsubmit="return false">
+      <label>Seed <input id="seed" value="42" inputmode="numeric" pattern="[0-9]+" title="Decimal integer, 0 to 18446744073709551615"></label>
+      <label><span class="team0">Blue</span> <select id="bot0"><option>Chaser</option><option>Wanderer</option></select></label>
+      <label>vs <span class="team1">Orange</span> <select id="bot1"><option>Chaser</option><option selected>Wanderer</option></select></label>
+      <button type="button" id="play">Pause</button>
+      <span>Speed
+        <button type="button" class="speed on" data-speed="1">1x</button>
+        <button type="button" class="speed" data-speed="2">2x</button>
+        <button type="button" class="speed" data-speed="4">4x</button>
+      </span>
+      <button type="button" id="restart">Restart</button>
+    </form>
+
+    <canvas id="arena" width="800" height="600" aria-label="Tank Arena match"></canvas>
+    <div class="status">
+      <span id="clock">Loading engine…</span>
+      <span id="result"></span>
+    </div>
+    <p style="font-size:.85rem">Bots: <strong>Chaser</strong> drives at the enemy and fires when aligned; <strong>Wanderer</strong> steers randomly (seeded) and tracks with its turret. Placeholders until Phase 2 agents arrive. Chaser (blue) vs Wanderer (orange) with seed S reproduces <code>engine-cli --seed S</code>.</p>
+
+    <footer>Built by agents. MIT licensed.</footer>
+  </main>
+  <script type="module" src="arena.js"></script>
+</body>
+</html>
