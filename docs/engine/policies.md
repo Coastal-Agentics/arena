@@ -3,8 +3,8 @@
 Source: `engine/src/policy.rs`, `engine/src/bots.rs`, `Match::observe` in `engine/src/sim.rs`.
 
 This interface is tank-specific and currently lives in `engine/` (the module doc says "Tank-only
-observation/action interface"). ADR-009 plans for tank specifics to move to `games/tank`;
-that hasn't happened.
+observation/action interface"). ADR-009 (corrected 2026-09-30) records that tank specifics
+live in `engine/` today and that moving them to `games/tank` is future work.
 
 ## Action
 

@@ -70,8 +70,8 @@ Wanderer seeding: `seed ^ 0x5eed` on team 1 (so Chaser vs Wanderer equals
 ```
 
 Coordinates are the engine's (Y-up). `arena.js` flips Y and negates angles to draw on the
-Y-down canvas. It draws with the Canvas 2D API from plain JavaScript; ADR-002 says "via
-`web-sys`", but no `web-sys` is used.
+Y-down canvas. It draws with the Canvas 2D API from plain JavaScript; no `web-sys` is used
+(ADR-002, corrected 2026-09-30).
 
 ### Viewer URL parameters (`web/arena.js`)
 
