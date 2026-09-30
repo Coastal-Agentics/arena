@@ -98,8 +98,8 @@ Rules v1 (#18) added the Tank Arena API above: `WasmMatch.tank`, `setupJson`,
   `games/tank`, e.g. `blue: stats sum to 10, must be exactly 9`.
 - **The match** (`MatchSpec::start`): blue is tank 0 (team 0) and orange tank 1 (team 1), on
   the Tank Arena duel config (`tank::rules::duel`: 800×600 with two pillars, 7,200-tick
-  limit, each tank's loadout as its per-tank params). Each policy's jitter RNG is seeded with the match seed XOR a
-  per-side salt (`tank::matchup::BLUE_SALT`, `ORANGE_SALT`). `step`, `stateJson`,
+  limit, each tank's loadout as its per-tank params). Each policy's jitter RNG is seeded
+  with the match seed XOR a per-side salt (`tank::matchup::BLUE_SALT`, `ORANGE_SALT`). `step`, `stateJson`,
   `stateHash` and the rest work as for the placeholder bots. The final hash equals native
   `tank::MatchSpec::from_query(q)?.run()`.
 - **`SetupView`** (`m.setupJson()`): `{"query", "seed", "tanks": [{"behavior", "name",
