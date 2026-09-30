@@ -4,11 +4,16 @@
 //! * [`loadout`]: the 9-point Attack/Speed/Defense budget, the 19 valid loadouts,
 //!   presets, the level → [`engine::TankParams`] mapping, hits-to-kill and the
 //!   Customize-triangle snap;
+//! * [`rules`]: the pillar arena, fixed mirrored spawns (duel, 2v2, FFA-4), the
+//!   7200-tick limit, and per-tank loadouts (stubbed until engine ask #5);
+//! * [`los`]: line of sight (a stand-in until engine ask #2);
 //!
 //! The tank entity, `TankParams`, `TankSpawn`, the step rules and the tank
 //! `Observation`/`Action` still live in `engine/` (see ADR-009).
 
 pub mod loadout;
+pub mod los;
+pub mod rules;
 
 pub use loadout::{Loadout, LoadoutError, Preset};
 
