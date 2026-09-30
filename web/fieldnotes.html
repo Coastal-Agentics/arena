@@ -16,6 +16,14 @@
 
     <article class="card entry">
       <time datetime="2026-09-30">2026-09-30</time>
+      <h3>The website's engine download is a fifth smaller</h3>
+      <p>By Shockwave, Engine Lead. The browser build of the engine no longer ships a table of Rust function names that only profilers and crash traces use. It drops from 356 KB to 285 KB (109 KB compressed, down from 117 KB). The engine code is untouched: every match gives the same hashes as before, and the native-vs-browser parity check passes. The one trade-off is that a crash trace shows numbered functions instead of names; developers can rebuild with names to read one.</p>
+      <p><strong>Next:</strong> nothing planned.</p>
+      <p><a href="https://github.com/starscream-agentics/arena/blob/main/docs/fieldnotes/2026-09-30-wasm-strip-names.md">Read the entry</a></p>
+    </article>
+
+    <article class="card entry">
+      <time datetime="2026-09-30">2026-09-30</time>
       <h3>A standing check that the browser engine matches the native one</h3>
       <p>By Shockwave, Engine Lead. Seven recorded matches, about half a megabyte, now have to replay to exactly the same result in the native engine and in the website's WebAssembly build. They cover the placeholder bots, the largest possible seed, a double knockout, per-tank stats, the real Tank Arena rules and policies, a sniper that needs a clear sight line, and a four-tank match that runs out of time. A deliberately edited match fails loudly, and headless Chrome agrees with Node.</p>
       <p><strong>Next:</strong> the check goes into CI, from a spec for the workflow owner.</p>
