@@ -1,4 +1,5 @@
-//! Starscream engine: deterministic fixed-timestep 2D simulation core (Tank Arena first).
+//! Coastal Agentics Arena engine: deterministic fixed-timestep 2D simulation core
+//! (Tank Arena first).
 //!
 //! * Fixed 60 Hz step ([`TICK_HZ`], [`DT`]); no wall clock anywhere.
 //! * All randomness from a seeded `ChaCha8Rng` owned by the [`Match`]; policies bring their own.
