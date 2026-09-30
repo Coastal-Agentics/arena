@@ -32,7 +32,8 @@ jobs:
 
   test:
     name: test
-    runs-on: ubuntu-latest
+    # Pinned: the tests compare pinned match and state hashes (ADR-003: same platform).
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
       - name: Install toolchain (from rust-toolchain.toml)
@@ -45,7 +46,9 @@ jobs:
 
   wasm:
     name: wasm
-    runs-on: ubuntu-latest
+    # Pinned: rebuilt web/pkg must byte-match the committed copy, and the viewer check
+    # uses the image's /usr/bin/google-chrome.
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
       - name: Install toolchain (from rust-toolchain.toml)
