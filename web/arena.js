@@ -35,6 +35,9 @@ let carry = 0; // fractional ticks owed to the sim
 let lastTime = null;
 let tab = "watch";
 let runningQuery = null; // queryFromSpec of the match on the Watch tab
+// Copy of `spec` for the match that is actually running. The Watch tab's cards and result
+// line describe this, never `spec`, which Customize edits before the match restarts.
+let running = null;
 
 const behaviorName = (key) => (catalog.behaviors.find(([k]) => k === key) || [key, key])[1];
 const pretty = (l) => l.replaceAll("-", "/");
@@ -82,10 +85,21 @@ function restart() {
       setup = null;
     }
   } catch (e) {
+    // No match runs for a spec the engine rejects (e.g. a bad seed): drop the old one
+    // entirely, so its canvas, cards and result can't pass for the requested setup.
     match = null;
+    state = null;
+    setup = null;
+    running = null;
+    runningQuery = null;
+    $("clock").textContent = "No match";
+    syncControls();
+    syncUrl();
+    draw();
     $("result").textContent = String(e.message || e);
     return;
   }
+  running = JSON.parse(JSON.stringify(spec));
   runningQuery = queryFromSpec(spec);
   carry = 0;
   lastTime = null;
@@ -104,7 +118,7 @@ function refresh() {
   const o = state.outcome;
   if (o) {
     const why = { last_standing: "last tank standing", all_destroyed: "both destroyed", tick_limit: "time limit" }[o.reason] || o.reason;
-    const who = (i) => (spec.mode === "tank" ? `${behaviorName(spec.tanks[i].behavior)} ${pretty(spec.tanks[i].loadout)}` : spec.bots[i]);
+    const who = (i) => (running.mode === "tank" ? `${behaviorName(running.tanks[i].behavior)} ${pretty(running.tanks[i].loadout)}` : running.bots[i]);
     $("result").textContent = o.winner === null
       ? `Draw (${why}) at ${(o.ticks / TICK_HZ).toFixed(1)}s`
       : `${TEAM_NAMES[o.winner]} (${who(o.winner)}) wins — ${why}, ${(o.ticks / TICK_HZ).toFixed(1)}s`;
@@ -160,14 +174,15 @@ function trainingBadge() {
 
 function renderWatchCards() {
   const el = $("watch-cards");
-  if (spec.mode !== "tank") {
-    el.innerHTML = [0, 1].map((i) => `<div class="tankcard"><h3><span class="team${i}">${TEAM_NAMES[i]}: ${spec.bots[i]}</span><span class="badge">Placeholder</span></h3>
+  const shown = running || spec; // the running match; the request if none could start
+  if (shown.mode !== "tank") {
+    el.innerHTML = [0, 1].map((i) => `<div class="tankcard"><h3><span class="team${i}">${TEAM_NAMES[i]}: ${shown.bots[i]}</span><span class="badge">Placeholder</span></h3>
       <div class="muted">Engine built-in bot on the engine's random-spawn duel, default stats.</div></div>`).join("");
     $("watch-note").innerHTML = "<strong>Chaser</strong> drives at the enemy and fires when aligned; <strong>Wanderer</strong> steers randomly (seeded). Chaser (blue) vs Wanderer (orange) with seed S reproduces <code>engine-cli --seed S</code>.";
     return;
   }
   el.innerHTML = [0, 1].map((i) => {
-    const t = spec.tanks[i], opp = spec.tanks[1 - i];
+    const t = shown.tanks[i], opp = shown.tanks[1 - i];
     const r = readout(catalog, t.loadout, opp.loadout);
     const preset = presetName(catalog, t.loadout);
     return `<div class="tankcard"><h3><span class="team${i}">${TEAM_NAMES[i]}: ${behaviorName(t.behavior)}</span>${trainingBadge()}</h3>
@@ -285,7 +300,10 @@ function watchThis() {
 // --- drawing -------------------------------------------------------------------------
 
 function draw() {
-  if (!state) return;
+  if (!state) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    return;
+  }
   const { width: W, height: H } = state;
   if (canvas.width !== W || canvas.height !== H) { canvas.width = W; canvas.height = H; }
   const Y = (y) => H - y;
@@ -415,5 +433,6 @@ window.__arena = {
   get state() { return state; },
   get setup() { return setup; },
   get spec() { return spec; },
+  get running() { return running; },
   hash: () => match?.stateHash(),
 };
