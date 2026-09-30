@@ -2,8 +2,13 @@
 //! always sum to 9, their mapping onto [`TankParams`], presets, hits-to-kill, and the
 //! Customize tab's triangle snap.
 //!
-//! Level 3 in every stat is exactly [`TankParams::default`], so a 3/3/3 match is the
-//! default match.
+//! Level 3 in every stat is [`TankParams::default`] except `max_hp` (650, not 100):
+//! the Tank Arena default match ([`crate::rules::config`]) plays with 3/3/3 params,
+//! so a 3/3/3 tank needs no per-tank override.
+//!
+//! The tables are geometric, about ×1.2 per level in every stat (damage, HP, and fire
+//! rate), so a point moved from one stat to another keeps damage × HP × fire rate
+//! roughly constant and no build wins a straight exchange of fire by construction.
 
 use engine::TankParams;
 use std::fmt;
@@ -17,13 +22,16 @@ pub const MAX_LEVEL: u8 = 5;
 pub const BUDGET: u8 = 9;
 
 /// `projectile_damage` by Attack level 1..=5.
-pub const DAMAGE: [i32; 5] = [12, 16, 20, 24, 28];
+pub const DAMAGE: [i32; 5] = [14, 17, 20, 24, 29];
 /// `max_speed` (units per second) by Speed level 1..=5.
 pub const MAX_SPEED: [f32; 5] = [90.0, 105.0, 120.0, 135.0, 150.0];
 /// `turn_rate` (BAU per tick) by Speed level 1..=5.
 pub const TURN_RATE: [u16; 5] = [273, 318, 364, 410, 455];
+/// `fire_cooldown` (ticks between shots) by Speed level 1..=5: faster tanks also
+/// reload faster, so Speed is worth points to a tank that stands and shoots.
+pub const FIRE_COOLDOWN: [u32; 5] = [64, 54, 45, 37, 31];
 /// `max_hp` by Defense level 1..=5.
-pub const MAX_HP: [i32; 5] = [60, 80, 100, 120, 140];
+pub const MAX_HP: [i32; 5] = [460, 550, 650, 790, 940];
 
 /// A valid build: each stat in `1..=5`, summing to [`BUDGET`]. Construct with
 /// [`Loadout::new`] (checked) or take one from [`Loadout::ALL`] / [`Preset`].
@@ -78,7 +86,7 @@ const fn l(attack: u8, speed: u8, defense: u8) -> Loadout {
 }
 
 impl Loadout {
-    /// The scripted default, 3/3/3 (= [`TankParams::default`]).
+    /// The scripted default, 3/3/3.
     pub const DEFAULT: Loadout = l(3, 3, 3);
 
     /// All 19 valid loadouts, ordered by Attack, then Speed (ascending). This order is
@@ -156,12 +164,18 @@ impl Loadout {
         TURN_RATE[(self.speed - 1) as usize]
     }
     /// Hit points (`max_hp`).
+    /// `fire_cooldown` in ticks, from the Speed level.
+    pub fn fire_cooldown(self) -> u32 {
+        FIRE_COOLDOWN[(self.speed - 1) as usize]
+    }
+    /// `max_hp`, from the Defense level.
     pub fn max_hp(self) -> i32 {
         MAX_HP[(self.defense - 1) as usize]
     }
 
-    /// This loadout on top of `base`: damage, speed, turn rate and HP from the level
-    /// tables, every other field (radius, turret, cooldown, shells, spread) from `base`.
+    /// This loadout on top of `base`: damage, speed, turn rate, fire cooldown and HP
+    /// from the level tables, every other field (radius, turret, shells, spread) from
+    /// `base`.
     ///
     /// Use the match's shared `MatchConfig::params` as `base`: a per-tank
     /// `TankSpawn::params` replaces the shared set as a whole, so anything not copied
@@ -170,6 +184,7 @@ impl Loadout {
         TankParams {
             max_speed: self.max_speed(),
             turn_rate: self.turn_rate(),
+            fire_cooldown: self.fire_cooldown(),
             max_hp: self.max_hp(),
             projectile_damage: self.damage(),
             ..base.clone()
@@ -180,9 +195,10 @@ impl Loadout {
     ///
     /// ```
     /// use tank::Loadout;
-    /// assert_eq!(Loadout::DEFAULT.params(), engine::TankParams::default());
+    /// let d = Loadout::DEFAULT.params();
+    /// assert_eq!(d, engine::TankParams { max_hp: 650, ..Default::default() });
     /// let p = Loadout::new(5, 3, 1).unwrap().params();
-    /// assert_eq!((p.projectile_damage, p.max_hp), (28, 60));
+    /// assert_eq!((p.projectile_damage, p.max_hp), (29, 460));
     /// ```
     pub fn params(self) -> TankParams {
         self.apply(&TankParams::default())
@@ -193,8 +209,8 @@ impl Loadout {
     /// ```
     /// use tank::{Loadout, Preset};
     /// let (gc, br) = (Preset::GlassCannon.loadout(), Preset::Brawler.loadout());
-    /// assert_eq!(gc.hits_to_kill(br), 5); // 28 dmg vs 120 HP
-    /// assert_eq!(br.hits_to_kill(gc), 3); // 24 dmg vs 60 HP
+    /// assert_eq!(gc.hits_to_kill(br), 28); // 29 dmg vs 790 HP
+    /// assert_eq!(br.hits_to_kill(gc), 20); // 24 dmg vs 460 HP
     /// ```
     pub fn hits_to_kill(self, defender: Loadout) -> u32 {
         hits_to_kill(self.damage(), defender.max_hp())
@@ -400,19 +416,21 @@ mod tests {
     fn level_tables_map_to_tank_params() {
         // SPEC "Tanks" table, row by row.
         let expect = [
-            (1, 12, 90.0, 273, 60),
-            (2, 16, 105.0, 318, 80),
-            (3, 20, 120.0, 364, 100),
-            (4, 24, 135.0, 410, 120),
-            (5, 28, 150.0, 455, 140),
+            (1, 14, 90.0, 273, 64, 460),
+            (2, 17, 105.0, 318, 54, 550),
+            (3, 20, 120.0, 364, 45, 650),
+            (4, 24, 135.0, 410, 37, 790),
+            (5, 29, 150.0, 455, 31, 940),
         ];
         let base = TankParams::default();
-        for (lvl, dmg, spd, turn, hp) in expect {
+        for (lvl, dmg, spd, turn, cool, hp) in expect {
             let a = *Loadout::ALL.iter().find(|x| x.attack() == lvl).unwrap();
             let s = *Loadout::ALL.iter().find(|x| x.speed() == lvl).unwrap();
             let d = *Loadout::ALL.iter().find(|x| x.defense() == lvl).unwrap();
             assert_eq!(a.params().projectile_damage, dmg);
             assert_eq!((s.params().max_speed, s.params().turn_rate), (spd, turn));
+            assert_eq!(s.params().fire_cooldown, cool);
+            assert_eq!(FIRE_COOLDOWN[lvl as usize - 1], cool);
             assert_eq!(d.params().max_hp, hp);
             assert_eq!(DAMAGE[lvl as usize - 1], dmg);
             assert_eq!(MAX_SPEED[lvl as usize - 1], spd);
@@ -425,10 +443,10 @@ mod tests {
             assert_eq!(p.max_speed, x.max_speed());
             assert_eq!(p.turn_rate, x.turn_rate());
             assert_eq!(p.max_hp, x.max_hp());
+            assert_eq!(p.fire_cooldown, x.fire_cooldown());
             // Everything else is fixed for everyone (SPEC "Fixed for everyone").
             assert_eq!(p.radius, 16.0);
             assert_eq!(p.turret_turn_rate, 546);
-            assert_eq!(p.fire_cooldown, 45);
             assert_eq!(p.projectile_speed, 360.0);
             assert_eq!(p.projectile_ttl, 120);
             assert_eq!(p.projectile_spread, 256);
@@ -439,12 +457,20 @@ mod tests {
                     turn_rate: base.turn_rate,
                     max_hp: base.max_hp,
                     projectile_damage: base.projectile_damage,
+                    fire_cooldown: base.fire_cooldown,
                     ..p.clone()
                 },
                 base
             );
         }
-        assert_eq!(Loadout::DEFAULT.params(), base);
+        // 3/3/3 is the engine default except HP.
+        assert_eq!(
+            Loadout::DEFAULT.params(),
+            TankParams {
+                max_hp: 650,
+                ..base
+            }
+        );
     }
 
     #[test]
@@ -452,18 +478,18 @@ mod tests {
         let base = TankParams {
             projectile_spread: 100,
             projectile_spread_still: Some(40),
-            fire_cooldown: 30,
+            turret_turn_rate: 300,
             ..TankParams::default()
         };
         let p = Preset::Scout.loadout().apply(&base);
-        assert_eq!((p.max_speed, p.max_hp), (150.0, 80));
+        assert_eq!((p.max_speed, p.max_hp, p.fire_cooldown), (150.0, 550, 31));
         assert_eq!(
             (
                 p.projectile_spread,
                 p.projectile_spread_still,
-                p.fire_cooldown
+                p.turret_turn_rate
             ),
-            (100, Some(40), 30)
+            (100, Some(40), 300)
         );
     }
 
@@ -478,11 +504,11 @@ mod tests {
 
     /// SPEC "Hits-to-kill" table, verbatim: rows Attack 1..5, columns Defense 1..5.
     const HITS_TO_KILL: [[u32; 5]; 5] = [
-        [5, 7, 9, 10, 12],
-        [4, 5, 7, 8, 9],
-        [3, 4, 5, 6, 7],
-        [3, 4, 5, 5, 6],
-        [3, 3, 4, 5, 5],
+        [33, 40, 47, 57, 68],
+        [28, 33, 39, 47, 56],
+        [23, 28, 33, 40, 47],
+        [20, 23, 28, 33, 40],
+        [16, 19, 23, 28, 33],
     ];
 
     #[test]
@@ -508,11 +534,11 @@ mod tests {
                 );
             }
         }
-        // The default match: 5 hits (the engine test `projectile_hits_and_kills`).
-        assert_eq!(Loadout::DEFAULT.hits_to_kill(Loadout::DEFAULT), 5);
+        // The default match: 33 hits.
+        assert_eq!(Loadout::DEFAULT.hits_to_kill(Loadout::DEFAULT), 33);
         // Readout example from the spec.
         let (gc, br) = (Preset::GlassCannon.loadout(), Preset::Brawler.loadout());
-        assert_eq!((gc.hits_to_kill(br), br.hits_to_kill(gc)), (5, 3));
+        assert_eq!((gc.hits_to_kill(br), br.hits_to_kill(gc)), (28, 20));
     }
 
     #[test]

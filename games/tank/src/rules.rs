@@ -12,7 +12,7 @@
 
 use crate::loadout::Loadout;
 use engine::angle::{from_degrees, Heading};
-use engine::{MatchConfig, TankParams, TankSpawn, Vec2, TICK_HZ};
+use engine::{MatchConfig, TankSpawn, Vec2, TICK_HZ};
 
 /// Match length cap: 120 s at 60 Hz. Reaching it is a draw.
 pub const MAX_TICKS: u32 = 120 * TICK_HZ;
@@ -73,7 +73,8 @@ fn spawn(team: u8, x: f32, y: f32, heading: Heading) -> TankSpawn {
 }
 
 /// The Tank Arena config for `mode` with every tank at 3/3/3: the engine's duel arena
-/// (800×600, two pillars), fixed spawns, default params, [`MAX_TICKS`].
+/// (800×600, two pillars), fixed spawns, shared params = the 3/3/3 loadout
+/// ([`engine::TankParams::default`] with 650 HP), [`MAX_TICKS`].
 pub fn config(mode: Mode) -> MatchConfig {
     let base = MatchConfig::duel();
     MatchConfig {
@@ -81,7 +82,7 @@ pub fn config(mode: Mode) -> MatchConfig {
             Mode::Duel => duel_spawns().to_vec(),
             m => corner_spawns(m),
         },
-        params: TankParams::default(),
+        params: Loadout::DEFAULT.params(),
         max_ticks: MAX_TICKS,
         ..base
     }
@@ -122,8 +123,8 @@ pub fn with_loadouts(mut config: MatchConfig, loadouts: &[Loadout]) -> Setup {
 /// let s = rules::duel(Loadout::DEFAULT, Loadout::DEFAULT);
 /// assert_eq!(s.config, rules::config(rules::Mode::Duel));
 /// let gc = rules::duel("5-3-1".parse().unwrap(), Loadout::DEFAULT).config;
-/// assert_eq!(gc.tank_params(0).max_hp, 60);
-/// assert_eq!(gc.tank_params(1).max_hp, 100);
+/// assert_eq!(gc.tank_params(0).max_hp, 460);
+/// assert_eq!(gc.tank_params(1).max_hp, 650);
 /// ```
 pub fn duel(blue: Loadout, orange: Loadout) -> Setup {
     with_loadouts(config(Mode::Duel), &[blue, orange])
@@ -146,7 +147,8 @@ mod tests {
             ]
         );
         assert_eq!(c.max_ticks, 7200);
-        assert_eq!(c.params, TankParams::default());
+        assert_eq!(c.params, Loadout::DEFAULT.params());
+        assert_eq!(c.params.max_hp, 650);
         let m = Match::new(c, 1);
         let t = m.tanks();
         assert_eq!(
@@ -214,12 +216,13 @@ mod tests {
         assert_eq!(s.config.tank_params(0), gc.params());
         assert_eq!(s.config.tank_params(1), br.params());
         let m = Match::new(s.config, 1);
-        assert_eq!((m.tanks()[0].hp, m.tanks()[1].hp), (60, 120));
-        assert_eq!(m.tank_params(0).projectile_damage, 28);
+        assert_eq!((m.tanks()[0].hp, m.tanks()[1].hp), (460, 790));
+        assert_eq!(m.tank_params(0).projectile_damage, 29);
         assert_eq!(m.tank_params(1).max_speed, 90.0);
+        assert_eq!(m.tank_params(1).fire_cooldown, 64);
         // Observations carry each tank's own max_hp.
         let o = m.observe(0);
-        assert_eq!((o.me.max_hp, o.enemies[0].max_hp), (60, 120));
+        assert_eq!((o.me.max_hp, o.enemies[0].max_hp), (460, 790));
     }
 
     #[test]
