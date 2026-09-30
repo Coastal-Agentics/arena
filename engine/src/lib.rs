@@ -9,6 +9,12 @@
 //! * Same seed + same actions → bit-identical state on the same platform ([`Match::state_hash`]).
 //! * No OS/threads/time dependencies: builds for `wasm32-unknown-unknown`.
 //!
+//! The core is generic (ADR-014 step B1): [`generic::Match`], [`generic::Replay`] and
+//! [`generic::Policy`] run any game that implements [`Rules`]. Tank Arena's
+//! implementation, [`TankRules`], still lives in this crate, and the familiar names are
+//! its instantiation: [`Match`] is `generic::Match<TankRules>`, [`Replay`] and
+//! [`ReplayPlayer`] likewise, and [`Policy`] defaults to `Policy<TankRules>`.
+//!
 //! Extension points for rule crates: [`TankParams`] (speeds, HP, cooldown, projectile
 //! stats, optional stationary accuracy), shared in [`MatchConfig::params`] or per tank in
 //! [`TankSpawn::params`]; [`MatchConfig`] (arena, obstacles, spawns, tick limit);
@@ -24,6 +30,7 @@
 
 pub mod angle;
 pub mod arena;
+pub mod generic;
 pub mod json_u64;
 pub mod policy;
 pub mod replay;
@@ -33,11 +40,13 @@ mod testing;
 
 pub use angle::Heading;
 pub use arena::{Arena, Rect};
+pub use generic::{MatchRng, Rules, StateHasher};
 pub use glam::Vec2;
 pub use policy::{Action, Observation, Policy, ProjectileObs, SelfObs, TankObs, WallObs};
 pub use replay::{Replay, ReplayError, ReplayPlayer};
 pub use sim::{
-    EndReason, Event, Match, MatchConfig, Outcome, Projectile, Tank, TankParams, TankSpawn,
+    EndReason, Event, Match, MatchConfig, Outcome, Projectile, Tank, TankParams, TankRules,
+    TankSpawn, TankState,
 };
 
 /// Simulation tick rate in Hz. The sim always steps at this fixed rate.

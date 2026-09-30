@@ -3,6 +3,9 @@
 //! Each tick a [`Policy`] receives an [`Observation`] for its tank (built by
 //! [`crate::Match::observe`]) and returns an [`Action`]. The sim clamps the action and
 //! records it in the match history, which is what a [`crate::Replay`] stores.
+//!
+//! These are [`crate::TankRules`]' `Observation` and `Action` types. [`Policy`] is the
+//! generic [`crate::generic::Policy`], whose rules parameter defaults to `TankRules`.
 
 use crate::angle::Heading;
 use crate::arena::Rect;
@@ -151,27 +154,4 @@ pub const MAX_OBSERVED_TANKS: usize = 4;
 /// Cap on projectiles listed in an observation.
 pub const MAX_OBSERVED_PROJECTILES: usize = 8;
 
-/// A tank controller. Must be deterministic given its own state and the observations
-/// (use a seeded RNG inside the policy if it needs randomness).
-///
-/// Any `FnMut(&Observation) -> Action` closure is a policy:
-///
-/// ```
-/// use engine::{Action, Match, MatchConfig, Observation};
-///
-/// let mut sit = |_: &Observation| Action::default();
-/// let mut spin = |_: &Observation| Action { turn: 1.0, ..Default::default() };
-/// let mut m = Match::new(MatchConfig::duel(), 1);
-/// let o = m.run(&mut [&mut sit, &mut spin]);
-/// assert_eq!(o.winner, None); // nobody shoots: draw at the tick limit
-/// ```
-pub trait Policy {
-    /// Choose this tick's action from the observation.
-    fn act(&mut self, obs: &Observation) -> Action;
-}
-
-impl<F: FnMut(&Observation) -> Action> Policy for F {
-    fn act(&mut self, obs: &Observation) -> Action {
-        self(obs)
-    }
-}
+pub use crate::generic::Policy;

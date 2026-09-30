@@ -1,7 +1,8 @@
 # The tick loop
 
-Source: `engine/src/lib.rs` (`TICK_HZ`, `DT`), `engine/src/sim.rs` (`Match::step`,
-`step_policies`, `run`).
+Source: `engine/src/lib.rs` (`TICK_HZ`, `DT`), `engine/src/generic/match_loop.rs`
+(`Match::new`, `step`, `step_policies`, `run`) and `engine/src/sim.rs` (`TankRules::step`,
+`TankRules::outcome`).
 
 ## Fixed 60 Hz step
 
@@ -21,25 +22,38 @@ by `DT` once to get per-tick amounts; turn rates are already per tick.
 
 | Call | What it does |
 | --- | --- |
-| `Match::new(config, seed)` | Seeds the RNG, spawns tanks, checks the end condition once |
-| `Match::step(&[Action])` | One tick with explicit actions. `actions[i]` drives tank `i`; missing entries are `Action::default()`; returns `Some(Outcome)` once over |
-| `Match::step_policies(&mut [&mut dyn Policy])` | Builds every observation from the current state, asks each living tank's policy for an action (dead tanks and tanks without a policy get `Action::default()`), then calls `step` |
+| `Match::new(config, seed)` | Seeds the RNG, builds the initial state (`Rules::init`; for tanks: spawns them), checks the end condition once (`Rules::outcome` at tick 0) |
+| `Match::step(&[Action])` | One tick with explicit actions. `actions[i]` drives tank `i`; missing entries are `Action::default()`, extra entries are ignored; returns `Some(Outcome)` once over |
+| `Match::step_policies(&mut [&mut dyn Policy])` | Builds every observation from the current state, asks each active (for tanks: living) agent's policy for an action (dead tanks and tanks without a policy get `Action::default()`, and their policy isn't called), then calls `step` |
 | `Match::run(&mut [&mut dyn Policy])` | Calls `step_policies` until the match ends; returns the `Outcome` |
 
 Once the match is over, `step` does nothing and returns the stored outcome; the tick counter
 and history stop growing.
 
-## Inside one step
+`engine::Match` is `engine::generic::Match<TankRules>`: the calls above are the generic
+match loop, and everything tank-specific happens inside the `Rules` functions it calls
+([ADR-014](../DECISIONS.md) step B1). The generic `Match::step` does, in order:
 
-This is the order in `Match::step`, which the determinism guarantees depend on. Every tank
+1. clear the previous step's events;
+2. build one action per agent (`Rules::agents`): `actions[i]` or the default, passed through
+   `Rules::sanitize`;
+3. `Rules::step(config, state, actions, rng, events)`, the only place besides `Rules::init`
+   that gets the match RNG;
+4. push the sanitized actions onto the history, `tick += 1`;
+5. store `Rules::outcome(config, state, tick)`.
+
+## Inside one step (Tank Arena)
+
+This is the order in `TankRules::sanitize` and `TankRules::step`, which the determinism
+guarantees depend on. Every tank
 uses its own params (`Match::tank_params(i)`, see [per-tank params](world.md#per-tank-params))
 for `turn_rate`, `turret_turn_rate`, `max_speed` and everything about its gun; the collision
 radius `r` is the shared `MatchConfig::params.radius`.
 
-0. **Record actions.** For each tank id, take `actions[i]` (or the default) and clamp it:
-   `throttle`, `turn` and `turret_turn` to `[-1, 1]`, NaN to 0. This clamped list is what
-   goes into the history (and the replay). Actions for dead tanks are recorded but have no
-   effect.
+0. **Record actions** (`TankRules::sanitize`, called by the generic step). For each tank id,
+   take `actions[i]` (or the default) and clamp it: `throttle`, `turn` and `turret_turn` to
+   `[-1, 1]`, NaN to 0. This clamped list is what goes into the history (and the replay).
+   Actions for dead tanks are recorded but have no effect.
 1. **Turn and plan moves** (each living tank, against the tick-start positions of all tanks):
    - `heading += trunc(turn * turn_rate)`, `turret += trunc(turret_turn * turret_turn_rate)`
      (wrapping `u16` arithmetic);
@@ -72,8 +86,9 @@ radius `r` is the shared `MatchConfig::params.radius`.
    - on a wall or obstacle: remove the shot;
    - otherwise remove it if `ttl <= 1`, else `ttl -= 1` and keep it.
 5. **Finish the tick.** Append this tick's new shots to the projectile list. Every living
-   tank with `hp <= 0` becomes dead (`vel = 0`, `Event::Destroyed`). Push the recorded
-   actions onto the history, `tick += 1`, and check the end conditions
+   tank with `hp <= 0` becomes dead (`vel = 0`, `Event::Destroyed`). That ends
+   `TankRules::step`; the generic loop then pushes the recorded actions onto the history,
+   does `tick += 1`, and checks the end conditions with `TankRules::outcome`
    ([world](world.md#how-a-match-ends)).
 
 Consequences worth knowing:

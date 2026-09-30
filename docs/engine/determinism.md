@@ -1,6 +1,7 @@
 # Seeds and determinism
 
-Source: `engine/src/sim.rs`, `engine/src/angle.rs`, `engine/src/arena.rs`,
+Source: `engine/src/generic/` (`MatchRng`, `StateHasher`, the match loop),
+`engine/src/sim.rs` (`TankRules`), `engine/src/angle.rs`, `engine/src/arena.rs`,
 `engine/src/json_u64.rs`, `games/tank/src/bots.rs` (the placeholder bots); policy in ADR-003
 (`docs/DECISIONS.md`).
 
@@ -16,7 +17,9 @@ As a spot check on 2026-09-30, Chaser vs Wanderer for seeds 0, 7, 42, 43, 1234 a
 `WasmMatch.withConfig` (Glass Cannon 28 dmg / 60 HP vs Brawler 24 dmg, 90 u/s, 273 BAU/tick,
 120 HP, seed 42: tick 385, hash `86bc2f990b3b015d`). That's evidence for those runs on those
 two targets, nothing more. The same runs gave the same results again after the bots moved
-from `engine::bots` to `games/tank` (ADR-014 Phase A, 2026-09-30).
+from `engine::bots` to `games/tank` (ADR-014 Phase A, 2026-09-30), and again after the
+generic core (ADR-014 B1, 2026-09-30), which also left `engine-cli` output and 200 replay
+files byte-identical.
 
 Tests that pin this down:
 - **engine:** `same_seed_same_match`, `different_seeds_differ`,
@@ -24,7 +27,10 @@ Tests that pin this down:
   `per_tank_params_are_deterministic_and_change_the_match`, and the engine's own pins,
   `pinned_hashes_are_unchanged` (5 seeds, including an `all_destroyed` draw) and
   `seeds_0_to_199_are_unchanged` (a digest). These run test-only policies from
-  `engine/src/testing.rs`, so they don't depend on any game crate.
+  `engine/src/testing.rs`, so they don't depend on any game crate. The generic core has its
+  own tests (`engine/src/generic/tests.rs`) on a small test-only second `Rules` game:
+  `same_seed_same_match_different_seed_differs`, `state_hash_is_tick_then_rules_state`,
+  `replays_roundtrip_verify_and_reject` and others.
 - **games/tank:** `documented_hashes_are_unchanged` (the Chaser vs Wanderer hashes quoted in
   these pages) and `smoke_run_seeds_0_to_199_are_unchanged`, next to the bots.
 - **engine-cli:** `same_seed_same_json`, `match_i_is_reproducible_alone`, and
@@ -33,7 +39,10 @@ Tests that pin this down:
 
 ## The seeded RNG
 
-Each `Match` owns one `rand_chacha::ChaCha8Rng`, created with `ChaCha8Rng::seed_from_u64(seed)`.
+Each `Match` owns one `rand_chacha::ChaCha8Rng`, created with `ChaCha8Rng::seed_from_u64(seed)`
+and wrapped in `engine::MatchRng`. Only the engine can create a `MatchRng`, and it exposes
+only `next_u32` and `next_u64`. The match lends it to exactly two `Rules` functions,
+`init` and `step`; `observe`, `outcome` and the rest never see it.
 `rand_chacha` is built with `default-features = false`, so no OS entropy (`getrandom`) is
 linked. That is also what lets the crate build for `wasm32-unknown-unknown`. Nothing in
 the sim uses a global or thread RNG.
@@ -42,14 +51,14 @@ the sim uses a global or thread RNG.
 
 In this order, and nowhere else:
 
-1. **`Match::new`, per tank in id order:**
+1. **`Match::new` (`TankRules::init`), per tank in id order:**
    - if `pos` is `None`: up to 1000 candidates, each drawing two `u32`s (x then y). Each is
      turned into a float in `[0, 1)` from its top 24 bits and scaled to `[r, size - r]`. A
      candidate is accepted if no obstacle is within 1.5 radii and every already-placed tank's
      centre is at least 6 radii away. If all 1000 fail, the tank is placed at the arena
      centre;
    - if `heading` is `None`: one `u32`, top 16 bits → heading.
-2. **`Match::step`, per shot fired, in tank id order**, only if that shot's effective spread
+2. **`Match::step` (`TankRules::step`), per shot fired, in tank id order**, only if that shot's effective spread
    is above 0: one `u32`; deviation = `u32 % (2 * spread + 1) - spread` BAU. The effective
    spread is the firing tank's own `projectile_spread`, or its `projectile_spread_still` when
    that is set and the tank didn't move this tick ([stationary accuracy](world.md#stationary-accuracy)).
@@ -99,17 +108,18 @@ A replay stores actions, not policies, so it re-simulates without any policy RNG
 
 Tank moves are planned against the **tick-start** positions of every tank, then applied
 together. Any tank whose planned position would overlap another's planned position stays put,
-repeated until stable ([tick loop](tick-loop.md#inside-one-step), step 2). No tank moves
+repeated until stable ([tick loop](tick-loop.md#inside-one-step-tank-arena), step 2). No tank moves
 "first", so the movement result doesn't depend on tank ids. Engine test
 `movement_does_not_depend_on_tank_id_order` checks this. Before replay format 2, moves were
 applied in id order (see [replay format](replay-format.md#versioning)).
 
 ## State hash
 
-`Match::state_hash()` is a 64-bit FNV-1a over the raw bits of:
+`Match::state_hash()` is a 64-bit FNV-1a (`engine::StateHasher`, one `write_u64` per value)
+over the raw bits of:
 
-- the tick count;
-- per tank, in id order: `pos.x`, `pos.y`, `vel.x`, `vel.y`, `heading`, `turret`, `hp`,
+- the tick count (written by the generic match loop);
+- then whatever the rules' `hash_state` writes. For `TankRules`: per tank, in id order: `pos.x`, `pos.y`, `vel.x`, `vel.y`, `heading`, `turret`, `hp`,
   `cooldown`, `alive`;
 - per projectile, in list order: `owner`, `pos.x`, `pos.y`, `vel.x`, `vel.y`, `ttl`.
 

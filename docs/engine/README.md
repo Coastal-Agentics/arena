@@ -9,8 +9,13 @@ These pages describe the code on `main`. Where a page says what a function does,
 reading that function; the rustdoc (`cargo doc --no-deps -p engine --open`) has the same facts
 next to the code.
 
-**Current shape, stated plainly:** the engine is tank-shaped today. Tanks, projectiles, the tank
-step rules, the tank `Observation`/`Action` pair and `TankParams` live in `engine/`.
+**Current shape, stated plainly:** the engine has a generic core, but its only rules are the
+tank's. `engine::generic` (ADR-014 step B1) holds the game-agnostic parts: the `Rules` trait,
+`Match<R>` (tick counter, seeded RNG, event log, outcome, action history), `Replay<R>`,
+`ReplayPlayer<R>`, `Policy<R>`, `MatchRng` and `StateHasher`. `TankRules` is the one `Rules`
+implementation, and `engine::Match`, `engine::Replay` and `engine::ReplayPlayer` are aliases
+for the tank instances, so existing code didn't change. Tanks, projectiles, the tank step
+rules, the tank `Observation`/`Action` pair and `TankParams` still live in `engine/`.
 `games/tank` (crate `tank`) builds on them: the Tank Arena rules v1 (loadouts, the pillar arena
 and spawns, the charger, kiter and sniper policies; #18) and, since ADR-014 Phase A, the two
 placeholder bots `Chaser` and `Wanderer`. The Tank Arena spec (`games/tank/SPEC.md`, GATE-002)
@@ -18,14 +23,16 @@ is merged, and the engine side of its asks is in: line of sight, per-tank params
 `los` in observations, optional stationary accuracy (replay format 4). ADR-009 plans for tank
 specifics to live in `games/tank`; its 2026-09-30 correction records that they are in `engine/`
 today and that the move is future work.
-[ADR-014](../DECISIONS.md) (Accepted) plans how. Only step B1 is approved: a generic core with a `Rules` trait, with the tank rules still in `engine/`. Moving them to `games/tank` is deferred until a second Rust game exists.
+[ADR-014](../DECISIONS.md) (Accepted) plans how. Step B1, the generic core, is the only
+approved step and is what's described here. Moving the tank rules to `games/tank` is
+deferred until a second Rust game exists.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
   subgraph rust["Rust workspace"]
-    engine["engine<br/>sim core: Match, Arena, Policy,<br/>Replay, tank step rules"]
+    engine["engine<br/>generic core: Rules, Match&lt;R&gt;, Replay&lt;R&gt;, Policy&lt;R&gt;<br/>TankRules: arena, tanks, projectiles<br/>(Match = Match&lt;TankRules&gt;)"]
     tank["games/tank (crate tank)<br/>rules v1, loadouts, policies,<br/>bots (Chaser, Wanderer)"]
     cli["engine-cli<br/>headless runner (binary)"]
     wasm["engine-wasm<br/>wasm-bindgen bindings:<br/>WasmMatch, Viewer"]
@@ -61,11 +68,11 @@ Data flow in one line each:
 | Page | What it covers |
 | --- | --- |
 | [World](world.md) | Arena, coordinates, headings (64-BAU aim resolution), line of sight, tanks, projectiles, `TankParams`, per-tank params, stationary accuracy, `MatchConfig::duel`, events, end conditions |
-| [Tick loop](tick-loop.md) | The fixed 60 Hz step, the exact order of work inside `Match::step`, how callers drive it |
-| [Seeds and determinism](determinism.md) | The ChaCha8 RNG and what draws from it, simultaneous movement, trig table, the one `sqrt`, state hash, JS-safe string seeds |
-| [Observations, actions and policies](policies.md) | `Observation` (including `max_hp` and `los`), `Action`, the `Policy` trait, and the placeholder `Chaser` and `Wanderer` (in `games/tank`) |
+| [Tick loop](tick-loop.md) | The fixed 60 Hz step, the generic `Match::step` and the order of work inside `TankRules::step`, how callers drive it |
+| [Seeds and determinism](determinism.md) | The ChaCha8 RNG (`MatchRng`) and what draws from it, simultaneous movement, trig table, the one `sqrt`, state hash, JS-safe string seeds |
+| [Observations, actions and policies](policies.md) | `Observation` (including `max_hp` and `los`), `Action`, the `Policy` trait (generic over `Rules`), and the placeholder `Chaser` and `Wanderer` (in `games/tank`) |
 | [Replay format](replay-format.md) | `REPLAY_FORMAT` 4 field by field, the setup hash, versioning (formats 2 and 3 still read), `verify`, `ReplayPlayer` |
 | [engine-cli](engine-cli.md) | Flags, output, replay files, examples |
-| [engine-wasm and the web viewer](wasm-and-web.md) | The JS API (including `withConfig` and `duelConfigJson`), building `web/pkg`, relative paths, the CI check, Pages deploy |
+| [engine-wasm and the web viewer](wasm-and-web.md) | The JS API (including `withConfig`, `duelConfigJson` and the rules-v1 Tank Arena calls with a run example), building `web/pkg`, relative paths, the CI check, Pages deploy |
 
 Related: [ADR-001, -003, -008, -009, -014](../DECISIONS.md) in `docs/DECISIONS.md`.
