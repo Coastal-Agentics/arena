@@ -13,7 +13,7 @@ use std::path::PathBuf;
 #[command(
     name = "engine-cli",
     version,
-    about = "Run headless Starscream matches"
+    about = "Coastal Agentics Arena: run headless duels between the built-in bots and print JSON results"
 )]
 struct Args {
     /// Number of matches to run.
@@ -112,6 +112,14 @@ mod tests {
             seed,
             replay_dir: None,
         }
+    }
+
+    #[test]
+    fn help_uses_current_branding() {
+        use clap::CommandFactory;
+        let help = Args::command().render_help().to_string();
+        assert!(help.starts_with("Coastal Agentics Arena: "), "{help}");
+        assert!(!help.contains("Starscream"), "{help}");
     }
 
     #[test]
