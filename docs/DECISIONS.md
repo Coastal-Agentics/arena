@@ -78,3 +78,9 @@ Short ADRs. Status is one of: Accepted, Open, Superseded.
 ## ADR-011 — Renamed to Coastal Agentics
 **Status:** Accepted (2026-09-30)
 **Decision:** Starscream Agentics is now **Coastal Agentics** (Savannah, Georgia): "We train robots, with open tools, on the Georgia coast." Founded on GitHub October 1, 2026. The repo `starscream` is renamed `arena` (GitHub redirects the old URL); the org moves from `starscream-agentics` to `coastal-agentics` when Nye renames it in the org settings. The devlog is now field notes (`docs/fieldnotes/`, `web/fieldnotes.html`; `web/devlog.html` redirects). Email prefixes are `[COASTAL]`. Crate names are unchanged.
+
+## ADR-012 — Tank demo stays 2D canvas; 3D environment is future work
+**Status:** Accepted for the 2D demo (founder decision, 2026-09-30). The 3D work is future work, **not scheduled**.
+**Decision:** The Tank Arena demo stays a 2D canvas viewer (ADR-002). No 3D work in the tank POC.
+**Future work:** We will need a 3D environment for objects moving in space. Candidate renderer: **Bevy**, reading the same match data (replays/state logs) the engine already produces, so the sim stays unchanged. It could become a shared viewer for Saltmarsh/MuJoCo worlds too (see ADR-010). Revisits ADR-001 for rendering only, not for the sim core.
+**Decide by:** when a project needs 3D; the CoS proposes it to Nye as a gate then.
