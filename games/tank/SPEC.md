@@ -1,6 +1,6 @@
-# Tank Arena — SPEC (draft for GATE-002)
+# Tank Arena — SPEC (GATE-002, approved; amended 2026-09-30)
 
-Units: engine units (u), ticks at 60 Hz, headings in BAU (65536 = 1 turn, 0 = +X, CCW, Y-up). Numbers are starting values.
+Units: engine units (u), ticks at 60 Hz, headings in BAU (65536 = 1 turn, 0 = +X, CCW, Y-up). The policy numbers are starting values; the tuned ones are in the policy params structs (`games/tank/src/policies/`), with results in `BALANCE.md`.
 
 ## Arena
 - 800 × 600, walled (`MatchConfig::duel()` layout): two pillars `Rect` (250,200)–(300,400) and (500,200)–(550,400). Pillars give cover and break sniper sight lines; the open middle lane rewards aggression.
@@ -11,7 +11,7 @@ Units: engine units (u), ticks at 60 Hz, headings in BAU (65536 = 1 turn, 0 = +X
 ## Tanks
 One tank type with three stats (integer levels 1–5). Level 3 equals `TankParams::default()` except HP (650 instead of 100); the Tank Arena match config uses the 3/3/3 params as its shared params, and scripted matches use 3/3/3 unless a config sets a loadout.
 
-*Retune (2026-09-30, pending a GATE-002 amendment):* HP ×6.5 and geometric tables. The first tables gave 7-second matches, and slow armoured builds won 84% of the time because Speed did nothing for a tank that stands and shoots. Evidence: `games/tank/BALANCE.md`.
+*Retune (2026-09-30, approved as a GATE-002 amendment):* HP ×6.5 and geometric tables. The first tables gave 7-second matches, and slow armoured builds won 84% of the time because Speed did nothing for a tank that stands and shoots. Evidence: `games/tank/BALANCE.md`.
 
 | Stat | Maps to (`TankParams`) | L1 | L2 | **L3 (default)** | L4 | L5 |
 |---|---|---|---|---|---|---|
@@ -48,7 +48,7 @@ At 400 u a shell flies ~67 ticks while a default tank can move ~133 u: long shot
 Last team standing wins. Simultaneous wipe = draw. Time limit 7200 ticks (120 s); reaching it is a draw. Target: median match 30–60 s, < 10% draws.
 
 ## Observation and Action (tank-only)
-Keep the engine's current shapes. **Observation:** `tick`; `me` (pos, vel, heading, turret, hp, max_hp, cooldown, radius); `enemies`/`allies` nearest-first (≤ 4; id, team, pos, rel, dist_sq, vel, heading, turret, hp); `projectiles` nearest-first (≤ 8; pos, rel, dist_sq, vel, owner_team); `walls` distances; `arena_size`; `obstacles`. Full information, no fog. Add `los: bool` per tank. **Action:** `throttle`, `turn`, `turret_turn` in [-1, 1], `fire: bool`.
+Keep the engine's current shapes. **Observation:** `tick`; `me` (pos, vel, heading, turret, hp, max_hp, cooldown, radius); `enemies`/`allies` nearest-first (≤ 4; id, team, pos, rel, dist_sq, vel, heading, turret, hp, max_hp, los); `projectiles` nearest-first (≤ 8; pos, rel, dist_sq, vel, owner_team); `walls` distances; `arena_size`; `obstacles`. Full information, no fog. `los: bool` per tank is `Arena::segment_clear` between centres. **Action:** `throttle`, `turn`, `turret_turn` in [-1, 1], `fire: bool`.
 
 ## Scripted policies (in `games/tank`)
 Shared: target = `enemies[0]`. Lead aim point `L = rel + vel · (dist / 6)` (dist via `f32::sqrt`, IEEE-exact). Aim with `turn_toward(turret, L, tol)`; fire when aligned, `cooldown == 0` and `los`. Stall = throttle ≠ 0 but `|vel| < 0.2` for 10 ticks → reverse 20 ticks turning +1. Each policy's numbers live in a params struct (the Phase 3 evolution genome).
@@ -58,7 +58,7 @@ Shared: target = `enemies[0]`. Lead aim point `L = rel + vel · (dist / 6)` (dis
 Intended triangle: kiter > charger > sniper > kiter. Acceptance: every pairing 55–80% over 200 mirrored seeds.
 
 ## Customize tab (web viewer)
-The arena viewer gets two tabs: **Watch** (today's viewer) and **Customize**. Depends on engine ask #5 (per-tank `TankParams`).
+The arena viewer has two tabs: **Watch** (the match) and **Customize**. Builds use per-tank `TankParams` (engine ask #5).
 - Per tank (Blue, Orange): behavior picker (Charger / Kiter / Sniper) and a loadout triangle.
 - Triangle: a barycentric point with Attack, Speed, Defense at the corners; stat = 1 + 6·weight, snapped to the nearest of the 19 valid loadouts (exact ties → lower Attack, then lower Speed). Preset buttons set the point.
 - Live readout per tank, from the tables above: damage, reload, max speed (u/s), HP, hits-to-kill vs the opponent's HP. E.g. Glass Cannon vs Brawler: 29 dmg kills 790 HP in 28; 24 dmg kills 460 HP in 20.
@@ -84,9 +84,9 @@ Visible shells you can see coming, and near-miss dodges. Three readable personal
 - Movement is simultaneous (PR #6); a tank that would collide stays put that tick. Still evaluate with side-swapped seeds.
 - Placeholder bots are lopsided (Wanderer wins ~98% vs Chaser); balance is judged only on the three policies above.
 
-## Engine asks
+## Engine asks (all delivered: 1 and 3 in #6, 2, 4 and 5 in #16)
 1. Swept projectile hits (segment vs circle/rect, dot products, no sqrt), so faster shells can't tunnel.
 2. `Arena::segment_clear(a, b)` line-of-sight helper, and `los` on `TankObs`.
 3. Movement order fairness: alternate id order by tick parity (or resolve moves simultaneously).
-4. Optional stationary accuracy: spread 128 BAU when still, 256 when moving (gives the sniper an identity).
+4. Optional stationary accuracy: spread 128 BAU when still, 256 when moving (gives the sniper an identity). Delivered as `projectile_spread_still`; Tank Arena leaves it off (see BALANCE.md).
 5. Per-tank stats: optional `TankSpawn.params: Option<TankParams>` (falls back to `MatchConfig.params`); sim uses each tank's speed, turn rate, HP and damage (radius stays shared). Add `max_hp` to `TankObs`. Bump `REPLAY_FORMAT`.
