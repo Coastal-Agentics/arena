@@ -216,8 +216,8 @@ comment-only changes.** Doc comments on `#[wasm_bindgen]` items are copied into 
 JSDoc. Panic locations (file:line) are compiled into the wasm, so moving code lines changes
 the bytes. PR #12 was an example: rustdoc-only edits changed both files.
 
-Size: `engine_wasm_bg.wasm` is 356,307 bytes (117,330 with `gzip -9`) since `checkReplayJson`
-(the parity check, 2026-09-30), up from 303,694 (105,297): +52,613 bytes, +12,033 gzipped.
+Size: `engine_wasm_bg.wasm` is 356,307 bytes (117,336 with `gzip -9`) since `checkReplayJson`
+(the parity check, 2026-09-30), up from 303,694 (105,297): +52,613 bytes, +12,039 gzipped.
 `twiggy diff` puts 14,000 of that in the function-names section; the rest is mostly
 `serde_json` deserializers for `Replay`, `Action` and `Outcome` (the viewer never parsed
 those before). History: 161,993 (64,526 gzipped) before `withConfig`; 247,799 (88,900)
