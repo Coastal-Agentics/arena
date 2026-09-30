@@ -214,6 +214,8 @@ mod tests {
             heading: 0,
             turret: 0,
             hp: 100,
+            max_hp: 100,
+            los: true,
         }
     }
 

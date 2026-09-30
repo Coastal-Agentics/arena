@@ -12,15 +12,13 @@ fn main() {
             std::process::exit(2);
         }
     };
-    let setup = spec.setup();
     let (o, hash) = spec.run();
     println!(
-        "{{\"query\":\"{}\",\"winner\":{},\"ticks\":{},\"reason\":\"{:?}\",\"hash\":\"{:016x}\",\"stats_applied\":{}}}",
+        "{{\"query\":\"{}\",\"winner\":{},\"ticks\":{},\"reason\":\"{:?}\",\"hash\":\"{:016x}\"}}",
         spec.to_query(),
         o.winner.map_or("null".to_string(), |w| w.to_string()),
         o.ticks,
         o.reason,
-        hash,
-        setup.stats_applied()
+        hash
     );
 }

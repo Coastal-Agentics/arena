@@ -117,7 +117,7 @@ impl MatchSpec {
         )
     }
 
-    /// Match config and what it actually applies (see [`rules::with_loadouts`]).
+    /// Match config with both loadouts (see [`rules::with_loadouts`]).
     pub fn setup(&self) -> Setup {
         rules::duel(self.blue.loadout, self.orange.loadout)
     }
@@ -223,18 +223,20 @@ mod tests {
     }
 
     #[test]
-    fn equal_loadout_changes_alter_the_sim() {
-        // Today only equal loadouts reach the sim (engine ask #5 pending): each one
-        // gives a different match from 3/3/3 with the same seed.
-        let base = MatchSpec::default().run();
+    fn every_loadout_change_alters_the_sim() {
+        // SPEC acceptance: same seed, any one tank's loadout changed → different match.
+        let base = MatchSpec::default();
+        let (_, h0) = base.run();
         for l in Loadout::ALL.into_iter().filter(|&l| l != Loadout::DEFAULT) {
-            let m = MatchSpec {
-                blue: TankSpec::new(Behavior::Kiter, l),
-                orange: TankSpec::new(Behavior::Charger, l),
-                ..MatchSpec::default()
-            };
-            assert!(m.setup().stats_applied());
-            assert_ne!(m.run().1, base.1, "{l}");
+            for side in 0..2 {
+                let mut m = base;
+                if side == 0 {
+                    m.blue.loadout = l;
+                } else {
+                    m.orange.loadout = l;
+                }
+                assert_ne!(m.run().1, h0, "{}", m.to_query());
+            }
         }
     }
 }

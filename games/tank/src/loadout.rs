@@ -160,8 +160,23 @@ impl Loadout {
         MAX_HP[(self.defense - 1) as usize]
     }
 
-    /// This loadout's [`TankParams`]: damage, speed, turn rate and HP from the level
-    /// tables; everything else (radius, turret, cooldown, shells) is the shared default.
+    /// This loadout on top of `base`: damage, speed, turn rate and HP from the level
+    /// tables, every other field (radius, turret, cooldown, shells, spread) from `base`.
+    ///
+    /// Use the match's shared `MatchConfig::params` as `base`: a per-tank
+    /// `TankSpawn::params` replaces the shared set as a whole, so anything not copied
+    /// from it (e.g. a stationary-spread setting) would silently reset.
+    pub fn apply(self, base: &TankParams) -> TankParams {
+        TankParams {
+            max_speed: self.max_speed(),
+            turn_rate: self.turn_rate(),
+            max_hp: self.max_hp(),
+            projectile_damage: self.damage(),
+            ..base.clone()
+        }
+    }
+
+    /// This loadout on [`TankParams::default`] (see [`Loadout::apply`]).
     ///
     /// ```
     /// use tank::Loadout;
@@ -170,13 +185,7 @@ impl Loadout {
     /// assert_eq!((p.projectile_damage, p.max_hp), (28, 60));
     /// ```
     pub fn params(self) -> TankParams {
-        TankParams {
-            max_speed: self.max_speed(),
-            turn_rate: self.turn_rate(),
-            max_hp: self.max_hp(),
-            projectile_damage: self.damage(),
-            ..TankParams::default()
-        }
+        self.apply(&TankParams::default())
     }
 
     /// Shots this loadout needs to destroy `defender` (⌈HP / damage⌉).
@@ -423,6 +432,7 @@ mod tests {
             assert_eq!(p.projectile_speed, 360.0);
             assert_eq!(p.projectile_ttl, 120);
             assert_eq!(p.projectile_spread, 256);
+            assert_eq!(p.projectile_spread_still, None);
             assert_eq!(
                 TankParams {
                     max_speed: base.max_speed,
@@ -435,6 +445,26 @@ mod tests {
             );
         }
         assert_eq!(Loadout::DEFAULT.params(), base);
+    }
+
+    #[test]
+    fn apply_keeps_every_non_stat_field_of_the_base() {
+        let base = TankParams {
+            projectile_spread: 100,
+            projectile_spread_still: Some(40),
+            fire_cooldown: 30,
+            ..TankParams::default()
+        };
+        let p = Preset::Scout.loadout().apply(&base);
+        assert_eq!((p.max_speed, p.max_hp), (150.0, 80));
+        assert_eq!(
+            (
+                p.projectile_spread,
+                p.projectile_spread_still,
+                p.fire_cooldown
+            ),
+            (100, Some(40), 30)
+        );
     }
 
     #[test]

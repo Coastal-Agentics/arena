@@ -5,18 +5,14 @@
 //! draw, no friendly fire, tanks block, walls clamp) are the engine's current `Match`
 //! behaviour; this module only builds the [`MatchConfig`].
 //!
-//! **Per-tank stats are stubbed.** The engine has one shared [`MatchConfig::params`]
-//! today; per-tank `TankParams` is engine ask #5 (`TankSpawn.params`). Until it lands,
-//! [`duel`] applies the loadouts exactly when both tanks use the same one (it becomes
-//! the shared params), and otherwise runs both at 3/3/3 and reports that through
-//! [`Setup::stats_applied`]. [`ENGINE_HAS_PER_TANK_PARAMS`] is the single switch.
+//! Loadouts go through the engine's per-tank params (engine ask #5): each tank whose
+//! loadout differs from the shared params gets `TankSpawn::params`, built on top of
+//! the shared `MatchConfig::params` ([`Loadout::apply`]). A 3/3/3 tank keeps
+//! `params: None`, so an all-3/3/3 config is byte-for-byte the default config.
 
 use crate::loadout::Loadout;
 use engine::angle::{from_degrees, Heading};
 use engine::{MatchConfig, TankParams, TankSpawn, Vec2, TICK_HZ};
-
-/// False until the engine supports per-tank [`TankParams`] (engine ask #5).
-pub const ENGINE_HAS_PER_TANK_PARAMS: bool = false;
 
 /// Match length cap: 120 s at 60 Hz. Reaching it is a draw.
 pub const MAX_TICKS: u32 = 120 * TICK_HZ;
@@ -72,6 +68,7 @@ fn spawn(team: u8, x: f32, y: f32, heading: Heading) -> TankSpawn {
         team,
         pos: Some(Vec2::new(x, y)),
         heading: Some(heading),
+        params: None,
     }
 }
 
@@ -90,46 +87,31 @@ pub fn config(mode: Mode) -> MatchConfig {
     }
 }
 
-/// A built match config plus what the sim will actually use for each tank.
+/// A built match config and the loadouts it encodes.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Setup {
     /// Config to hand to [`engine::Match::new`].
     pub config: MatchConfig,
-    /// Loadouts requested, by tank id.
-    pub requested: Vec<Loadout>,
-    /// Loadouts the sim will actually run, by tank id (see [`Setup::stats_applied`]).
-    pub applied: Vec<Loadout>,
+    /// Loadouts by tank id.
+    pub loadouts: Vec<Loadout>,
 }
 
-impl Setup {
-    /// True when every tank runs its requested loadout.
-    pub fn stats_applied(&self) -> bool {
-        self.requested == self.applied
-    }
-}
-
-/// Apply per-tank loadouts (indexed by tank id) to a config.
-///
-/// With today's engine (no per-tank params): if every loadout is the same it becomes the
-/// shared `params`; otherwise every tank runs [`Loadout::DEFAULT`].
+/// Apply per-tank loadouts (indexed by tank id) to a config: tank `i` plays with
+/// `loadouts[i].apply(&config.params)`, set as its `TankSpawn::params` unless that
+/// equals the shared params (then it stays `None`).
 pub fn with_loadouts(mut config: MatchConfig, loadouts: &[Loadout]) -> Setup {
     assert_eq!(
         loadouts.len(),
         config.tanks.len(),
         "one loadout per tank spawn"
     );
-    let requested = loadouts.to_vec();
-    let shared = match requested.split_first() {
-        Some((first, rest)) if rest.iter().all(|l| l == first) => *first,
-        _ => Loadout::DEFAULT,
-    };
-    // Swap point for engine ask #5: set `config.tanks[i].params = Some(l.params())` for
-    // every tank, and `applied = requested`.
-    config.params = shared.params();
+    for (spawn, l) in config.tanks.iter_mut().zip(loadouts) {
+        let p = l.apply(&config.params);
+        spawn.params = (p != config.params).then_some(p);
+    }
     Setup {
         config,
-        applied: vec![shared; requested.len()],
-        requested,
+        loadouts: loadouts.to_vec(),
     }
 }
 
@@ -138,8 +120,10 @@ pub fn with_loadouts(mut config: MatchConfig, loadouts: &[Loadout]) -> Setup {
 /// ```
 /// use tank::{rules, Loadout};
 /// let s = rules::duel(Loadout::DEFAULT, Loadout::DEFAULT);
-/// assert!(s.stats_applied());
 /// assert_eq!(s.config, rules::config(rules::Mode::Duel));
+/// let gc = rules::duel("5-3-1".parse().unwrap(), Loadout::DEFAULT).config;
+/// assert_eq!(gc.tank_params(0).max_hp, 60);
+/// assert_eq!(gc.tank_params(1).max_hp, 100);
 /// ```
 pub fn duel(blue: Loadout, orange: Loadout) -> Setup {
     with_loadouts(config(Mode::Duel), &[blue, orange])
@@ -217,26 +201,36 @@ mod tests {
     #[test]
     fn default_duel_is_3_3_3() {
         let s = duel(Loadout::DEFAULT, Loadout::DEFAULT);
-        assert!(s.stats_applied());
         assert_eq!(s.config, config(Mode::Duel));
+        assert!(s.config.tanks.iter().all(|t| t.params.is_none()));
     }
 
     #[test]
-    fn equal_loadouts_apply_today_and_different_ones_are_flagged() {
+    fn loadouts_become_per_tank_params() {
         let gc: Loadout = "5-3-1".parse().unwrap();
         let br: Loadout = "4-1-4".parse().unwrap();
-        let same = duel(gc, gc);
-        assert!(same.stats_applied());
-        assert_eq!(same.config.params, gc.params());
-        let mixed = duel(gc, br);
-        assert_eq!(mixed.requested, vec![gc, br]);
-        assert_eq!(
-            mixed.stats_applied(),
-            ENGINE_HAS_PER_TANK_PARAMS,
-            "flip this test when TankSpawn.params lands"
-        );
-        if !ENGINE_HAS_PER_TANK_PARAMS {
-            assert_eq!(mixed.config.params, TankParams::default());
-        }
+        let s = duel(gc, br);
+        assert_eq!(s.loadouts, vec![gc, br]);
+        assert_eq!(s.config.tank_params(0), gc.params());
+        assert_eq!(s.config.tank_params(1), br.params());
+        let m = Match::new(s.config, 1);
+        assert_eq!((m.tanks()[0].hp, m.tanks()[1].hp), (60, 120));
+        assert_eq!(m.tank_params(0).projectile_damage, 28);
+        assert_eq!(m.tank_params(1).max_speed, 90.0);
+        // Observations carry each tank's own max_hp.
+        let o = m.observe(0);
+        assert_eq!((o.me.max_hp, o.enemies[0].max_hp), (60, 120));
+    }
+
+    #[test]
+    fn loadouts_build_on_the_shared_params() {
+        // The pitfall: a per-tank set replaces the shared one as a whole, so it must
+        // carry the shared non-stat fields (here a stationary spread) along.
+        let mut c = config(Mode::Duel);
+        c.params.projectile_spread_still = Some(128);
+        let s = with_loadouts(c, &["2-5-2".parse().unwrap(), Loadout::DEFAULT]);
+        assert_eq!(s.config.tank_params(0).projectile_spread_still, Some(128));
+        assert_eq!(s.config.tank_params(0).max_speed, 150.0);
+        assert_eq!(s.config.tanks[1].params, None);
     }
 }
