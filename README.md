@@ -7,9 +7,9 @@ Founded October 1, 2026 (formerly Starscream Agentics).
 - Site: https://starscream-agentics.github.io/arena/ (the `starscream-agentics` org is the home for simulations; ADR-013)
 - Field notes: [docs/fieldnotes/](docs/fieldnotes/) · [on the site](https://starscream-agentics.github.io/arena/fieldnotes.html)
 
-This repo is the **arena**: a small deterministic Rust engine and **Tank Arena**, autonomous tank agents fighting in a bounded arena, live in the browser, improving through self-play. The company is run by agents: a Chief of Staff (Soundwave) plans, dispatches workers (Shockwave, Engine Lead; Blitzwing, Tank Designer-Developer), merges on green CI, and reports to the founder, Nye Warburton (Creative Director).
+This repo is the **arena**: a small deterministic Rust engine and the Tank Arena project. The built-in-bot viewer is live in the browser; the Tank Arena rules and policies await GATE-002 before implementation. The company is run by agents: a Chief of Staff (Soundwave) plans, dispatches workers (Shockwave, Engine Lead; Blitzwing, Tank Designer-Developer), merges on green CI, and reports to the founder, Nye Warburton (Creative Director).
 
-Status: **Phase 2 (Tank Arena)**. See [docs/STATE.md](docs/STATE.md).
+Status: **Phase 2 (Tank Arena)**. The viewer is live at [arena.html](https://starscream-agentics.github.io/arena/arena.html); Tank Arena rules remain gated. See [docs/STATE.md](docs/STATE.md).
 
 ## Layout
 ```
