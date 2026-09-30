@@ -2,14 +2,14 @@
 
 _Single source of truth for Coastal Agentics (formerly Starscream Agentics). Owned by the CoS (Soundwave). Updated at the end of every work cycle._
 
-**Last updated:** 2026-09-30 15:30 ET (America/New_York)
+**Last updated:** 2026-09-30 15:50 ET (America/New_York)
 **Phase:** 2 — Tank Arena (engine criteria of Phase 1 met; spec gate and Phase 1 playbook still open)
 
 ## Restructure — 2026-09-30 (ADR-011)
 - Company renamed **Coastal Agentics**, Savannah, Georgia. Founded on GitHub October 1, 2026. Charter replaced (`docs/CHARTER.md`).
 - Repo renamed `starscream` → **`arena`**; old URLs redirect. Org profile updated (name, description, location).
-- Org login rename `starscream-agentics` → `coastal-agentics`: **pending Nye** (the API can't rename orgs; Settings → Rename organization).
-- Hosting moved from Vercel to **GitHub Pages** (ADR-008): `.github/workflows/pages.yml`, site at https://starscream-agentics.github.io/arena/ (moves with the org rename). `web/vercel.json` removed.
+- Org: `starscream-agentics` is **not** renamed; it stays the home for simulations (ADR-013). A separate `coastal-agentics` org will host the company site later.
+- Hosting moved from Vercel to **GitHub Pages** (ADR-008): `.github/workflows/pages.yml`, site at https://starscream-agentics.github.io/arena/ (stays there, ADR-013). `web/vercel.json` removed.
 - Devlog is now **field notes**: `docs/fieldnotes/`, `web/fieldnotes.html` (`web/devlog.html` redirects). Role briefs rebranded in `docs/roles/`. Provenance card template: `docs/CARD.md`.
 
 ## Phase 2 status
@@ -47,7 +47,6 @@ _Single source of truth for Coastal Agentics (formerly Starscream Agentics). Own
 ## Open tasks
 | Task | Owner | PR | Status |
 |---|---|---|---|
-| Rename org to `coastal-agentics` | Nye | — | pending Nye |
 | Tank spec gate | Blitzwing → Nye | #4 | awaiting GATE-002 |
 | Viewer v0 | Shockwave | #8 | in progress |
 | Verify the AgentMail inbox (optional) | Nye | — | optional |
@@ -61,7 +60,6 @@ _Single source of truth for Coastal Agentics (formerly Starscream Agentics). Own
 - Limits: 1 scheduled cycle per weekday + founder-triggered cycles; max 2 concurrent workers.
 
 ## Blockers
-- Org rename needs Nye in the GitHub UI.
 - Tank rules wait on GATE-002.
 
 ## Next

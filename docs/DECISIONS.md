@@ -53,7 +53,7 @@ Short ADRs. Status is one of: Accepted, Open, Superseded.
 4. *PAT or GitHub App token.* Rejected: new credential (gated).
 5. **Chosen: unprotected `nightly-data` branch.** The nightly merges `main` into `nightly-data`, commits results (only `web/data/`, `docs/fieldnotes/` (was `docs/devlog/` before ADR-011); anything else fails the job), and pushes (never force). `main` protection is untouched.
 **Consequences:**
-- The site reads live nightly data from `nightly-data` (e.g. `raw.githubusercontent.com/<org>/arena/nightly-data/web/data/...`); wire this in Phase 3.
+- The site reads live nightly data from `nightly-data` (e.g. `raw.githubusercontent.com/starscream-agentics/arena/nightly-data/web/data/...`); wire this in Phase 3.
 - The CoS folds `nightly-data` into `main` by a normal PR in its daily work cycle, so CI checks it and nightly devlog entries reach `main`.
 - `nightly-data` holds saved data: deleting or force-pushing it is a Nye gate.
 
@@ -62,7 +62,7 @@ Short ADRs. Status is one of: Accepted, Open, Superseded.
 **Decision:** The public site is GitHub Pages, deployed by `.github/workflows/pages.yml` on push to `main` using the official actions (`configure-pages`, `upload-pages-artifact`, `deploy-pages`). `web/` is uploaded as-is: no build step. The wasm build and its JS glue are committed under `web/pkg` and served as static files. `web/vercel.json` is removed.
 **Why:** No new account, token or plan tier; the deploy lives next to CI where the CoS owns it; the repo stays self-contained. Answers ADR-005 without a secret or a Rust toolchain on a host.
 **Cost:** No per-PR preview deploys. Committed wasm must be rebuilt in the same PR as engine changes; the Engine Lead's brief says so.
-**URL:** `https://<org>.github.io/arena/`.
+**URL:** `https://starscream-agentics.github.io/arena/` (stays there; ADR-013).
 
 ## ADR-009 — The engine core is generic; tank specifics live in `games/tank`
 **Status:** Accepted (2026-09-30)
@@ -77,10 +77,15 @@ Short ADRs. Status is one of: Accepted, Open, Superseded.
 
 ## ADR-011 — Renamed to Coastal Agentics
 **Status:** Accepted (2026-09-30)
-**Decision:** Starscream Agentics is now **Coastal Agentics** (Savannah, Georgia): "We train robots, with open tools, on the Georgia coast." Founded on GitHub October 1, 2026. The repo `starscream` is renamed `arena` (GitHub redirects the old URL); the org moves from `starscream-agentics` to `coastal-agentics` when Nye renames it in the org settings. The devlog is now field notes (`docs/fieldnotes/`, `web/fieldnotes.html`; `web/devlog.html` redirects). Email prefixes are `[COASTAL]`. Crate names are unchanged.
+**Decision:** Starscream Agentics is now **Coastal Agentics** (Savannah, Georgia): "We train robots, with open tools, on the Georgia coast." Founded on GitHub October 1, 2026. The repo `starscream` is renamed `arena` (GitHub redirects the old URL); the `starscream-agentics` org keeps its name (ADR-013). The devlog is now field notes (`docs/fieldnotes/`, `web/fieldnotes.html`; `web/devlog.html` redirects). Email prefixes are `[COASTAL]`. Crate names are unchanged.
 
 ## ADR-012 — Tank demo stays 2D canvas; 3D environment is future work
 **Status:** Accepted for the 2D demo (founder decision, 2026-09-30). The 3D work is future work, **not scheduled**.
 **Decision:** The Tank Arena demo stays a 2D canvas viewer (ADR-002). No 3D work in the tank POC.
 **Future work:** We will need a 3D environment for objects moving in space. Candidate renderer: **Bevy**, reading the same match data (replays/state logs) the engine already produces, so the sim stays unchanged. It could become a shared viewer for Saltmarsh/MuJoCo worlds too (see ADR-010). Revisits ADR-001 for rendering only, not for the sim core.
 **Decide by:** when a project needs 3D; the CoS proposes it to Nye as a gate then.
+
+## ADR-013 — `starscream-agentics` stays; the company site gets its own org later
+**Status:** Accepted (founder decision, 2026-09-30). Replaces the planned org rename in ADR-011.
+**Decision:** The `starscream-agentics` GitHub org is **not** renamed. It stays the home for simulations; this repo and its site remain at `https://starscream-agentics.github.io/arena/`. A separate `coastal-agentics` org will host the company site at `https://coastal-agentics.github.io` later (not scheduled).
+**Consequences:** No URL change for the arena site, the repo or `nightly-data` links. The "rename org" task and blocker are closed.
