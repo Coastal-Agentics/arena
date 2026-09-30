@@ -10,3 +10,5 @@ repository.workspace = true
 engine = { path = "../../engine" }
 # Seeded policy jitter; no default features so wasm32-unknown-unknown builds (as in engine).
 rand_chacha = { version = "0.9", default-features = false }
+# Evolution files (GATE-003 M1); already an engine dependency.
+serde_json = "1"
