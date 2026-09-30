@@ -9,7 +9,7 @@ Units: engine units (u), ticks at 60 Hz, headings in BAU (65536 = 1 turn, 0 = +X
   - **2v2 / FFA-4:** corners (100,100), (700,100), (100,500), (700,500), facing the centre. 2v2 teams are left vs right; FFA gives each tank its own team.
 
 ## Tanks
-One tank type with three adjustable stats (integer levels 1–5, default 3). **All tanks use the defaults in scripted matches unless a config says otherwise**; level 3 equals `TankParams::default()`.
+One tank type with three stats (integer levels 1–5). Level 3 equals `TankParams::default()`; scripted matches use 3/3/3 unless a config sets a loadout.
 
 | Stat | Maps to (`TankParams`) | L1 | L2 | **L3 (default)** | L4 | L5 |
 |---|---|---|---|---|---|---|
@@ -17,7 +17,18 @@ One tank type with three adjustable stats (integer levels 1–5, default 3). **A
 | Speed | max_speed (u/s) / turn_rate (BAU/tick) | 90 / 273 | 105 / 318 | **120 / 364** | 135 / 410 | 150 / 455 |
 | Defense | max_hp | 60 | 80 | **100** | 120 | 140 |
 
-Attack changes damage only (cooldown stays fixed, so fire rhythm stays readable). Speed scales hull move and turn together. Defense is plain HP, not damage reduction: simple integer maths, readable hits-to-kill (3–7 at default attack). Optional fair-loadout rule for custom configs: levels sum to 9.
+Attack changes damage only (cooldown stays fixed, so fire rhythm stays readable). Speed scales hull move and turn together. Defense is plain HP, not damage reduction: simple integer maths, readable hits-to-kill (3–7 at default attack).
+
+**Stat budget (mandatory):** every tank has exactly 9 points across Attack/Speed/Defense, each 1–5; the scripted default is 3/3/3. That gives 19 valid loadouts (integer triples 1–5 summing to 9). Presets (A/S/D): **Balanced** 3/3/3, **Glass Cannon** 5/3/1, **Brawler** 4/1/4, **Scout** 2/5/2.
+
+Hits-to-kill = ⌈defender HP / attacker damage⌉:
+| Attack \ Defense | 1 (60) | 2 (80) | 3 (100) | 4 (120) | 5 (140) |
+|---|---|---|---|---|---|
+| 1 (12) | 5 | 7 | 9 | 10 | 12 |
+| 2 (16) | 4 | 5 | 7 | 8 | 9 |
+| 3 (20) | 3 | 4 | **5** | 6 | 7 |
+| 4 (24) | 3 | 4 | 5 | 5 | 6 |
+| 5 (28) | 3 | 3 | 4 | 5 | 5 |
 
 Fixed for everyone:
 | Param | Value | Meaning |
@@ -43,6 +54,25 @@ Shared: target = `enemies[0]`. Lead aim point `L = rel + vel · (dist / 6)` (dis
 2. **Kiter** — hold 250–350 u. Hull perpendicular to `rel` (circle strafe, throttle 1), bent 30° outward if dist < 250, inward if > 350. Flip strafe direction when a wall < 60, on stall, or every 180 ticks. Aim tol 0.05.
 3. **Sniper** — relocate to the point on its half, ≥ 60 from walls, maximising distance to target with LOS; there throttle 0. Aim tol 0.02. If target dist < 250, drive away perpendicular to `rel` for 60 ticks. No LOS for 120 ticks → move along nearest pillar edge until LOS.
 Intended triangle: kiter > charger > sniper > kiter. Acceptance: every pairing 55–80% over 200 mirrored seeds.
+
+## Customize tab (web viewer)
+The arena viewer gets two tabs: **Watch** (today's viewer) and **Customize**. Depends on engine ask #5 (per-tank `TankParams`).
+- Per tank (Blue, Orange): behavior picker (Charger / Kiter / Sniper) and a loadout triangle.
+- Triangle: a barycentric point with Attack, Speed, Defense at the corners; stat = 1 + 6·weight, snapped to the nearest of the 19 valid loadouts (exact ties → lower Attack, then lower Speed). Preset buttons set the point.
+- Live readout per tank, from the tables above: damage, max speed (u/s), HP, hits-to-kill vs the opponent's HP. E.g. Glass Cannon vs Brawler: 28 dmg kills 120 HP in 5; 24 dmg kills 60 HP in 3.
+- **Watch this match** switches to Watch and plays it. Seed, behaviors and loadouts live in the URL query (e.g. `?seed=42&blue=kiter-5-3-1&orange=charger-4-1-4`); opening the link replays the match exactly.
+
+## Training indicator
+Each tank card shows how its behavior was made. Today: **Scripted** (the three policies above are hand-written). Once the Phase 3 evolution loop exists: generation number, win rate vs the other policies, and a small fitness-over-generations sparkline, all tied to the viewer's generation slider.
+
+## Deferred: loadout kit
+Pick N items (e.g. heavy shell, speed boost, armor, smoke that blocks LOS). Needs its own spec and engine work; not in this round.
+
+## Acceptance (customization)
+- 3/3/3 vs 3/3/3 replays bit-identical to the default match (same seed → same state hashes).
+- Every loadout change alters the readout and the sim (same seed → different replay).
+- URL round-trip (encode → load) reproduces the match exactly; the triangle can't produce an invalid loadout (every point snaps to one of the 19).
+- Balance: the policy triangle target above is still judged at 3/3/3. Target to check once implemented: no single loadout wins > 70% averaged across all 19 opponent loadouts (per policy, 200 mirrored seeds per pairing).
 
 ## What makes it fun to watch
 Visible shells you can see coming, and near-miss dodges. Three readable personalities: the rusher, the dancer, the camper. Pillars create peek-and-hide moments. Lead aim makes long hits feel earned. HP bars and a 2-minute cap keep up the drama; comebacks possible (5 hits).
