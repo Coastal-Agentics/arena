@@ -10,6 +10,9 @@
 //!   [`tank::Chaser`]/[`tank::Wanderer`], `MatchConfig::duel` by default, identical to
 //!   `engine-cli`.
 //!
+//! Separately, [`check_replay`] (JS `checkReplayJson`) re-simulates a replay file for the
+//! native-vs-wasm parity check (`scripts/check-parity.mjs`, `tests/parity.rs`).
+//!
 //! The sim logic lives in [`Viewer`] (plain Rust, unit-tested natively); the
 //! `#[wasm_bindgen]` [`WasmMatch`] wrapper only converts errors to JS.
 //!
@@ -477,6 +480,65 @@ pub fn canonical_tank_query(query: &str) -> Result<String, JsError> {
         .map_err(|e| JsError::new(&e))
 }
 
+/// What re-simulating a replay file gives, for the native-vs-wasm parity check
+/// (`scripts/check-parity.mjs`, `engine-wasm/tests/parity.rs`). Every value except
+/// `format` and `seed` is **recomputed** from the replay's seed, config and actions, not
+/// copied from the file, so comparing it with a manifest compares engines.
+#[derive(Serialize, Debug, PartialEq)]
+pub struct ReplayCheck {
+    /// The file's `format`.
+    pub format: u32,
+    /// The file's seed, as a decimal string.
+    #[serde(with = "engine::json_u64")]
+    pub seed: u64,
+    /// Number of tanks in the config.
+    pub tanks: usize,
+    /// Ticks re-simulated (one per recorded action list).
+    pub ticks: u32,
+    /// Outcome after re-simulating, or null if the actions stop before the end.
+    pub outcome: Option<OutcomeView>,
+    /// State hash after re-simulating, 16 lowercase hex digits.
+    pub final_hash: String,
+    /// `setup_hash` recomputed from the seed and config, 16 lowercase hex digits.
+    pub setup_hash: String,
+    /// `null` if [`engine::Replay::verify`] passes, else its error message.
+    pub verify_error: Option<String>,
+}
+
+/// Load a replay (any readable format) and re-simulate it; see [`ReplayCheck`].
+/// Errors only if the JSON doesn't load ([`engine::Replay::from_json`]); a replay that
+/// loads but doesn't verify is reported in `verify_error`.
+pub fn check_replay(json: &str) -> Result<ReplayCheck, String> {
+    let r = engine::Replay::from_json(json).map_err(|e| e.to_string())?;
+    let (m, verify_error) = match r.verify() {
+        Ok(m) => (m, None),
+        Err(e) => (r.play(), Some(e.to_string())),
+    };
+    Ok(ReplayCheck {
+        format: r.format,
+        seed: r.seed,
+        tanks: m.tanks().len(),
+        ticks: m.tick(),
+        outcome: m.outcome().map(|o| OutcomeView {
+            winner: o.winner,
+            ticks: o.ticks,
+            reason: o.reason,
+        }),
+        final_hash: format!("{:016x}", m.state_hash()),
+        setup_hash: format!("{:016x}", engine::replay::setup_hash(r.seed, &r.config)),
+        verify_error,
+    })
+}
+
+/// Re-simulate a replay file's JSON and return a JSON [`ReplayCheck`]. Throws if the
+/// JSON doesn't load as a replay.
+#[wasm_bindgen(js_name = checkReplayJson)]
+pub fn check_replay_json(json: &str) -> Result<String, JsError> {
+    check_replay(json)
+        .map(|c| serde_json::to_string(&c).expect("check serializes"))
+        .map_err(|e| JsError::new(&e))
+}
+
 /// Engine crate version.
 #[wasm_bindgen(js_name = engineVersion)]
 pub fn engine_version() -> String {
@@ -583,6 +645,22 @@ mod tests {
             .unwrap()
             .setup()
             .is_none());
+    }
+
+    #[test]
+    fn check_replay_recomputes_and_reports() {
+        let mut v = Viewer::new("7", "Chaser", "Wanderer").unwrap();
+        while !v.step(100) {}
+        let json = v.inner().replay().to_json();
+        let c = check_replay(&json).unwrap();
+        assert_eq!((c.format, c.seed, c.tanks, c.ticks), (4, 7, 2, 276));
+        assert_eq!(c.final_hash, "51234f61b02b5784");
+        assert_eq!(c.setup_hash, "0b24ce74f45e9a27");
+        assert_eq!(c.verify_error, None);
+        let edited = json.replacen("\"seed\":\"7\"", "\"seed\":\"8\"", 1);
+        let c = check_replay(&edited).unwrap();
+        assert!(c.verify_error.unwrap().starts_with("setup hash mismatch"));
+        assert!(check_replay("{}").is_err());
     }
 
     #[test]

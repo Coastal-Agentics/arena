@@ -1,0 +1,118 @@
+{
+  "about": "Pinned replays for the native-vs-wasm parity check. Expected values were recorded natively; engine-wasm/tests/parity.rs (native) and scripts/check-parity.mjs (web/pkg) re-simulate every file and compare.",
+  "regenerate": "cargo run -p engine-wasm --example parity_fixtures",
+  "fixtures": [
+    {
+      "file": "cw-seed-max.json",
+      "why": "Chaser vs Wanderer on MatchConfig::duel at seed u64::MAX (18446744073709551615): the largest seed, not representable as a JS number, so it must survive as a decimal string in both engines; ends last_standing.",
+      "format": 4,
+      "seed": "18446744073709551615",
+      "tanks": 2,
+      "ticks": 532,
+      "outcome": {
+        "winner": 1,
+        "ticks": 532,
+        "reason": "last_standing"
+      },
+      "final_hash": "f1d983e88de5d020",
+      "setup_hash": "eff32d1c58acf13c",
+      "bytes": 63873
+    },
+    {
+      "file": "cw-all-destroyed.json",
+      "why": "Chaser vs Wanderer, seed 2916: both tanks die on the same tick, so the match ends as an all_destroyed draw (winner null).",
+      "format": 4,
+      "seed": "2916",
+      "tanks": 2,
+      "ticks": 236,
+      "outcome": {
+        "winner": null,
+        "ticks": 236,
+        "reason": "all_destroyed"
+      },
+      "final_hash": "fc9b0fbc0058d761",
+      "setup_hash": "85ebcabaeed3f81d",
+      "bytes": 28810
+    },
+    {
+      "file": "cw-per-tank-params.json",
+      "why": "Per-tank params (replay format 4): the documented withConfig example, Glass Cannon 28 dmg / 60 HP vs Brawler 24 dmg, 90 u/s, 273 BAU/tick, 120 HP, seed 42 (docs/engine/wasm-and-web.md, determinism.md).",
+      "format": 4,
+      "seed": "42",
+      "tanks": 2,
+      "ticks": 385,
+      "outcome": {
+        "winner": 1,
+        "ticks": 385,
+        "reason": "last_standing"
+      },
+      "final_hash": "86bc2f990b3b015d",
+      "setup_hash": "7ab7d6b848bcfd26",
+      "bytes": 46846
+    },
+    {
+      "file": "cw-spread-still.json",
+      "why": "projectile_spread_still = Some(0) (format 4): a still tank's shot draws no RNG, so the RNG stream depends on movement. Seed 28 ends at tick 263 instead of 305 without it.",
+      "format": 4,
+      "seed": "28",
+      "tanks": 2,
+      "ticks": 263,
+      "outcome": {
+        "winner": 1,
+        "ticks": 263,
+        "reason": "last_standing"
+      },
+      "final_hash": "92981daa6ab1c79f",
+      "setup_hash": "0e8e519d1903a6c8",
+      "bytes": 31905
+    },
+    {
+      "file": "arena-charger-mirror.json",
+      "why": "Tank Arena rules v1 as WasmMatch.tank plays it: seed=2&blue=charger-5-3-1&orange=charger-5-3-1. Loadouts as per-tank params, fixed spawns, the pillar arena; ends as an all_destroyed draw.",
+      "format": 4,
+      "seed": "2",
+      "tanks": 2,
+      "ticks": 818,
+      "outcome": {
+        "winner": null,
+        "ticks": 818,
+        "reason": "all_destroyed"
+      },
+      "final_hash": "d8b3fec9b177e010",
+      "setup_hash": "b3ebb5e1786015d4",
+      "bytes": 112227
+    },
+    {
+      "file": "arena-sniper-vs-charger.json",
+      "why": "Tank Arena: seed=0&blue=sniper-5-3-1&orange=charger-5-3-1. The sniper holds a spot with a sight line and fires only when it sees the target, so its shots depend on the pillars; ends last_standing (orange).",
+      "format": 4,
+      "seed": "0",
+      "tanks": 2,
+      "ticks": 881,
+      "outcome": {
+        "winner": 1,
+        "ticks": 881,
+        "reason": "last_standing"
+      },
+      "final_hash": "e09cf50fd8e2160b",
+      "setup_hash": "8aa5ba11679b13da",
+      "bytes": 120553
+    },
+    {
+      "file": "arena-2v2-tick-limit.json",
+      "why": "Tank Arena 2v2 corner spawns (four tanks, teammates, no friendly fire), charger/kiter/sniper/charger with loadouts 5-3-1, 2-5-2, 3-1-5, 4-4-1, seed 1, max_ticks cut to 360 so it ends at the tick_limit (a draw) while small. Three tanks have taken hits by then.",
+      "format": 4,
+      "seed": "1",
+      "tanks": 4,
+      "ticks": 360,
+      "outcome": {
+        "winner": null,
+        "ticks": 360,
+        "reason": "tick_limit"
+      },
+      "final_hash": "0aa1ae238e20374d",
+      "setup_hash": "4b65859bb85a74bb",
+      "bytes": 98255
+    }
+  ]
+}
