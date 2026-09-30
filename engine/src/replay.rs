@@ -25,10 +25,14 @@ use std::fmt;
 /// v2: swept projectile collision + simultaneous movement (v1 replays no longer
 /// reproduce), seed written as a decimal string (numbers still accepted on read).
 /// v3: adds `setup_hash` (seed + config); sim semantics unchanged from v2.
-pub const REPLAY_FORMAT: u32 = 3;
+/// v4: the config may carry per-tank params (`TankSpawn::params`) and stationary
+/// accuracy (`TankParams::projectile_spread_still`); both are omitted from JSON when
+/// unset, and a config without them plays exactly as in v2/v3.
+pub const REPLAY_FORMAT: u32 = 4;
 
 /// Oldest format [`Replay::from_json`] still reads. Format 2 has the same sim semantics
-/// as 3 but no `setup_hash`, so verifying a v2 replay does not cover its config.
+/// as 3 and 4 but no `setup_hash`, so verifying a v2 replay does not cover its config.
+/// Formats 2 and 3 cannot use the v4 config fields.
 pub const OLDEST_READABLE_FORMAT: u32 = 2;
 
 /// FNV-1a (64-bit) of the match setup: the seed's 8 little-endian bytes, then the
@@ -94,6 +98,14 @@ pub enum ReplayError {
     Format(u32),
     /// A format 3 (or later) replay has no `setup_hash`.
     MissingSetupHash,
+    /// The config uses a field that the replay's (older) format does not have:
+    /// `tanks[].params` or `params.projectile_spread_still` in a format 2 or 3 file.
+    FieldNotInFormat {
+        /// The replay's `format`.
+        format: u32,
+        /// The config field that needs a newer format.
+        field: &'static str,
+    },
     /// The seed or config differs from what was recorded (`setup_hash` mismatch).
     SetupMismatch {
         /// Recorded `setup_hash`.
@@ -123,6 +135,9 @@ impl fmt::Display for ReplayError {
             ReplayError::Json(e) => write!(f, "replay json: {e}"),
             ReplayError::Format(v) => write!(f, "unsupported replay format {v}"),
             ReplayError::MissingSetupHash => write!(f, "replay has no setup_hash"),
+            ReplayError::FieldNotInFormat { format, field } => {
+                write!(f, "replay format {format} has no {field} (needs format 4)")
+            }
             ReplayError::SetupMismatch { expected, got } => write!(
                 f,
                 "setup hash mismatch (seed or config edited): expected {expected}, got {got}"
@@ -162,11 +177,13 @@ impl Replay {
     }
 
     /// Parse JSON and check the format: [`OLDEST_READABLE_FORMAT`] through
-    /// [`REPLAY_FORMAT`] load; format 3 must carry a `setup_hash`. Does not
-    /// re-simulate; call [`Replay::verify`] for that.
+    /// [`REPLAY_FORMAT`] load; format 3 and later must carry a `setup_hash`, and
+    /// formats 2 and 3 must not use the v4 config fields (per-tank `params`,
+    /// `projectile_spread_still`). Does not re-simulate; call [`Replay::verify`] for that.
     ///
-    /// A format 2 replay loads with `setup_hash: None` and keeps `format: 2`. To
-    /// upgrade one, verify it and re-record the result: `r.verify()?.replay()`.
+    /// Older replays keep their `format` (a format 2 replay loads with
+    /// `setup_hash: None`). To upgrade one, verify it and re-record the result:
+    /// `r.verify()?.replay()`.
     pub fn from_json(s: &str) -> Result<Self, ReplayError> {
         let r: Replay = serde_json::from_str(s).map_err(|e| ReplayError::Json(e.to_string()))?;
         if !(OLDEST_READABLE_FORMAT..=REPLAY_FORMAT).contains(&r.format) {
@@ -174,6 +191,22 @@ impl Replay {
         }
         if r.format >= 3 && r.setup_hash.is_none() {
             return Err(ReplayError::MissingSetupHash);
+        }
+        if r.format < 4 {
+            let c = &r.config;
+            let field = if c.tanks.iter().any(|t| t.params.is_some()) {
+                Some("tanks[].params")
+            } else if c.params.projectile_spread_still.is_some() {
+                Some("params.projectile_spread_still")
+            } else {
+                None
+            };
+            if let Some(field) = field {
+                return Err(ReplayError::FieldNotInFormat {
+                    format: r.format,
+                    field,
+                });
+            }
         }
         Ok(r)
     }
