@@ -51,6 +51,7 @@ pub fn version() -> &'static str {
 mod tests {
     use super::*;
     use bots::{Chaser, Wanderer};
+    use serde_json::json;
 
     #[test]
     fn tick_rate_is_60hz() {
@@ -125,6 +126,120 @@ mod tests {
             a[0].fire = false;
         }
         assert!(r.verify().is_err());
+    }
+
+    /// Re-serialize a replay's JSON after editing it as a `serde_json::Value`.
+    fn edit(json: &str, f: impl FnOnce(&mut serde_json::Value)) -> String {
+        let mut v: serde_json::Value = serde_json::from_str(json).unwrap();
+        f(&mut v);
+        v.to_string()
+    }
+
+    #[test]
+    fn edited_config_fails_verification() {
+        // Regression: in format 2, deleting the obstacles from the seed-7 duel still
+        // verified, because nothing in that match touches them and the state hash
+        // doesn't cover the config.
+        let m = play(7);
+        let json = m.replay().to_json();
+        let no_obstacles = edit(&json, |v| v["config"]["arena"]["obstacles"] = json!([]));
+        let r = Replay::from_json(&no_obstacles).expect("still parses");
+        assert!(r.config.arena.obstacles.is_empty());
+        // The gap is real: the edited config re-simulates to the same outcome and state...
+        let edited = r.play();
+        assert_eq!(edited.outcome(), m.outcome());
+        assert_eq!(edited.state_hash(), m.state_hash());
+        // ...but verification now catches the edit.
+        assert!(
+            matches!(r.verify(), Err(ReplayError::SetupMismatch { .. })),
+            "{:?}",
+            r.verify().err()
+        );
+
+        // Any other config field, and the seed, are covered too.
+        type Edit = (&'static str, fn(&mut serde_json::Value));
+        let edits: [Edit; 7] = [
+            ("arena size", |v| {
+                v["config"]["arena"]["size"] = json!([801.0, 600.0])
+            }),
+            ("tank param", |v| {
+                v["config"]["params"]["max_hp"] = json!(101)
+            }),
+            ("spread", |v| {
+                v["config"]["params"]["projectile_spread"] = json!(0)
+            }),
+            ("spawn", |v| v["config"]["tanks"][0]["heading"] = json!(0)),
+            ("team", |v| v["config"]["tanks"][1]["team"] = json!(2)),
+            ("max_ticks", |v| v["config"]["max_ticks"] = json!(7201)),
+            ("seed", |v| v["seed"] = json!("8")),
+        ];
+        for (what, f) in edits {
+            let r = Replay::from_json(&edit(&json, f)).expect(what);
+            assert!(
+                matches!(r.verify(), Err(ReplayError::SetupMismatch { .. })),
+                "{what}: {:?}",
+                r.verify().err()
+            );
+        }
+    }
+
+    #[test]
+    fn setup_hash_ignores_json_formatting() {
+        let json = play(7).replay().to_json();
+        let v: serde_json::Value = serde_json::from_str(&json).unwrap();
+        let pretty = serde_json::to_string_pretty(&v).unwrap();
+        // `16` instead of `16.0`, and an explicit `null` spawn left out, parse to the
+        // same config, so they hash the same.
+        let reworded = pretty
+            .replace("\"radius\": 16.0", "\"radius\": 16")
+            .replace("\"pos\": null,", "");
+        assert_ne!(reworded, pretty);
+        Replay::from_json(&reworded)
+            .unwrap()
+            .verify()
+            .expect("verifies");
+    }
+
+    #[test]
+    fn format_2_replays_still_load_and_upgrade() {
+        let m = play(7);
+        let v3 = m.replay().to_json();
+        assert!(v3.contains(r#""format":3"#), "{v3}");
+        let v2 = edit(&v3, |v| {
+            v["format"] = json!(2);
+            v.as_object_mut().unwrap().remove("setup_hash");
+        });
+        let r = Replay::from_json(&v2).expect("format 2 loads");
+        assert_eq!((r.format, r.setup_hash.as_deref()), (2, None));
+        let out = r.to_json();
+        assert!(
+            out.contains(r#""format":2"#) && !out.contains("setup_hash"),
+            "{out}"
+        );
+        let back = r
+            .verify()
+            .expect("v2 verifies (outcome and final hash only)");
+        assert_eq!(back.state_hash(), m.state_hash());
+        // Upgrade: verify, then re-record.
+        let up = back.replay();
+        assert_eq!(up.format, 3);
+        assert_eq!(up.setup_hash, m.replay().setup_hash);
+    }
+
+    #[test]
+    fn replay_format_bounds() {
+        let json = play(7).replay().to_json();
+        let missing = edit(&json, |v| {
+            v.as_object_mut().unwrap().remove("setup_hash");
+        });
+        assert_eq!(
+            Replay::from_json(&missing),
+            Err(ReplayError::MissingSetupHash)
+        );
+        for f in [0, 1, 4] {
+            let other = edit(&json, |v| v["format"] = json!(f));
+            assert_eq!(Replay::from_json(&other), Err(ReplayError::Format(f)));
+        }
     }
 
     #[test]

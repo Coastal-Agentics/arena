@@ -1,5 +1,8 @@
 //! Replays: config + seed + per-tick actions. Playback re-simulates, so a replay is
 //! both a viewer input and a determinism check (the final state hash must match).
+//! Since format 3 a replay also records a [`setup_hash`] of its seed and config, so
+//! editing the config (or seed) fails verification even when the edit happens not to
+//! change what the match does.
 //!
 //! ```
 //! use engine::bots::{Chaser, Wanderer};
@@ -21,12 +24,46 @@ use std::fmt;
 /// Bumped whenever the replay format or sim semantics change incompatibly.
 /// v2: swept projectile collision + simultaneous movement (v1 replays no longer
 /// reproduce), seed written as a decimal string (numbers still accepted on read).
-pub const REPLAY_FORMAT: u32 = 2;
+/// v3: adds `setup_hash` (seed + config); sim semantics unchanged from v2.
+pub const REPLAY_FORMAT: u32 = 3;
+
+/// Oldest format [`Replay::from_json`] still reads. Format 2 has the same sim semantics
+/// as 3 but no `setup_hash`, so verifying a v2 replay does not cover its config.
+pub const OLDEST_READABLE_FORMAT: u32 = 2;
+
+/// FNV-1a (64-bit) of the match setup: the seed's 8 little-endian bytes, then the
+/// config serialized with `serde_json` (compact, struct field order).
+///
+/// The config is hashed in its canonical serialized form, so every field is covered
+/// (including fields added later) and JSON formatting of a file doesn't matter: a
+/// replay that is re-indented, or writes `16` for `16.0`, hashes the same.
+///
+/// ```
+/// use engine::replay::setup_hash;
+/// use engine::MatchConfig;
+///
+/// let duel = MatchConfig::duel();
+/// let mut open = duel.clone();
+/// open.arena.obstacles.clear();
+/// assert_eq!(setup_hash(7, &duel), setup_hash(7, &duel.clone()));
+/// assert_ne!(setup_hash(7, &duel), setup_hash(7, &open));
+/// assert_ne!(setup_hash(7, &duel), setup_hash(8, &duel));
+/// ```
+pub fn setup_hash(seed: u64, config: &MatchConfig) -> u64 {
+    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+    let config = serde_json::to_vec(config).expect("config serializes");
+    for &b in seed.to_le_bytes().iter().chain(config.iter()) {
+        h ^= b as u64;
+        h = h.wrapping_mul(0x0100_0000_01b3);
+    }
+    h
+}
 
 /// A recorded match.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Replay {
-    /// [`REPLAY_FORMAT`] of the writer. [`Replay::from_json`] rejects any other value.
+    /// Format of the writer: [`REPLAY_FORMAT`] for new replays. [`Replay::from_json`]
+    /// accepts [`OLDEST_READABLE_FORMAT`] through [`REPLAY_FORMAT`].
     pub format: u32,
     /// `engine` crate version of the writer (informational; not checked on load).
     pub engine_version: String,
@@ -41,6 +78,10 @@ pub struct Replay {
     pub outcome: Option<Outcome>,
     /// `Match::state_hash` after the last recorded tick, hex-encoded (JS-safe).
     pub final_hash: String,
+    /// [`setup_hash`] of `seed` and `config`, 16 lowercase hex digits. Required from
+    /// format 3; absent (`None`) in format 2 files, and then not checked.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub setup_hash: Option<String>,
 }
 
 /// Why a replay failed to load or reproduce.
@@ -48,8 +89,18 @@ pub struct Replay {
 pub enum ReplayError {
     /// The JSON did not parse into a [`Replay`] (message from `serde_json`).
     Json(String),
-    /// The `format` field is not [`REPLAY_FORMAT`]; carries the value found.
+    /// The `format` field is outside [`OLDEST_READABLE_FORMAT`]..=[`REPLAY_FORMAT`];
+    /// carries the value found.
     Format(u32),
+    /// A format 3 (or later) replay has no `setup_hash`.
+    MissingSetupHash,
+    /// The seed or config differs from what was recorded (`setup_hash` mismatch).
+    SetupMismatch {
+        /// Recorded `setup_hash`.
+        expected: String,
+        /// [`setup_hash`] of the replay's seed and config as loaded.
+        got: String,
+    },
     /// Re-simulation ended with a different outcome than the recorded one.
     OutcomeMismatch {
         /// Recorded outcome.
@@ -71,6 +122,11 @@ impl fmt::Display for ReplayError {
         match self {
             ReplayError::Json(e) => write!(f, "replay json: {e}"),
             ReplayError::Format(v) => write!(f, "unsupported replay format {v}"),
+            ReplayError::MissingSetupHash => write!(f, "replay has no setup_hash"),
+            ReplayError::SetupMismatch { expected, got } => write!(
+                f,
+                "setup hash mismatch (seed or config edited): expected {expected}, got {got}"
+            ),
             ReplayError::OutcomeMismatch { expected, got } => {
                 write!(f, "outcome mismatch: expected {expected:?}, got {got:?}")
             }
@@ -84,8 +140,9 @@ impl fmt::Display for ReplayError {
 impl std::error::Error for ReplayError {}
 
 impl Replay {
-    /// Snapshot a match (finished or not): its config, seed, action history, outcome
-    /// and current state hash, tagged with [`REPLAY_FORMAT`] and the engine version.
+    /// Snapshot a match (finished or not): its config, seed, action history, outcome,
+    /// current state hash and setup hash, tagged with [`REPLAY_FORMAT`] and the engine
+    /// version.
     pub fn from_match(m: &Match) -> Self {
         Self {
             format: REPLAY_FORMAT,
@@ -95,6 +152,7 @@ impl Replay {
             actions: m.history().to_vec(),
             outcome: m.outcome(),
             final_hash: format!("{:016x}", m.state_hash()),
+            setup_hash: Some(format!("{:016x}", setup_hash(m.seed(), m.config()))),
         }
     }
 
@@ -103,12 +161,19 @@ impl Replay {
         serde_json::to_string(self).expect("replay serializes")
     }
 
-    /// Parse JSON and check `format == REPLAY_FORMAT`. Does not re-simulate; call
-    /// [`Replay::verify`] for that.
+    /// Parse JSON and check the format: [`OLDEST_READABLE_FORMAT`] through
+    /// [`REPLAY_FORMAT`] load; format 3 must carry a `setup_hash`. Does not
+    /// re-simulate; call [`Replay::verify`] for that.
+    ///
+    /// A format 2 replay loads with `setup_hash: None` and keeps `format: 2`. To
+    /// upgrade one, verify it and re-record the result: `r.verify()?.replay()`.
     pub fn from_json(s: &str) -> Result<Self, ReplayError> {
         let r: Replay = serde_json::from_str(s).map_err(|e| ReplayError::Json(e.to_string()))?;
-        if r.format != REPLAY_FORMAT {
+        if !(OLDEST_READABLE_FORMAT..=REPLAY_FORMAT).contains(&r.format) {
             return Err(ReplayError::Format(r.format));
+        }
+        if r.format >= 3 && r.setup_hash.is_none() {
+            return Err(ReplayError::MissingSetupHash);
         }
         Ok(r)
     }
@@ -123,8 +188,19 @@ impl Replay {
         m
     }
 
-    /// Re-simulate and check the outcome and final state hash match the recording.
+    /// Check the replay against its recording: first the `setup_hash` (if present)
+    /// against the seed and config, then re-simulate and compare the outcome and the
+    /// final state hash. Returns the re-simulated match on success.
     pub fn verify(&self) -> Result<Match, ReplayError> {
+        if let Some(expected) = &self.setup_hash {
+            let got = format!("{:016x}", setup_hash(self.seed, &self.config));
+            if &got != expected {
+                return Err(ReplayError::SetupMismatch {
+                    expected: expected.clone(),
+                    got,
+                });
+            }
+        }
         let m = self.play();
         if m.outcome() != self.outcome {
             return Err(ReplayError::OutcomeMismatch {
