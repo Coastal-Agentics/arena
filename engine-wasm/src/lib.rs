@@ -16,7 +16,9 @@ use wasm_bindgen::prelude::*;
 /// Built-in bots the viewer can pit against each other.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BotKind {
+    /// [`engine::bots::Chaser`].
     Chaser,
+    /// [`engine::bots::Wanderer`], seeded from the match seed (see [`Viewer::new`]).
     Wanderer,
 }
 
@@ -32,8 +34,9 @@ impl BotKind {
         }
     }
 
-    /// Wanderer RNG seed for tank `team`. Team 1 uses `seed ^ 0x5eed` so that
-    /// Chaser vs Wanderer reproduces `engine-cli --seed <seed>` exactly.
+    /// Build the policy for tank `team`. A Wanderer on team 1 is seeded with
+    /// `seed ^ 0x5eed` so that Chaser vs Wanderer reproduces `engine-cli --seed <seed>`
+    /// exactly; on team 0 it uses `seed ^ 0x5eed_0000`, so mirrored Wanderers differ.
     fn build(self, seed: u64, team: u8) -> Box<dyn Policy> {
         match self {
             Self::Chaser => Box::new(Chaser),
@@ -45,55 +48,86 @@ impl BotKind {
     }
 }
 
+/// One tank in [`StateView`].
 #[derive(Serialize, Debug, PartialEq)]
 pub struct TankView {
+    /// Tank id.
     pub id: usize,
+    /// Team id (0 = blue, 1 = orange in the viewer).
     pub team: u8,
+    /// Centre x (engine units, Y-up frame).
     pub x: f32,
+    /// Centre y (engine units, Y-up frame).
     pub y: f32,
     /// Hull heading, radians CCW from +X.
     pub heading: f32,
     /// Turret angle (world frame), radians CCW from +X.
     pub turret: f32,
+    /// Current hit points.
     pub hp: i32,
+    /// `TankParams::max_hp`.
     pub max_hp: i32,
+    /// False once destroyed.
     pub alive: bool,
 }
 
+/// One projectile in [`StateView`].
 #[derive(Serialize, Debug, PartialEq)]
 pub struct ProjectileView {
+    /// Position x.
     pub x: f32,
+    /// Position y.
     pub y: f32,
+    /// Velocity x, units per tick.
     pub vx: f32,
+    /// Velocity y, units per tick.
     pub vy: f32,
+    /// Team of the tank that fired it.
     pub team: u8,
 }
 
+/// An obstacle in [`StateView`]: `(x, y)` is its min (bottom-left) corner.
 #[derive(Serialize, Debug, PartialEq)]
 pub struct RectView {
+    /// Min corner x.
     pub x: f32,
+    /// Min corner y.
     pub y: f32,
+    /// Width.
     pub w: f32,
+    /// Height.
     pub h: f32,
 }
 
+/// Match result in [`StateView`] (same fields as `engine::Outcome`).
 #[derive(Serialize, Debug, PartialEq)]
 pub struct OutcomeView {
     /// Winning team, or null for a draw.
     pub winner: Option<u8>,
+    /// Tick the match ended on.
     pub ticks: u32,
+    /// `last_standing`, `all_destroyed` or `tick_limit`.
     pub reason: EndReason,
 }
 
+/// Everything the viewer draws for one frame; serialized by [`WasmMatch::state_json`].
 #[derive(Serialize, Debug, PartialEq)]
 pub struct StateView {
+    /// Ticks simulated so far.
     pub tick: u32,
+    /// Tick limit (`MatchConfig::max_ticks`).
     pub max_ticks: u32,
+    /// Arena width.
     pub width: f32,
+    /// Arena height.
     pub height: f32,
+    /// Arena obstacles.
     pub obstacles: Vec<RectView>,
+    /// All tanks, living and dead.
     pub tanks: Vec<TankView>,
+    /// Projectiles in flight.
     pub projectiles: Vec<ProjectileView>,
+    /// Null while the match is running.
     pub outcome: Option<OutcomeView>,
 }
 
@@ -108,7 +142,9 @@ pub struct Viewer {
 }
 
 impl Viewer {
-    /// `seed` is a decimal u64 string (JS numbers can't hold every u64).
+    /// A [`MatchConfig::duel`] with `team0` vs `team1` (bot names for
+    /// [`BotKind::parse`]). `seed` is a decimal u64 string (JS numbers can't hold
+    /// every u64).
     pub fn new(seed: &str, team0: &str, team1: &str) -> Result<Self, String> {
         let seed: u64 = seed
             .trim()
@@ -142,10 +178,12 @@ impl Viewer {
         self.m.is_over()
     }
 
+    /// The underlying engine match.
     pub fn inner(&self) -> &Match {
         &self.m
     }
 
+    /// The result, once the match has ended.
     pub fn outcome(&self) -> Option<OutcomeView> {
         self.m.outcome().map(|o| OutcomeView {
             winner: o.winner,
@@ -154,6 +192,7 @@ impl Viewer {
         })
     }
 
+    /// Snapshot of the current state for drawing.
     pub fn state(&self) -> StateView {
         let cfg = self.m.config();
         let size: Vec2 = cfg.arena.size;
@@ -212,6 +251,8 @@ pub struct WasmMatch(Viewer);
 
 #[wasm_bindgen]
 impl WasmMatch {
+    /// A duel: `seed` as a decimal string, then two bot names (`Chaser` or `Wanderer`,
+    /// case-insensitive). Bad input throws a JS `Error`.
     #[wasm_bindgen(constructor)]
     pub fn new(seed: &str, team0: &str, team1: &str) -> Result<WasmMatch, JsError> {
         Viewer::new(seed, team0, team1)
@@ -224,10 +265,12 @@ impl WasmMatch {
         self.0.step(n)
     }
 
+    /// Ticks simulated so far.
     pub fn tick(&self) -> u32 {
         self.0.inner().tick()
     }
 
+    /// True once the match has ended.
     #[wasm_bindgen(js_name = isOver)]
     pub fn is_over(&self) -> bool {
         self.0.inner().is_over()
@@ -245,7 +288,8 @@ impl WasmMatch {
         serde_json::to_string(&self.0.outcome()).expect("outcome serializes")
     }
 
-    /// Final-state hash as 16 hex digits (matches `engine-cli` output).
+    /// Current state hash as 16 hex digits; at the end of a Chaser vs Wanderer match
+    /// it equals `engine-cli`'s `hash` for the same seed.
     #[wasm_bindgen(js_name = stateHash)]
     pub fn state_hash(&self) -> String {
         format!("{:016x}", self.0.inner().state_hash())

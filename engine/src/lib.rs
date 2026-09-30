@@ -13,6 +13,11 @@
 //! [`Event`]s (fired/hit/destroyed). Projectiles are generic straight-line shots with
 //! swept (segment) collision, so fast shots cannot tunnel through tanks or obstacles.
 //! Seeds in JSON are decimal strings ([`json_u64`]) so JavaScript reads them exactly.
+//!
+//! Longer-form docs (architecture, tick loop, determinism, replay format, CLI, wasm):
+//! `docs/engine/` in the repository.
+
+#![warn(missing_docs)]
 
 pub mod angle;
 pub mod arena;

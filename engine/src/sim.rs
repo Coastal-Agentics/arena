@@ -1,4 +1,9 @@
 //! Match lifecycle: config, entities, fixed-step update, end conditions.
+//!
+//! A [`Match`] is built from a [`MatchConfig`] and a `u64` seed, then advanced one
+//! fixed tick ([`crate::DT`] seconds) at a time with [`Match::step`] (explicit actions)
+//! or [`Match::step_policies`] / [`Match::run`] (policies). See [`Match::step`] for the
+//! exact order of operations inside a tick.
 
 use crate::angle::{self, Heading};
 use crate::arena::{circles_overlap, segment_circle_entry, Arena, Rect};
@@ -17,16 +22,23 @@ use serde::{Deserialize, Serialize};
 /// Turn rates are BAU per tick (65536 BAU = one turn).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct TankParams {
+    /// Collision radius of every tank (tanks are circles).
     pub radius: f32,
+    /// Speed at `throttle = 1.0`, in units per second.
     pub max_speed: f32,
+    /// Hull turn at `turn = 1.0`, in BAU per tick.
     pub turn_rate: u16,
+    /// Turret turn at `turret_turn = 1.0`, in BAU per tick.
     pub turret_turn_rate: u16,
+    /// Starting (and maximum) hit points.
     pub max_hp: i32,
     /// Ticks between shots.
     pub fire_cooldown: u32,
+    /// Projectile speed in units per second.
     pub projectile_speed: f32,
     /// Projectile lifetime in ticks.
     pub projectile_ttl: u32,
+    /// HP removed from a tank by one hit.
     pub projectile_damage: i32,
     /// Max random deviation of a shot, in BAU either side (drawn from the match RNG).
     pub projectile_spread: u16,
@@ -52,9 +64,13 @@ impl Default for TankParams {
 /// Where a tank starts. `None` fields are drawn from the match RNG.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct TankSpawn {
+    /// Team id. Tanks on the same team are allies; the last team with living tanks wins.
     pub team: u8,
+    /// Start position (circle centre). `None`: random clear spot from the match RNG.
+    /// Explicit positions are used as given (not checked against walls or obstacles).
     #[serde(default)]
     pub pos: Option<Vec2>,
+    /// Start heading (the turret starts aligned with it). `None`: random from the match RNG.
     #[serde(default)]
     pub heading: Option<Heading>,
 }
@@ -62,8 +78,11 @@ pub struct TankSpawn {
 /// Everything needed (with a seed) to reproduce a match.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct MatchConfig {
+    /// Arena bounds and obstacles.
     pub arena: Arena,
+    /// One spawn per tank; the index is the tank id.
     pub tanks: Vec<TankSpawn>,
+    /// Tunables shared by every tank.
     pub params: TankParams,
     /// Match ends in a draw after this many ticks.
     pub max_ticks: u32,
@@ -71,6 +90,15 @@ pub struct MatchConfig {
 
 impl MatchConfig {
     /// 1v1 in an 800x600 arena with two obstacles, random spawns, 2-minute limit.
+    ///
+    /// ```
+    /// use engine::{MatchConfig, TICK_HZ};
+    /// let c = MatchConfig::duel();
+    /// assert_eq!((c.arena.size.x, c.arena.size.y), (800.0, 600.0));
+    /// assert_eq!(c.arena.obstacles.len(), 2);
+    /// assert_eq!(c.tanks.len(), 2);
+    /// assert_eq!(c.max_ticks, 120 * TICK_HZ); // 7200 ticks
+    /// ```
     pub fn duel() -> Self {
         Self {
             arena: Arena::new(800.0, 600.0)
@@ -95,15 +123,23 @@ impl MatchConfig {
 /// A tank entity.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Tank {
+    /// Index into [`Match::tanks`] and into each tick's action list.
     pub id: usize,
+    /// Team id, from the spawn.
     pub team: u8,
+    /// Circle centre.
     pub pos: Vec2,
     /// Velocity in units per tick (after collision; blocked axes are zeroed).
     pub vel: Vec2,
+    /// Hull heading.
     pub heading: Heading,
+    /// Turret heading in the world frame (not relative to the hull).
     pub turret: Heading,
+    /// Hit points. Not clamped: stays negative after an overkill hit.
     pub hp: i32,
+    /// Ticks until the gun can fire again (0 = ready).
     pub cooldown: u32,
+    /// False once `hp <= 0`. Dead tanks stay in the list but do not move, fire or block.
     pub alive: bool,
 }
 
@@ -111,27 +147,40 @@ pub struct Tank {
 /// damages the first enemy tank it overlaps.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Projectile {
+    /// Id of the tank that fired it.
     pub owner: usize,
+    /// Team of the tank that fired it; projectiles pass through tanks of this team.
     pub team: u8,
+    /// Current position.
     pub pos: Vec2,
     /// Units per tick.
     pub vel: Vec2,
+    /// Remaining lifetime in ticks.
     pub ttl: u32,
+    /// HP removed on hit.
     pub damage: i32,
 }
 
 /// Things that happened during the last step, for viewers and rule layers.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Event {
+    /// Tank `tank` fired a projectile this tick.
     Fired {
+        /// Id of the tank that fired.
         tank: usize,
     },
+    /// A projectile fired by `owner` hit tank `target`.
     Hit {
+        /// Id of the tank that was hit.
         target: usize,
+        /// Id of the tank that fired the projectile.
         owner: usize,
+        /// HP removed.
         damage: i32,
     },
+    /// Tank `tank` reached `hp <= 0` this tick.
     Destroyed {
+        /// Id of the destroyed tank.
         tank: usize,
     },
 }
@@ -140,9 +189,10 @@ pub enum Event {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum EndReason {
-    /// Exactly one team has living tanks.
+    /// Exactly one team has living tanks, and some tank of another team exists.
     LastStanding,
-    /// Everyone died on the same tick (draw).
+    /// No tank is alive (draw): the last tanks died on the same tick, or the match
+    /// had no tanks at all.
     AllDestroyed,
     /// `max_ticks` reached (draw).
     TickLimit,
@@ -153,12 +203,30 @@ pub enum EndReason {
 pub struct Outcome {
     /// Winning team, or `None` for a draw.
     pub winner: Option<u8>,
+    /// Tick count when the match ended (equals [`Match::tick`] at the end).
     pub ticks: u32,
+    /// Why it ended.
     pub reason: EndReason,
 }
 
 /// A running match. Create with [`Match::new`], drive with [`Match::step`] or
 /// [`Match::run`], inspect with the accessors. Works identically headless and in wasm.
+///
+/// ```
+/// use engine::bots::{Chaser, Wanderer};
+/// use engine::{Match, MatchConfig};
+///
+/// let mut m = Match::new(MatchConfig::duel(), 42);
+/// let (mut a, mut b) = (Chaser, Wanderer::new(42 ^ 0x5eed));
+/// let outcome = m.run(&mut [&mut a, &mut b]);
+/// assert_eq!(outcome.ticks, m.tick());
+///
+/// // Same seed, same policies: the same match, bit for bit.
+/// let mut again = Match::new(MatchConfig::duel(), 42);
+/// let (mut a, mut b) = (Chaser, Wanderer::new(42 ^ 0x5eed));
+/// assert_eq!(again.run(&mut [&mut a, &mut b]), outcome);
+/// assert_eq!(again.state_hash(), m.state_hash());
+/// ```
 #[derive(Clone, Debug)]
 pub struct Match {
     config: MatchConfig,
@@ -178,6 +246,12 @@ fn rand_unit(rng: &mut ChaCha8Rng) -> f32 {
 
 impl Match {
     /// Start a match: spawns tanks (random spawns come from the seeded RNG).
+    ///
+    /// The RNG is `ChaCha8Rng::seed_from_u64(seed)`. Tanks are spawned in id order;
+    /// a random position is retried up to 1000 times until it is clear of obstacles
+    /// (by 1.5 radii) and of already-placed tanks (centres at least 6 radii apart),
+    /// falling back to the arena centre. A random heading is drawn after the position.
+    /// The outcome is checked once here, so a config with no tanks is over at tick 0.
     pub fn new(config: MatchConfig, seed: u64) -> Self {
         let mut rng = ChaCha8Rng::seed_from_u64(seed);
         let r = config.params.radius;
@@ -235,18 +309,23 @@ impl Match {
         m
     }
 
+    /// The config this match was created with.
     pub fn config(&self) -> &MatchConfig {
         &self.config
     }
+    /// The seed this match was created with.
     pub fn seed(&self) -> u64 {
         self.seed
     }
+    /// Ticks simulated so far (0 before the first step).
     pub fn tick(&self) -> u32 {
         self.tick
     }
+    /// All tanks, living and dead, indexed by id.
     pub fn tanks(&self) -> &[Tank] {
         &self.tanks
     }
+    /// Projectiles in flight.
     pub fn projectiles(&self) -> &[Projectile] {
         &self.projectiles
     }
@@ -254,9 +333,11 @@ impl Match {
     pub fn events(&self) -> &[Event] {
         &self.events
     }
+    /// The result, once the match has ended.
     pub fn outcome(&self) -> Option<Outcome> {
         self.outcome
     }
+    /// True once the match has ended.
     pub fn is_over(&self) -> bool {
         self.outcome.is_some()
     }
@@ -265,7 +346,9 @@ impl Match {
         &self.history
     }
 
-    /// Build the observation for tank `id`.
+    /// Build the observation for tank `id` from the current state.
+    ///
+    /// Panics if `id` is out of range. Works for dead tanks too.
     pub fn observe(&self, id: usize) -> Observation {
         let me = &self.tanks[id];
         let p = &self.config.params;
@@ -509,6 +592,9 @@ impl Match {
     }
 
     /// Query each living tank's policy (`policies[i]` drives tank `i`) and step once.
+    ///
+    /// Dead tanks, and tanks without a policy, get [`Action::default`] (the policy is
+    /// not called). All observations are taken from the same tick-start state.
     pub fn step_policies(&mut self, policies: &mut [&mut dyn Policy]) -> Option<Outcome> {
         let actions: Vec<Action> = (0..self.tanks.len())
             .map(|i| match policies.get_mut(i) {
@@ -520,6 +606,8 @@ impl Match {
     }
 
     /// Run to completion with the given policies.
+    ///
+    /// Always terminates: the tick limit ends every match.
     pub fn run(&mut self, policies: &mut [&mut dyn Policy]) -> Outcome {
         loop {
             if let Some(o) = self.step_policies(policies) {
@@ -553,6 +641,10 @@ impl Match {
     }
 
     /// FNV-1a hash of the full simulation state (bit patterns, so any drift shows).
+    ///
+    /// Covers the tick, every tank (position, velocity, heading, turret, hp, cooldown,
+    /// alive) and every projectile (owner, position, velocity, ttl), in order. It does
+    /// not cover the config, the seed, the RNG state or the action history.
     pub fn state_hash(&self) -> u64 {
         let mut h: u64 = 0xcbf2_9ce4_8422_2325;
         let mut eat = |v: u64| {

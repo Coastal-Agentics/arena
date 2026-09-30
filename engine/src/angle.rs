@@ -92,6 +92,14 @@ pub fn turn_toward(h: Heading, target: Vec2, tolerance: f32) -> i8 {
 }
 
 /// Convert degrees (integer) to BAU. Handy for configs and tests.
+///
+/// ```
+/// use engine::angle::{dir, from_degrees, QUARTER_TURN};
+/// assert_eq!(from_degrees(90), QUARTER_TURN); // 16384
+/// assert_eq!(from_degrees(-90), 3 * QUARTER_TURN); // wraps into 0..65536
+/// let up = dir(QUARTER_TURN); // +Y
+/// assert!(up.x.abs() < 1e-6 && (up.y - 1.0).abs() < 1e-6);
+/// ```
 pub const fn from_degrees(deg: i32) -> Heading {
     ((deg as i64 * 65536 / 360).rem_euclid(65536)) as Heading
 }

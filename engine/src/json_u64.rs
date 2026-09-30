@@ -6,10 +6,25 @@ use serde::de::{self, Visitor};
 use serde::{Deserializer, Serializer};
 use std::fmt;
 
+/// Write `v` as a decimal string, e.g. `"18446744073709551615"`.
 pub fn serialize<S: Serializer>(v: &u64, s: S) -> Result<S::Ok, S::Error> {
     s.collect_str(v)
 }
 
+/// Read a `u64` from a decimal string or a non-negative JSON integer. Negative
+/// numbers, fractions and non-numeric strings are errors.
+///
+/// ```
+/// #[derive(serde::Serialize, serde::Deserialize)]
+/// struct S {
+///     #[serde(with = "engine::json_u64")]
+///     seed: u64,
+/// }
+/// let json = serde_json::to_string(&S { seed: u64::MAX }).unwrap();
+/// assert_eq!(json, r#"{"seed":"18446744073709551615"}"#);
+/// let old: S = serde_json::from_str(r#"{"seed":42}"#).unwrap();
+/// assert_eq!(old.seed, 42);
+/// ```
 pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<u64, D::Error> {
     struct U64Visitor;
     impl Visitor<'_> for U64Visitor {
