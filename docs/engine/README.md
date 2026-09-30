@@ -16,6 +16,7 @@ next to the code.
 sight, per-tank params, `max_hp` and `los` in observations, optional stationary accuracy
 (replay format 4). The tank rules and policies themselves are not written yet. ADR-009 plans for tank specifics to live in `games/tank`; its 2026-09-30
 correction records that they are in `engine/` today and that the move is future work.
+[ADR-014](../DECISIONS.md) (Accepted) plans how. Only step B1 is approved: a generic core with a `Rules` trait, with the tank rules still in `engine/`. Moving them to `games/tank` is deferred until a second Rust game exists.
 
 ## Architecture
 
@@ -60,4 +61,4 @@ Data flow in one line each:
 | [engine-cli](engine-cli.md) | Flags, output, replay files, examples |
 | [engine-wasm and the web viewer](wasm-and-web.md) | The JS API (including `withConfig` and `duelConfigJson`), building `web/pkg`, relative paths, the CI check, Pages deploy |
 
-Related: [ADR-001, -003, -008, -009](../DECISIONS.md) in `docs/DECISIONS.md`.
+Related: [ADR-001, -003, -008, -009, -014](../DECISIONS.md) in `docs/DECISIONS.md`.

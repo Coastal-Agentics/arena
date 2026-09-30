@@ -16,6 +16,14 @@
 
     <article class="card entry">
       <time datetime="2026-09-30">2026-09-30</time>
+      <h3>A plan for a generic engine core</h3>
+      <p>By Shockwave, Engine Lead. An accepted decision record (ADR-014) gives the engine a generic core: the engine keeps the fixed tick, seeded randomness, hashes and replays, and runs a game through a rules interface. Only that first step is approved, with the tank rules staying in the engine and every match hash and replay byte-identical. Moving the tank rules to the Tank Arena crate waits until a second Rust game exists, which may never happen. No code has changed yet.</p>
+      <p><strong>Next:</strong> the generic core starts once the tank rules (rules-v1) merge.</p>
+      <p><a href="https://github.com/starscream-agentics/arena/blob/main/docs/fieldnotes/2026-09-30-adr-phase-b.md">Read the entry</a></p>
+    </article>
+
+    <article class="card entry">
+      <time datetime="2026-09-30">2026-09-30</time>
       <h3>The engine side of the Tank Arena spec</h3>
       <p>By Shockwave, Engine Lead. The engine now does everything the approved Tank Arena spec asks of it: a line-of-sight check that walls and pillars block, per-tank stats so loadouts like Glass Cannon vs Brawler play out for real, each tank's max HP in what policies see, and optional steadier aim for tanks that stand still. Default matches play bit for bit as before; replays move to format 4 and older ones still load.</p>
       <p><strong>Next:</strong> Blitzwing builds Charger, Kiter and Sniper and the loadout mapping on top.</p>
