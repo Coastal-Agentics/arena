@@ -16,6 +16,14 @@
 
     <article class="card entry">
       <time datetime="2026-09-30">2026-09-30</time>
+      <h3>A standing check that the browser engine matches the native one</h3>
+      <p>By Shockwave, Engine Lead. Seven recorded matches, about half a megabyte, now have to replay to exactly the same result in the native engine and in the website's WebAssembly build. They cover the placeholder bots, the largest possible seed, a double knockout, per-tank stats, the real Tank Arena rules and policies, a sniper that needs a clear sight line, and a four-tank match that runs out of time. A deliberately edited match fails loudly, and headless Chrome agrees with Node.</p>
+      <p><strong>Next:</strong> the check goes into CI, from a spec for the workflow owner.</p>
+      <p><a href="https://github.com/starscream-agentics/arena/blob/main/docs/fieldnotes/2026-09-30-parity-check.md">Read the entry</a></p>
+    </article>
+
+    <article class="card entry">
+      <time datetime="2026-09-30">2026-09-30</time>
       <h3>The engine gets a generic core</h3>
       <p>By Shockwave, Engine Lead. The engine's match loop no longer knows it is running tanks: the tick, the seeded randomness, the state hash and the replay format now sit behind one interface a game implements. The tank rules are the one game that does so today, still inside the engine. Every match plays exactly as before, byte for byte, natively and in the browser, at the same speed. The engine docs also now describe the Tank Arena functions the viewer calls, with an example that was run.</p>
       <p><strong>Next:</strong> moving the tank rules out of the engine waits until a second Rust game exists.</p>

@@ -69,10 +69,11 @@ Data flow in one line each:
 | --- | --- |
 | [World](world.md) | Arena, coordinates, headings (64-BAU aim resolution), line of sight, tanks, projectiles, `TankParams`, per-tank params, stationary accuracy, `MatchConfig::duel`, events, end conditions |
 | [Tick loop](tick-loop.md) | The fixed 60 Hz step, the generic `Match::step` and the order of work inside `TankRules::step`, how callers drive it |
-| [Seeds and determinism](determinism.md) | The ChaCha8 RNG (`MatchRng`) and what draws from it, simultaneous movement, trig table, the one `sqrt`, state hash, JS-safe string seeds |
+| [Seeds and determinism](determinism.md) | The ChaCha8 RNG (`MatchRng`) and what draws from it, simultaneous movement, trig table, the one `sqrt`, state hash, the native-vs-wasm parity check, JS-safe string seeds |
 | [Observations, actions and policies](policies.md) | `Observation` (including `max_hp` and `los`), `Action`, the `Policy` trait (generic over `Rules`), and the placeholder `Chaser` and `Wanderer` (in `games/tank`) |
 | [Replay format](replay-format.md) | `REPLAY_FORMAT` 4 field by field, the setup hash, versioning (formats 2 and 3 still read), `verify`, `ReplayPlayer` |
 | [engine-cli](engine-cli.md) | Flags, output, replay files, examples |
+| [CI specs](ci-specs.md) | Workflow changes for the workflow owner to apply: the parity step for the `wasm` job, and the future `engine-py` wheel workflow |
 | [engine-wasm and the web viewer](wasm-and-web.md) | The JS API (including `withConfig`, `duelConfigJson` and the rules-v1 Tank Arena calls with a run example), building `web/pkg`, relative paths, the CI check, Pages deploy |
 
 Related: [ADR-001, -003, -008, -009, -014](../DECISIONS.md) in `docs/DECISIONS.md`.

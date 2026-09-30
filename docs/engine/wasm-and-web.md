@@ -69,6 +69,7 @@ Wanderer seeding: `seed ^ 0x5eed` on team 1 (so Chaser vs Wanderer equals
 | `tankCatalogJson()` | `string` | JSON `CatalogView`: the Customize tab's tables and lists (below) |
 | `snapLoadout(attack, speed, defense)` | `string` | Snap barycentric weights (Attack, Speed and Defense corners of the Customize triangle) to the nearest valid loadout, `"A-S-D"` (`tank::Loadout::snap`) |
 | `canonicalTankQuery(query)` | `string` | Canonical `seed=…&blue=…&orange=…` for a query; throws on invalid input |
+| `checkReplayJson(json)` | `string` | Re-simulate a replay file (any readable format) and return JSON `{format, seed, tanks, ticks, outcome, final_hash, setup_hash, verify_error}`. Everything but `format` and `seed` is recomputed, not copied from the file; `verify_error` is `null` if `Replay::verify` passes, else its message. Throws if the JSON doesn't load as a replay. Used by the [parity check](determinism.md#native-vs-wasm-parity) |
 | `engineVersion()` | `string` | `engine` crate version |
 
 `withConfig(duelConfigJson(), seed, a, b)` plays exactly like `new WasmMatch(seed, a, b)`
@@ -215,12 +216,14 @@ comment-only changes.** Doc comments on `#[wasm_bindgen]` items are copied into 
 JSDoc. Panic locations (file:line) are compiled into the wasm, so moving code lines changes
 the bytes. PR #12 was an example: rustdoc-only edits changed both files.
 
-Size: `engine_wasm_bg.wasm` is 303,694 bytes (105,297 with `gzip -9`) with the generic core
-(ADR-014 B1), against 302,941 (105,295) on `main` at `5a4fdd4` (#29): 753 bytes more,
-2 bytes more gzipped. History: 161,993 (64,526 gzipped) before `withConfig`; 247,799 (88,900)
+Size: `engine_wasm_bg.wasm` is 356,307 bytes (117,336 with `gzip -9`) since `checkReplayJson`
+(the parity check, 2026-09-30), up from 303,694 (105,297): +52,613 bytes, +12,039 gzipped.
+`twiggy diff` puts 14,000 of that in the function-names section; the rest is mostly
+`serde_json` deserializers for `Replay`, `Action` and `Outcome` (the viewer never parsed
+those before). History: 161,993 (64,526 gzipped) before `withConfig`; 247,799 (88,900)
 with it, mostly `serde_json`'s deserializer; 303,811 with rules v1 (#18, the `tank` crate and
 its catalog); 303,841 after the bots moved to `games/tank` (#22); 302,941 after the evolution
-loop (#27).
+loop (#27); 303,694 with the generic core (ADR-014 B1, #30).
 
 ## CI check (`wasm` job in `ci.yml`)
 
@@ -228,9 +231,13 @@ loop (#27).
 2. install `wasm-bindgen-cli` 0.2.100 (cached);
 3. run `./scripts/build-wasm.sh`;
 4. fail if `git diff --exit-code -- web/pkg` shows a change, or `git status --porcelain --
-   web/pkg` shows untracked files.
+   web/pkg` shows untracked files;
+5. run the headless browser check (`scripts/check-viewer-browser.py`, Playwright with the
+   image's Chrome).
 
-So a PR with a stale or non-reproducible `web/pkg` goes red.
+So a PR with a stale or non-reproducible `web/pkg` goes red. The job runs on `ubuntu-24.04`
+by name (#29). The [parity check](determinism.md#native-vs-wasm-parity)'s Node step is
+specified for this job in [CI specs](ci-specs.md) and is not wired in yet.
 
 ## Deploy: GitHub Pages
 
