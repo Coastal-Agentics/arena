@@ -8,13 +8,14 @@ summary to stdout. CI runs it as the smoke test (`cargo run -p engine-cli -- --m
 
 Every match is `MatchConfig::duel()` (see [world](world.md#match-config)) with:
 
-- team 0 (tank 0): `Chaser`;
-- team 1 (tank 1): `Wanderer::new(seed ^ 0x5eed)`;
+- team 0 (tank 0): `tank::Chaser`;
+- team 1 (tank 1): `tank::Wanderer::new(seed ^ 0x5eed)`;
 - match `i` (0-based) using seed `seed.wrapping_add(i)`.
 
 So `--matches 1 --seed S+i` reproduces match `i` of a larger run on its own (test
 `match_i_is_reproducible_alone`). The policies and config are fixed; there are no flags to
-change them.
+change them. The two bots are the placeholders from `games/tank` (they were `engine::bots`
+until ADR-014 Phase A; see [policies](policies.md#placeholder-bots-tankchaser-tankwanderer)).
 
 ## Flags
 
@@ -102,7 +103,9 @@ match-101.json
 same hash as the summary line) and `"setup_hash":"9cfd58498bbe3f85"`.
 
 The seed 42 result (Wanderer wins at tick 447) is the same match the web viewer shows at
-`arena.html?seed=42` with Chaser vs Wanderer.
+`arena.html?seed=42` with Chaser vs Wanderer. Test `documented_rows_are_unchanged` pins the
+seed 42, 101 and 18446744073709551615 rows through this binary's own pairing; the bots' own
+pins live in `games/tank`.
 
 For scale, a release build ran 1000 matches (`--matches 1000 --seed 0`) in about 0.2 s of
 wall time on the build box. That's one measurement, not a benchmark.

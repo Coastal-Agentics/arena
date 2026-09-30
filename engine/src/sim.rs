@@ -255,19 +255,34 @@ pub struct Outcome {
 /// A running match. Create with [`Match::new`], drive with [`Match::step`] or
 /// [`Match::run`], inspect with the accessors. Works identically headless and in wasm.
 ///
+/// Policies come from game crates (e.g. `tank::Chaser`); any
+/// `FnMut(&Observation) -> Action` closure or function works too.
+///
 /// ```
-/// use engine::bots::{Chaser, Wanderer};
-/// use engine::{Match, MatchConfig};
+/// use engine::angle::turn_toward;
+/// use engine::{Action, Match, MatchConfig, Observation};
+///
+/// // Drive at the nearest enemy and fire when the turret is on it.
+/// fn charge(obs: &Observation) -> Action {
+///     let Some(e) = obs.enemies.first() else {
+///         return Action::default();
+///     };
+///     let aim = turn_toward(obs.me.turret, e.rel, 0.08);
+///     Action {
+///         throttle: 1.0,
+///         turn: turn_toward(obs.me.heading, e.rel, 0.2) as f32,
+///         turret_turn: aim as f32,
+///         fire: aim == 0,
+///     }
+/// }
 ///
 /// let mut m = Match::new(MatchConfig::duel(), 42);
-/// let (mut a, mut b) = (Chaser, Wanderer::new(42 ^ 0x5eed));
-/// let outcome = m.run(&mut [&mut a, &mut b]);
+/// let outcome = m.run(&mut [&mut charge, &mut charge]);
 /// assert_eq!(outcome.ticks, m.tick());
 ///
 /// // Same seed, same policies: the same match, bit for bit.
 /// let mut again = Match::new(MatchConfig::duel(), 42);
-/// let (mut a, mut b) = (Chaser, Wanderer::new(42 ^ 0x5eed));
-/// assert_eq!(again.run(&mut [&mut a, &mut b]), outcome);
+/// assert_eq!(again.run(&mut [&mut charge, &mut charge]), outcome);
 /// assert_eq!(again.state_hash(), m.state_hash());
 /// ```
 #[derive(Clone, Debug)]

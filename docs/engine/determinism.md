@@ -1,7 +1,8 @@
 # Seeds and determinism
 
 Source: `engine/src/sim.rs`, `engine/src/angle.rs`, `engine/src/arena.rs`,
-`engine/src/json_u64.rs`, `engine/src/bots.rs`; policy in ADR-003 (`docs/DECISIONS.md`).
+`engine/src/json_u64.rs`, `games/tank/src/bots.rs` (the placeholder bots); policy in ADR-003
+(`docs/DECISIONS.md`).
 
 ## The guarantee
 
@@ -14,14 +15,21 @@ As a spot check on 2026-09-30, Chaser vs Wanderer for seeds 0, 7, 42, 43, 1234 a
 (headless Chrome) as `engine-cli` on native x86_64 Linux. So did a per-tank loadout through
 `WasmMatch.withConfig` (Glass Cannon 28 dmg / 60 HP vs Brawler 24 dmg, 90 u/s, 273 BAU/tick,
 120 HP, seed 42: tick 385, hash `86bc2f990b3b015d`). That's evidence for those runs on those
-two targets, nothing more.
+two targets, nothing more. The same runs gave the same results again after the bots moved
+from `engine::bots` to `games/tank` (ADR-014 Phase A, 2026-09-30).
 
-Tests that pin this down: `same_seed_same_match`, `different_seeds_differ`,
-`replay_json_roundtrip_reproduces_match`, `tampered_replay_is_detected`,
-`documented_hashes_are_unchanged` (the hashes quoted in these pages),
-`per_tank_params_are_deterministic_and_change_the_match` (engine),
-`same_seed_same_json`, `match_i_is_reproducible_alone` (engine-cli) and
-`chaser_vs_wanderer_matches_headless_run` (engine-wasm, run natively).
+Tests that pin this down:
+- **engine:** `same_seed_same_match`, `different_seeds_differ`,
+  `replay_json_roundtrip_reproduces_match`, `tampered_replay_is_detected`,
+  `per_tank_params_are_deterministic_and_change_the_match`, and the engine's own pins,
+  `pinned_hashes_are_unchanged` (5 seeds, including an `all_destroyed` draw) and
+  `seeds_0_to_199_are_unchanged` (a digest). These run test-only policies from
+  `engine/src/testing.rs`, so they don't depend on any game crate.
+- **games/tank:** `documented_hashes_are_unchanged` (the Chaser vs Wanderer hashes quoted in
+  these pages) and `smoke_run_seeds_0_to_199_are_unchanged`, next to the bots.
+- **engine-cli:** `same_seed_same_json`, `match_i_is_reproducible_alone`, and
+  `documented_rows_are_unchanged` (the rows quoted on the engine-cli page).
+- **engine-wasm:** `chaser_vs_wanderer_matches_headless_run` (run natively).
 
 ## The seeded RNG
 
@@ -56,7 +64,7 @@ exactly as listed in step 1, with the shared radius.
 ### Policies bring their own randomness
 
 The `Policy` trait asks policies to be deterministic given their own state and the
-observations; a policy that wants randomness keeps its own seeded RNG. `Wanderer::new(seed)`
+observations; a policy that wants randomness keeps its own seeded RNG. `tank::Wanderer::new(seed)`
 does exactly that (its own `ChaCha8Rng`). By convention:
 
 - `engine-cli` seeds team 1's Wanderer with `match_seed ^ 0x5eed`;
