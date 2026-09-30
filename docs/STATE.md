@@ -53,6 +53,7 @@ _Single source of truth for Coastal Agentics (formerly Starscream Agentics). Own
 
 ## Known engine limits
 - The swept hit check treats target tanks as stationary within a tick.
+- Placeholder bots are lopsided: in the `engine-cli` duel, Wanderer beat Chaser in 195 of seeds 0–199 (re-measured 2026-09-30 after the replay setup-hash change; same result). Flagged for Blitzwing's policy work; bots unchanged.
 
 ## Work budget used
 - 2026-09-27: Phase 0 scaffold, housekeeping, nightly fix, 12:00 ET cycle (all Nye-triggered). Shockwave #2, #6; Blitzwing #4.

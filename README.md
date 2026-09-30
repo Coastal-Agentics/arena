@@ -13,9 +13,11 @@ Status: **Phase 2 (Tank Arena)**. See [docs/STATE.md](docs/STATE.md).
 
 ## Layout
 ```
-engine/        generic Rust sim core: deterministic 60 Hz, replays (also compiles to wasm)
+engine/        Rust sim core: deterministic 60 Hz, replays (also compiles to wasm); today it also
+               holds the tank rules, TankParams, observations/actions and placeholder bots (ADR-009)
 engine-cli/    headless runner: N matches -> JSON (source of truth for CI)
-games/tank/    Tank Arena rules, observations, actions, policies
+engine-wasm/   browser bindings for the viewer (wasm-bindgen), built into web/pkg
+games/tank/    stub for now; Tank Arena rules, observations, actions and policies move here later (ADR-009)
 web/           the GitHub Pages site: viewer + field notes (static, no build step)
 docs/          charter, state, decisions, provenance card, role briefs, field notes, playbooks
 .github/       CI, nightly and Pages workflows

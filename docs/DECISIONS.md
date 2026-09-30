@@ -10,10 +10,11 @@ Short ADRs. Status is one of: Accepted, Open, Superseded.
 **Cost:** We build what Bevy would give us (rendering glue, ECS-ish structure). Acceptable at POC scale.
 
 ## ADR-002 — Canvas 2D, not wgpu
-**Status:** Accepted (2026-09-27)
+**Status:** Accepted (2026-09-27; corrected 2026-09-30: drawn from plain JavaScript, not `web-sys`)
 **Decision:** The browser viewer draws with the Canvas 2D API via `web-sys`.
 **Why:** Tanks, shots and HP bars need nothing more; no GPU feature detection; smaller wasm; works everywhere.
 **Revisit:** If a later prototype needs thousands of sprites or shaders.
+**Correction (2026-09-30):** The viewer as built (#8) draws with the Canvas 2D API from plain JavaScript (`web/arena.js`); `web-sys` is not used. The wasm module (`engine-wasm`) only runs the sim and hands the state to JS as JSON. Canvas 2D instead of wgpu stands. See `docs/engine/wasm-and-web.md`.
 
 ## ADR-003 — Determinism policy
 **Status:** Accepted (2026-09-27)
@@ -65,9 +66,11 @@ Short ADRs. Status is one of: Accepted, Open, Superseded.
 **URL:** `https://starscream-agentics.github.io/arena/` (stays there; ADR-013).
 
 ## ADR-009 — The engine core is generic; tank specifics live in `games/tank`
-**Status:** Accepted (2026-09-30)
+**Status:** Accepted (2026-09-30; corrected 2026-09-30: this is the target layout, not yet the code)
 **Decision:** `engine/` holds only the generic sim: fixed step, seeded RNG, arena, entities, match lifecycle, replay, the `Policy` trait. Tank rules, tank observations/actions and tank policies live in `games/tank`. New tank features never land in `engine/`.
 **Why:** Coastal Agentics trains robots; the same core should later carry other bodies. Keeping game logic out of the core keeps it small and reusable.
+**Correction (2026-09-30):** The code does not match this yet. Today the tank specifics live in `engine/`: the `Tank` and `Projectile` entities, `TankParams`, `TankSpawn`, `MatchConfig::duel` and the tank step rules (driving, turret, firing, hits) in `sim.rs`; the tank `Observation`/`Action` pair, with the `Policy` trait typed on them, in `policy.rs`; and the placeholder policies `Chaser` and `Wanderer` in `bots.rs`. `games/tank` is a stub (`GAME_NAME`, `tick_hz()`) waiting on the Tank Arena spec (GATE-002). See `docs/engine/`.
+**Future work:** Move the tank-specific code from `engine/` into `games/tank` so `engine/` is the generic core this ADR describes. Not scheduled; no code has moved.
 
 ## ADR-010 — The Rust core is a candidate browser viewer for Saltmarsh
 **Status:** Open (candidate, 2026-09-30)
