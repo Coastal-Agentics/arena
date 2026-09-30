@@ -134,6 +134,25 @@ impl Arena {
             || self.obstacles.iter().any(|o| o.contains(p))
     }
 
+    /// Line-of-sight test: true if the segment from `a` to `b` stays inside the arena
+    /// and touches no obstacle. The same geometry that stops a projectile
+    /// ([`Arena::segment_blocked_at`]): obstacles are closed, so a segment that only
+    /// grazes an obstacle's edge or corner is blocked, while the arena boundary itself
+    /// counts as inside, so a segment running along a wall is clear. Only arena geometry
+    /// is considered (no tanks or other entities). A zero-length segment is clear unless
+    /// its point is blocked.
+    ///
+    /// ```
+    /// use engine::{Arena, Rect, Vec2};
+    /// let a = Arena::new(100.0, 100.0)
+    ///     .with_obstacle(Rect::new(Vec2::new(40.0, 40.0), Vec2::new(60.0, 60.0)));
+    /// assert!(!a.segment_clear(Vec2::new(10.0, 50.0), Vec2::new(90.0, 50.0))); // through it
+    /// assert!(a.segment_clear(Vec2::new(10.0, 10.0), Vec2::new(90.0, 10.0))); // below it
+    /// ```
+    pub fn segment_clear(&self, a: Vec2, b: Vec2) -> bool {
+        self.segment_blocked_at(a, b - a).is_none()
+    }
+
     /// Earliest `t` in `[0, 1]` at which the segment `p0 -> p0 + d` leaves the arena
     /// or touches an obstacle (the swept form of [`Arena::point_blocked`]), or `None`.
     pub fn segment_blocked_at(&self, p0: Vec2, d: Vec2) -> Option<f32> {
@@ -285,5 +304,62 @@ mod tests {
             a.segment_blocked_at(Vec2::new(10.0, 10.0), Vec2::new(20.0, 20.0)),
             None
         );
+    }
+
+    #[test]
+    fn segment_clear_line_of_sight() {
+        let a = Arena::new(100.0, 100.0)
+            .with_obstacle(Rect::new(Vec2::new(40.0, 40.0), Vec2::new(60.0, 60.0)))
+            // Touches the right wall.
+            .with_obstacle(Rect::new(Vec2::new(90.0, 80.0), Vec2::new(100.0, 90.0)));
+        let v = Vec2::new;
+        // (a, b, clear?) — each case is also checked in the reverse direction.
+        let cases = [
+            ("through the obstacle", v(10.0, 50.0), v(90.0, 50.0), false),
+            ("beside it", v(10.0, 30.0), v(90.0, 30.0), true),
+            // y = x + 20 touches only the top-left corner (40, 60): grazing blocks.
+            ("grazes a corner", v(20.0, 40.0), v(60.0, 80.0), false),
+            ("just misses the corner", v(20.0, 40.5), v(60.0, 80.5), true),
+            ("runs along an edge", v(10.0, 60.0), v(90.0, 60.0), false),
+            (
+                "just above the edge",
+                v(10.0, 60.001),
+                v(90.0, 60.001),
+                true,
+            ),
+            ("ends at the obstacle", v(10.0, 50.0), v(40.0, 50.0), false),
+            ("stops short", v(10.0, 50.0), v(39.99, 50.0), true),
+            ("along the bottom wall", v(0.0, 0.0), v(100.0, 0.0), true),
+            ("along the left wall", v(0.0, 5.0), v(0.0, 95.0), true),
+            (
+                "arena diagonal crosses it",
+                v(0.0, 0.0),
+                v(100.0, 100.0),
+                false,
+            ),
+            ("leaves the arena", v(50.0, 10.0), v(101.0, 10.0), false),
+            ("starts outside", v(-1.0, 10.0), v(50.0, 10.0), false),
+            (
+                "into the wall obstacle",
+                v(50.0, 85.0),
+                v(95.0, 85.0),
+                false,
+            ),
+            (
+                "under the wall obstacle",
+                v(50.0, 75.0),
+                v(100.0, 75.0),
+                true,
+            ),
+            ("zero length, open", v(10.0, 10.0), v(10.0, 10.0), true),
+            ("zero length, inside", v(50.0, 50.0), v(50.0, 50.0), false),
+        ];
+        for (what, p, q, clear) in cases {
+            assert_eq!(a.segment_clear(p, q), clear, "{what}");
+            assert_eq!(a.segment_clear(q, p), clear, "{what} (reversed)");
+        }
+        // Empty arena: everything inside is visible.
+        let open = Arena::new(100.0, 100.0);
+        assert!(open.segment_clear(v(0.0, 0.0), v(100.0, 100.0)));
     }
 }
