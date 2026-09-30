@@ -156,7 +156,7 @@ fn main() {
         })
         .collect();
     let res = par_map(&jobs, |&(b, x, y)| {
-        duel(TankSpec::new(b, x), TankSpec::new(b, y), seeds).0
+        duel(TankSpec::new(b, x), TankSpec::new(b, y), seeds)
     });
     let mut summary = Vec::new();
     for (bi, b) in Behavior::ALL.iter().enumerate() {
@@ -166,7 +166,7 @@ fn main() {
         let mut rows = Vec::new();
         for (xi, x) in Loadout::ALL.iter().enumerate() {
             let row: Vec<(Loadout, f64)> = (0..19)
-                .map(|yi| (Loadout::ALL[yi], res[bi * 361 + xi * 19 + yi].rate()))
+                .map(|yi| (Loadout::ALL[yi], res[bi * 361 + xi * 19 + yi].0.rate()))
                 .collect();
             let avg = row.iter().map(|r| r.1).sum::<f64>() / 19.0;
             let best = row
@@ -196,6 +196,17 @@ fn main() {
         }
         let top = rows[0];
         summary.push((b.name(), top.0, top.1));
+        let mine = &res[bi * 361..(bi + 1) * 361];
+        let (dr, gm) = mine
+            .iter()
+            .fold((0, 0), |(d, g), (t, _)| (d + t.draws, g + t.games()));
+        let mut tk: Vec<u32> = mine.iter().flat_map(|(_, v)| v.iter().copied()).collect();
+        println!(
+            "\n{} mirror matches (informational, not a SPEC target): median {:.1} s, draws {:.1}%.",
+            b.name(),
+            median(&mut tk),
+            100.0 * dr as f64 / gm as f64
+        );
         println!();
     }
     println!("## Verdict\n");
