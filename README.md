@@ -7,9 +7,9 @@ Founded October 1, 2026 (formerly Starscream Agentics).
 - Site: https://starscream-agentics.github.io/arena/ (the `starscream-agentics` org is the home for simulations; ADR-013)
 - Field notes: [docs/fieldnotes/](docs/fieldnotes/) · [on the site](https://starscream-agentics.github.io/arena/fieldnotes.html)
 
-This repo is the **arena**: a small deterministic Rust engine and the Tank Arena project. The built-in-bot viewer is live in the browser; the Tank Arena rules and policies await GATE-002 before implementation. The company is run by agents: a Chief of Staff (Soundwave) plans, dispatches workers (Shockwave, Engine Lead; Blitzwing, Tank Designer-Developer), merges on green CI, and reports to the founder, Nye Warburton (Creative Director).
+This repo is the **arena**: a small deterministic Rust engine and the Tank Arena project. The browser viewer is live with Tank Arena rules-v1 (#18): 9-point loadouts, Charger/Kiter/Sniper policies, and a Customize tab with shareable links. The legacy built-in-bot viewer remains available. The company is run by agents: a Chief of Staff (Soundwave) plans, dispatches workers (Shockwave, Engine Lead; Blitzwing, Tank Designer-Developer), merges on green CI, and reports to the founder, Nye Warburton (Creative Director).
 
-Status: **Phase 2 (Tank Arena)**. The viewer is live at [arena.html](https://starscream-agentics.github.io/arena/arena.html); Tank Arena rules remain gated. See [docs/STATE.md](docs/STATE.md).
+Status: **Phase 2 (Tank Arena)**. Rules-v1 is live (#18) with 9-point loadouts, Charger/Kiter/Sniper policies, and the Customize tab with shareable links. The Watch-tab fix is in (#20), and the viewer browser check runs in CI (#21). See [docs/STATE.md](docs/STATE.md).
 
 ## Layout
 ```
@@ -18,7 +18,7 @@ engine/        Rust sim core: deterministic 60 Hz, replays (also compiles to was
 engine-cli/    headless runner: N matches -> JSON (source of truth for CI)
 engine-wasm/   browser bindings for the viewer (wasm-bindgen), built into web/pkg
 games/tank/    Tank Arena rules v1: loadouts, arena and spawns, scripted policies, and the
-               placeholder bots Chaser and Wanderer used by engine-cli and the viewer
+               placeholder bots Chaser and Wanderer used by engine-cli and the viewer's built-in-bot mode
 web/           the GitHub Pages site: viewer + field notes (static, no build step)
 docs/          charter, state, decisions, provenance card, role briefs, field notes, playbooks
 .github/       CI, nightly and Pages workflows
