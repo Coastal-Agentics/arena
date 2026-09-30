@@ -8,3 +8,5 @@ repository.workspace = true
 
 [dependencies]
 engine = { path = "../../engine" }
+# Seeded policy jitter; no default features so wasm32-unknown-unknown builds (as in engine).
+rand_chacha = { version = "0.9", default-features = false }

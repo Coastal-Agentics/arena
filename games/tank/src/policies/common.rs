@@ -4,6 +4,8 @@
 use crate::los;
 use engine::angle::{dir, turn_toward, Heading};
 use engine::{Action, Observation, Rect, TankObs, TankParams, Vec2, TICK_HZ};
+use rand_chacha::rand_core::{RngCore, SeedableRng};
+use rand_chacha::ChaCha8Rng;
 
 /// Shell speed in units per tick (360 u/s at 60 Hz = 6). Fixed for every loadout.
 pub fn shell_speed_per_tick() -> f32 {
@@ -23,16 +25,16 @@ const BAU_PER_RADIAN: f32 = 65536.0 / std::f32::consts::TAU;
 /// Turret command toward `aim` (a relative vector) with tolerance `tol`. Returns
 /// `(turret_turn, aligned)`.
 ///
-/// Direction and the "aligned" test are exactly `turn_toward(turret, aim, tol)`. Near
-/// alignment (target ahead, error under one full turret step) the command is scaled to
-/// the remaining error, `sin(err) · BAU/rad / turret_turn_rate`, so the turret can
-/// settle inside tolerances narrower than one 546-BAU (3°) step: the sniper's 0.02 is
-/// ±1.1°, and a bang-bang turret would oscillate around it forever.
+/// `aligned` is exactly `turn_toward(turret, aim, tol) == 0`. The command is
+/// proportional near the aim point (target ahead, error under one full turret step):
+/// `sin(err) · BAU/rad / turret_turn_rate`, and full ±1 otherwise. Proportional control
+/// matters twice: the turret can settle inside tolerances narrower than one 546-BAU
+/// (3°) step (the sniper's 0.02 is ±1.1°), and it keeps tracking inside the window
+/// instead of stopping at its edge, where a tracking turret would otherwise fire every
+/// shot at the full tolerance error (17 u off at 350 u with 0.05).
 pub fn aim_turret(turret: Heading, aim: Vec2, tol: f32) -> (f32, bool) {
     let side = turn_toward(turret, aim, tol);
-    if side == 0 {
-        return (0.0, true);
-    }
+    let aligned = side == 0;
     let len_sq = aim.length_squared();
     let d = dir(turret);
     if d.dot(aim) > 0.0 && len_sq > 0.0 {
@@ -40,10 +42,10 @@ pub fn aim_turret(turret: Heading, aim: Vec2, tol: f32) -> (f32, bool) {
         let step = TankParams::default().turret_turn_rate as f32;
         let cmd = sin_err * BAU_PER_RADIAN / step;
         if cmd.abs() < 1.0 {
-            return (cmd, false);
+            return (cmd, aligned);
         }
     }
-    (side as f32, false)
+    (if aligned { 0.0 } else { side as f32 }, aligned)
 }
 
 /// Aim at `target` with lead and decide whether to fire: aligned within `tol`, gun
@@ -69,6 +71,39 @@ pub fn drive_along(heading: Heading, want: Vec2, tol: f32) -> (f32, f32) {
         (1.0, turn_toward(heading, want, tol) as f32)
     } else {
         (-1.0, turn_toward(heading, -want, tol) as f32)
+    }
+}
+
+/// A policy's own seeded randomness (ChaCha8, like the engine), used only for timing
+/// jitter so that different match seeds give different matches. Same seed, same
+/// sequence, on every platform.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Jitter(ChaCha8Rng);
+
+impl Jitter {
+    /// `ChaCha8Rng::seed_from_u64(seed)`.
+    pub fn new(seed: u64) -> Self {
+        Self(ChaCha8Rng::seed_from_u64(seed))
+    }
+
+    /// `base` ± `spread` (uniform integer, clamped at 1).
+    pub fn around(&mut self, base: u32, spread: u32) -> u32 {
+        if spread == 0 {
+            return base.max(1);
+        }
+        let r = self.0.next_u32() % (2 * spread + 1);
+        (base + r).saturating_sub(spread).max(1)
+    }
+
+    /// A fair coin.
+    pub fn coin(&mut self) -> bool {
+        self.0.next_u32() & 1 == 1
+    }
+}
+
+impl Default for Jitter {
+    fn default() -> Self {
+        Self::new(0)
     }
 }
 
@@ -182,6 +217,55 @@ pub fn waypoint(obs: &Observation, goal: Vec2, radius: f32, margin: f32) -> Vec2
     best.map_or(goal, |(_, c)| c)
 }
 
+/// `(cos, sin)` of `deg`, from the engine's integer-heading trig table (no libm).
+pub fn cos_sin(deg: f32) -> (f32, f32) {
+    let h = (deg * 65536.0 / 360.0) as i32;
+    let d = engine::angle::dir((h.rem_euclid(65536)) as u16);
+    (d.x, d.y)
+}
+
+/// Default dodge look-ahead, in ticks: 0, so the reflex is off. At 20 for the charger and
+/// sniper it evens out sniper loadouts but breaks the counter triangle (sniper beats
+/// kiter 100%, kiter beats charger 2%). Kept as a knob for the loadout-balance follow-up.
+pub const DODGE_HORIZON: f32 = 0.0;
+
+/// Dodge reflex: the direction to drive to get out of the way of the most urgent enemy
+/// shell that will pass within `radius + margin` of us in the next `horizon` ticks
+/// (assuming we stand still), or `None`. The direction is perpendicular to the shell's
+/// path, away from its closest-approach point. Faster tanks get out of the way
+/// sooner, which is what makes the Speed stat worth points for policies that would
+/// otherwise stand and trade.
+pub fn dodge(obs: &Observation, horizon: f32, margin: f32) -> Option<Vec2> {
+    let r = obs.me.radius + margin;
+    let mut best: Option<(f32, Vec2)> = None;
+    for p in obs
+        .projectiles
+        .iter()
+        .filter(|p| p.owner_team != obs.me.team)
+    {
+        let v2 = p.vel.length_squared();
+        if v2 == 0.0 {
+            continue;
+        }
+        // Time of closest approach of the shell to our centre (we're at -rel from it).
+        let t = -p.rel.dot(p.vel) / v2;
+        if t < 0.0 || t > horizon {
+            continue;
+        }
+        let miss = p.rel + p.vel * t; // shell position relative to us at closest approach
+        if miss.length_squared() >= r * r {
+            continue;
+        }
+        // Move away from where the shell passes; dead-on shots pick the left side.
+        let perp = p.vel.perp();
+        let away = if perp.dot(miss) > 0.0 { -perp } else { perp };
+        if best.is_none_or(|(bt, _)| t < bt) {
+            best = Some((t, away));
+        }
+    }
+    best.map(|(_, d)| d)
+}
+
 /// Distance to the nearest arena edge.
 pub fn nearest_wall(obs: &Observation) -> f32 {
     let w = obs.walls;
@@ -233,6 +317,48 @@ mod tests {
         // A clear path goes straight.
         let open = Vec2::new(200.0, 300.0);
         assert_eq!(waypoint(&obs, open, 16.0, 12.0), open);
+    }
+
+    #[test]
+    fn dodge_steps_off_the_line_of_incoming_enemy_shells() {
+        use crate::rules::{config, Mode};
+        let m = engine::Match::new(config(Mode::Duel), 1);
+        let mut obs = m.observe(0);
+        let (me, team) = (obs.me.pos, obs.me.team);
+        let shell = |rel: Vec2, vel: Vec2, owner_team| engine::ProjectileObs {
+            pos: me + rel,
+            rel,
+            dist_sq: rel.length_squared(),
+            vel,
+            owner_team,
+        };
+        // 60 u east, flying west, passing 5 u north of our centre: go south (-y).
+        obs.projectiles = vec![shell(Vec2::new(60.0, 5.0), Vec2::new(-6.0, 0.0), 1)];
+        let d = dodge(&obs, 20.0, 4.0).expect("threat");
+        assert!(d.y < 0.0 && d.x.abs() < 1e-6, "{d}");
+        // Too far out for the horizon, flying away, wide of us, or our own: no dodge.
+        for p in [
+            shell(Vec2::new(600.0, 0.0), Vec2::new(-6.0, 0.0), 1),
+            shell(Vec2::new(60.0, 0.0), Vec2::new(6.0, 0.0), 1),
+            shell(Vec2::new(60.0, 40.0), Vec2::new(-6.0, 0.0), 1),
+            shell(Vec2::new(60.0, 0.0), Vec2::new(-6.0, 0.0), team),
+        ] {
+            obs.projectiles = vec![p];
+            assert_eq!(dodge(&obs, 20.0, 4.0), None);
+        }
+    }
+
+    #[test]
+    fn jitter_is_seeded_and_bounded() {
+        let draw = |seed| {
+            let mut j = Jitter::new(seed);
+            (0..50).map(|_| j.around(180, 60)).collect::<Vec<_>>()
+        };
+        assert_eq!(draw(7), draw(7));
+        assert_ne!(draw(7), draw(8));
+        assert!(draw(7).iter().all(|v| (120..=240).contains(v)));
+        assert_eq!(Jitter::new(1).around(5, 0), 5);
+        assert_eq!(Jitter::new(1).around(0, 0), 1);
     }
 
     #[test]

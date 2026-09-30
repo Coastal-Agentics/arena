@@ -1,7 +1,9 @@
 //! Sniper (SPEC policy 3): hold a far spot with a sight line, fire only when precisely
 //! aligned, back off from rushers, peek around a pillar when blind.
 
-use super::common::{action, aim_and_fire, drive_along, waypoint, Stall, StallParams};
+use super::common::{
+    action, aim_and_fire, dodge, drive_along, waypoint, Jitter, Stall, StallParams, DODGE_HORIZON,
+};
 use crate::los;
 use engine::{Action, Observation, Policy, Rect, Vec2};
 
@@ -14,8 +16,11 @@ pub struct SniperParams {
     pub grid_step: f32,
     /// Extra clearance (beyond the tank radius) a candidate spot keeps from obstacles.
     pub obstacle_clearance: f32,
-    /// Re-pick the spot at least this often, in ticks (sooner if it loses sight).
+    /// Re-score candidate spots this often, in ticks (at once if the spot loses sight).
     pub replan_every: u32,
+    /// Move to a newly scored spot only if it is at least this much farther from the
+    /// target than the current one (units), so the sniper settles instead of drifting.
+    pub replan_gain: f32,
     /// Close enough to the spot to stop (throttle 0), in units.
     pub arrive_radius: f32,
     /// Turret alignment tolerance for firing.
@@ -24,6 +29,8 @@ pub struct SniperParams {
     pub evade_dist: f32,
     /// Evade duration, in ticks.
     pub evade_ticks: u32,
+    /// Each evade lasts `evade_ticks` ± this many ticks (seeded).
+    pub evade_jitter: u32,
     /// Ticks without line of sight before moving along the nearest pillar to peek.
     pub blind_ticks: u32,
     /// How far outside a pillar corner the peek point sits (beyond the tank radius).
@@ -32,6 +39,10 @@ pub struct SniperParams {
     pub steer_tol: f32,
     /// Extra clearance when routing around obstacles (see [`waypoint`]).
     pub route_margin: f32,
+    /// Dodge enemy shells that would hit within this many ticks (0 = never dodge).
+    pub dodge_horizon: f32,
+    /// Extra miss distance (beyond the radius) that still counts as a threat.
+    pub dodge_margin: f32,
     /// Stall recovery.
     pub stall: StallParams,
 }
@@ -43,14 +54,18 @@ impl Default for SniperParams {
             grid_step: 20.0,
             obstacle_clearance: 8.0,
             replan_every: 30,
+            replan_gain: 80.0,
             arrive_radius: 10.0,
             aim_tol: 0.02,
             evade_dist: 250.0,
             evade_ticks: 60,
+            evade_jitter: 15,
             blind_ticks: 120,
             peek_offset: 12.0,
             steer_tol: 0.2,
             route_margin: 12.0,
+            dodge_horizon: DODGE_HORIZON,
+            dodge_margin: 4.0,
             stall: StallParams::default(),
         }
     }
@@ -64,7 +79,7 @@ impl Default for SniperParams {
 ///
 /// "Its half" is the half of the arena (split at `x = width / 2`) it first observes
 /// itself in.
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Sniper {
     /// Tunables.
     pub params: SniperParams,
@@ -75,14 +90,27 @@ pub struct Sniper {
     blind: u32,
     evading: u32,
     evade_dir: Vec2,
+    rng: Jitter,
 }
 
 impl Sniper {
-    /// A sniper with the given numbers.
+    /// A sniper with the given numbers (jitter seed 0).
     pub fn new(params: SniperParams) -> Self {
+        Self::seeded(params, 0)
+    }
+
+    /// A sniper whose evade timing comes from `seed`.
+    pub fn seeded(params: SniperParams, seed: u64) -> Self {
         Self {
             params,
-            ..Self::default()
+            stall: Stall::default(),
+            left_half: None,
+            spot: None,
+            replan_in: 0,
+            blind: 0,
+            evading: 0,
+            evade_dir: Vec2::ZERO,
+            rng: Jitter::new(seed),
         }
     }
 
@@ -167,6 +195,12 @@ impl Sniper {
     }
 }
 
+impl Default for Sniper {
+    fn default() -> Self {
+        Self::new(SniperParams::default())
+    }
+}
+
 impl Policy for Sniper {
     fn act(&mut self, obs: &Observation) -> Action {
         let p = self.params;
@@ -186,8 +220,13 @@ impl Policy for Sniper {
         };
 
         let (stalled, _) = self.stall.update(&p.stall, obs.me.vel);
+        let threat = (p.dodge_horizon > 0.0)
+            .then(|| dodge(obs, p.dodge_horizon, p.dodge_margin))
+            .flatten();
         let (throttle, turn) = if stalled {
             Stall::recovery()
+        } else if let Some(away) = threat {
+            drive_along(obs.me.heading, away, p.steer_tol)
         } else if self.evading > 0 {
             self.evading -= 1;
             drive_along(obs.me.heading, self.evade_dir, p.steer_tol)
@@ -196,7 +235,10 @@ impl Policy for Sniper {
             let perp = target.rel.perp();
             let centre = obs.arena_size * 0.5 - obs.me.pos;
             self.evade_dir = if perp.dot(centre) >= 0.0 { perp } else { -perp };
-            self.evading = p.evade_ticks.saturating_sub(1);
+            self.evading = self
+                .rng
+                .around(p.evade_ticks, p.evade_jitter)
+                .saturating_sub(1);
             self.spot = None; // re-pick once the evade ends
             drive_along(obs.me.heading, self.evade_dir, p.steer_tol)
         } else if self.blind >= p.blind_ticks {
@@ -210,7 +252,15 @@ impl Policy for Sniper {
                 .is_some_and(|s| !los::segment_clear(&obs.obstacles, s, target.pos));
             if self.spot.is_none() || self.replan_in == 0 || spot_blind {
                 if let Some(s) = self.best_spot(obs, target.pos) {
-                    self.spot = Some(s);
+                    let better = match self.spot {
+                        Some(cur) if !spot_blind => {
+                            (target.pos - s).length() > (target.pos - cur).length() + p.replan_gain
+                        }
+                        _ => true,
+                    };
+                    if better {
+                        self.spot = Some(s);
+                    }
                 }
                 self.replan_in = p.replan_every;
             }

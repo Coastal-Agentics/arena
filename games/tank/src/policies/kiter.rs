@@ -1,6 +1,8 @@
 //! Kiter (SPEC policy 2): circle-strafe at mid range and keep moving.
 
-use super::common::{action, aim_and_fire, drive_along, nearest_wall, Stall, StallParams};
+use super::common::{
+    action, aim_and_fire, cos_sin, drive_along, nearest_wall, Jitter, Stall, StallParams,
+};
 use engine::{Action, Observation, Policy, Vec2};
 
 /// Kiter numbers (part of the Phase 3 evolution genome).
@@ -16,6 +18,8 @@ pub struct KiterParams {
     pub wall_margin: f32,
     /// Flip strafe direction at least this often, in ticks.
     pub flip_every: u32,
+    /// Each timed flip comes after `flip_every` ± this many ticks (seeded).
+    pub flip_jitter: u32,
     /// Minimum ticks between wall-triggered flips (stops flip-flopping in a corner).
     pub wall_flip_cooldown: u32,
     /// Hull steering tolerance.
@@ -34,6 +38,7 @@ impl Default for KiterParams {
             bend_deg: 30.0,
             wall_margin: 60.0,
             flip_every: 180,
+            flip_jitter: 60,
             wall_flip_cooldown: 30,
             steer_tol: 0.2,
             aim_tol: 0.05,
@@ -55,6 +60,8 @@ pub struct Kiter {
     side: f32,
     since_flip: u32,
     since_wall_flip: u32,
+    next_flip: u32,
+    rng: Jitter,
 }
 
 impl Default for Kiter {
@@ -64,33 +71,39 @@ impl Default for Kiter {
 }
 
 impl Kiter {
-    /// A kiter with the given numbers.
+    /// A kiter with the given numbers (jitter seed 0).
     pub fn new(params: KiterParams) -> Self {
+        Self::seeded(params, 0)
+    }
+
+    /// A kiter whose starting strafe side and flip timing come from `seed`.
+    pub fn seeded(params: KiterParams, seed: u64) -> Self {
+        let mut rng = Jitter::new(seed);
+        let side = if rng.coin() { 1.0 } else { -1.0 };
+        let next_flip = rng.around(params.flip_every, params.flip_jitter);
         Self {
             params,
             stall: Stall::default(),
-            side: 1.0,
+            side,
             since_flip: 0,
             since_wall_flip: u32::MAX,
+            next_flip,
+            rng,
         }
     }
 
     fn flip(&mut self) {
         self.side = -self.side;
         self.since_flip = 0;
+        self.next_flip = self
+            .rng
+            .around(self.params.flip_every, self.params.flip_jitter);
     }
 }
 
 /// Rotate `v` counter-clockwise by the angle with the given cosine and sine.
 fn rotate(v: Vec2, cos: f32, sin: f32) -> Vec2 {
     Vec2::new(v.x * cos - v.y * sin, v.x * sin + v.y * cos)
-}
-
-/// `(cos, sin)` of `deg`, from the engine's integer-heading trig table (no libm).
-fn cos_sin(deg: f32) -> (f32, f32) {
-    let h = (deg * 65536.0 / 360.0) as i32;
-    let d = engine::angle::dir((h.rem_euclid(65536)) as u16);
-    (d.x, d.y)
 }
 
 /// Desired hull direction: the tangent to the circle around the target (`side` picks
@@ -138,7 +151,7 @@ impl Policy for Kiter {
             self.stall.record(throttle);
             return action(throttle, turn, turret_turn, fire);
         }
-        if self.since_flip >= p.flip_every {
+        if self.since_flip >= self.next_flip {
             self.flip();
         }
 

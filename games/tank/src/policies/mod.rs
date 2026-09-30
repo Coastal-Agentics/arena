@@ -56,12 +56,13 @@ impl Behavior {
         "Scripted"
     }
 
-    /// A fresh policy with default params.
-    pub fn build(self) -> Box<dyn Policy> {
+    /// A fresh policy with default params and its timing jitter seeded from `seed`
+    /// (see [`crate::MatchSpec::policies`] for how a match derives it).
+    pub fn build(self, seed: u64) -> Box<dyn Policy> {
         match self {
-            Self::Charger => Box::new(Charger::default()),
-            Self::Kiter => Box::new(Kiter::default()),
-            Self::Sniper => Box::new(Sniper::default()),
+            Self::Charger => Box::new(Charger::seeded(ChargerParams::default(), seed)),
+            Self::Kiter => Box::new(Kiter::seeded(KiterParams::default(), seed)),
+            Self::Sniper => Box::new(Sniper::seeded(SniperParams::default(), seed)),
         }
     }
 }
@@ -92,7 +93,7 @@ mod tests {
 
     fn play(a: Behavior, b: Behavior, seed: u64) -> (Outcome, u64) {
         let mut m = Match::new(config(Mode::Duel), seed);
-        let (mut pa, mut pb) = (a.build(), b.build());
+        let (mut pa, mut pb) = (a.build(seed), b.build(seed ^ 1));
         let o = m.run(&mut [pa.as_mut(), pb.as_mut()]);
         (o, m.state_hash())
     }

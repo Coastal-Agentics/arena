@@ -14,6 +14,11 @@ use engine::{Match, Outcome, Policy};
 use std::fmt;
 use std::str::FromStr;
 
+/// XORed into the match seed for Blue's policy jitter.
+pub const BLUE_SALT: u64 = 0xb1_0e;
+/// XORed into the match seed for Orange's policy jitter.
+pub const ORANGE_SALT: u64 = 0x0a_4a_9e;
+
 /// One tank's behavior and loadout.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct TankSpec {
@@ -122,9 +127,14 @@ impl MatchSpec {
         rules::duel(self.blue.loadout, self.orange.loadout)
     }
 
-    /// Fresh policies, by tank id.
+    /// Fresh policies, by tank id. Each policy's jitter seed is the match seed XOR a
+    /// per-side salt ([`BLUE_SALT`], [`ORANGE_SALT`]), so a mirror match still gives
+    /// the two tanks different timing.
     pub fn policies(&self) -> [Box<dyn Policy>; 2] {
-        [self.blue.behavior.build(), self.orange.behavior.build()]
+        [
+            self.blue.behavior.build(self.seed ^ BLUE_SALT),
+            self.orange.behavior.build(self.seed ^ ORANGE_SALT),
+        ]
     }
 
     /// A new match (not stepped yet) and its policies.
@@ -217,7 +227,10 @@ mod tests {
         // SPEC acceptance: 3/3/3 vs 3/3/3 is bit-identical to the default match.
         let spec = MatchSpec::default();
         let mut plain = Match::new(config(Mode::Duel), spec.seed);
-        let (mut a, mut b) = (spec.blue.behavior.build(), spec.orange.behavior.build());
+        let (mut a, mut b) = (
+            spec.blue.behavior.build(spec.seed ^ BLUE_SALT),
+            spec.orange.behavior.build(spec.seed ^ ORANGE_SALT),
+        );
         let o = plain.run(&mut [a.as_mut(), b.as_mut()]);
         assert_eq!(spec.run(), (o, plain.state_hash()));
     }
