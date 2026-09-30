@@ -9,33 +9,35 @@ Units: engine units (u), ticks at 60 Hz, headings in BAU (65536 = 1 turn, 0 = +X
   - **2v2 / FFA-4:** corners (100,100), (700,100), (100,500), (700,500), facing the centre. 2v2 teams are left vs right; FFA gives each tank its own team.
 
 ## Tanks
-One tank type with three stats (integer levels 1–5). Level 3 equals `TankParams::default()`; scripted matches use 3/3/3 unless a config sets a loadout.
+One tank type with three stats (integer levels 1–5). Level 3 equals `TankParams::default()` except HP (650 instead of 100); the Tank Arena match config uses the 3/3/3 params as its shared params, and scripted matches use 3/3/3 unless a config sets a loadout.
+
+*Retune (2026-09-30, pending a GATE-002 amendment):* HP ×6.5 and geometric tables. The first tables gave 7-second matches, and slow armoured builds won 84% of the time because Speed did nothing for a tank that stands and shoots. Evidence: `games/tank/BALANCE.md`.
 
 | Stat | Maps to (`TankParams`) | L1 | L2 | **L3 (default)** | L4 | L5 |
 |---|---|---|---|---|---|---|
-| Attack | projectile_damage | 12 | 16 | **20** | 24 | 28 |
+| Attack | projectile_damage | 14 | 17 | **20** | 24 | 29 |
 | Speed | max_speed (u/s) / turn_rate (BAU/tick) | 90 / 273 | 105 / 318 | **120 / 364** | 135 / 410 | 150 / 455 |
-| Defense | max_hp | 60 | 80 | **100** | 120 | 140 |
+| Speed | fire_cooldown (ticks) | 64 | 54 | **45** | 37 | 31 |
+| Defense | max_hp | 460 | 550 | **650** | 790 | 940 |
 
-Attack changes damage only (cooldown stays fixed, so fire rhythm stays readable). Speed scales hull move and turn together. Defense is plain HP, not damage reduction: simple integer maths, readable hits-to-kill (3–7 at default attack).
+Each stat is about ×1.2 per level (damage, fire rate, HP), so moving a point between stats keeps damage × fire rate × HP roughly constant: no build wins a straight exchange of fire by construction, and Speed's movement is the tie-breaker. Attack changes damage only. Speed scales hull move, turn and reload together (a faster tank also shoots faster). Defense is plain HP, not damage reduction: simple integer maths; default hits-to-kill is 33.
 
 **Stat budget (mandatory):** every tank has exactly 9 points across Attack/Speed/Defense, each 1–5; the scripted default is 3/3/3. That gives 19 valid loadouts (integer triples 1–5 summing to 9). Presets (A/S/D): **Balanced** 3/3/3, **Glass Cannon** 5/3/1, **Brawler** 4/1/4, **Scout** 2/5/2.
 
 Hits-to-kill = ⌈defender HP / attacker damage⌉:
-| Attack \ Defense | 1 (60) | 2 (80) | 3 (100) | 4 (120) | 5 (140) |
+| Attack \ Defense | 1 (460) | 2 (550) | 3 (650) | 4 (790) | 5 (940) |
 |---|---|---|---|---|---|
-| 1 (12) | 5 | 7 | 9 | 10 | 12 |
-| 2 (16) | 4 | 5 | 7 | 8 | 9 |
-| 3 (20) | 3 | 4 | **5** | 6 | 7 |
-| 4 (24) | 3 | 4 | 5 | 5 | 6 |
-| 5 (28) | 3 | 3 | 4 | 5 | 5 |
+| 1 (14) | 33 | 40 | 47 | 57 | 68 |
+| 2 (17) | 28 | 33 | 39 | 47 | 56 |
+| 3 (20) | 23 | 28 | **33** | 40 | 47 |
+| 4 (24) | 20 | 23 | 28 | 33 | 40 |
+| 5 (29) | 16 | 19 | 23 | 28 | 33 |
 
 Fixed for everyone:
 | Param | Value | Meaning |
 |---|---|---|
 | radius | 16 | circle collider |
 | turret_turn_rate | 546 BAU/tick | turret ~180°/s, world-relative (hull turning does not drag it) |
-| fire_cooldown | 45 ticks | 0.75 s; fastest default kill 180 ticks (3 s) |
 | projectile_speed | 360 u/s | 6 u/tick, 3× default tank speed |
 | projectile_ttl | 120 ticks | range 720 u |
 | projectile_spread | 256 BAU | ±1.4° |
@@ -59,7 +61,7 @@ Intended triangle: kiter > charger > sniper > kiter. Acceptance: every pairing 5
 The arena viewer gets two tabs: **Watch** (today's viewer) and **Customize**. Depends on engine ask #5 (per-tank `TankParams`).
 - Per tank (Blue, Orange): behavior picker (Charger / Kiter / Sniper) and a loadout triangle.
 - Triangle: a barycentric point with Attack, Speed, Defense at the corners; stat = 1 + 6·weight, snapped to the nearest of the 19 valid loadouts (exact ties → lower Attack, then lower Speed). Preset buttons set the point.
-- Live readout per tank, from the tables above: damage, max speed (u/s), HP, hits-to-kill vs the opponent's HP. E.g. Glass Cannon vs Brawler: 28 dmg kills 120 HP in 5; 24 dmg kills 60 HP in 3.
+- Live readout per tank, from the tables above: damage, reload, max speed (u/s), HP, hits-to-kill vs the opponent's HP. E.g. Glass Cannon vs Brawler: 29 dmg kills 790 HP in 28; 24 dmg kills 460 HP in 20.
 - **Watch this match** switches to Watch and plays it. Seed, behaviors and loadouts live in the URL query (e.g. `?seed=42&blue=kiter-5-3-1&orange=charger-4-1-4`); opening the link replays the match exactly.
 
 ## Training indicator
@@ -75,7 +77,7 @@ Pick N items (e.g. heavy shell, speed boost, armor, smoke that blocks LOS). Need
 - Balance: the policy triangle target above is still judged at 3/3/3. Target to check once implemented: no single loadout wins > 70% averaged across all 19 opponent loadouts (per policy, 200 mirrored seeds per pairing).
 
 ## What makes it fun to watch
-Visible shells you can see coming, and near-miss dodges. Three readable personalities: the rusher, the dancer, the camper. Pillars create peek-and-hide moments. Lead aim makes long hits feel earned. HP bars and a 2-minute cap keep up the drama; comebacks possible (5 hits).
+Visible shells you can see coming, and near-miss dodges. Three readable personalities: the rusher, the dancer, the camper. Pillars create peek-and-hide moments. Lead aim makes long hits feel earned. HP bars and a 2-minute cap keep up the drama; comebacks possible (33 hits at 3/3/3).
 
 ## Known engine limits
 - Swept hits (PR #6) treat target tanks as stationary within a tick; negligible at these speeds.

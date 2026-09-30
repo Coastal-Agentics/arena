@@ -2,6 +2,13 @@
 //! pairing (optionally with a custom `MatchConfig`, e.g. per-tank params), step it, and
 //! read the state as JSON. Used by `web/arena.html`.
 //!
+//! Two kinds of duel:
+//! * **Tank Arena** ([`Viewer::tank`], JS `WasmMatch.tank(query)`): the `games/tank`
+//!   rules, loadouts and charger/kiter/sniper policies from a URL query
+//!   (`seed=42&blue=kiter-5-3-1&orange=charger-4-1-4`);
+//! * **Built-in bots** ([`Viewer::new`] / [`Viewer::with_config`]): the engine's
+//!   placeholder Chaser/Wanderer, `MatchConfig::duel` by default, identical to `engine-cli`.
+//!
 //! The sim logic lives in [`Viewer`] (plain Rust, unit-tested natively); the
 //! `#[wasm_bindgen]` [`WasmMatch`] wrapper only converts errors to JS.
 //!
@@ -12,6 +19,7 @@
 use engine::bots::{Chaser, Wanderer};
 use engine::{Action, EndReason, Heading, Match, MatchConfig, Policy, Vec2};
 use serde::Serialize;
+use tank::{loadout, Behavior, Loadout, MatchSpec, Preset};
 use wasm_bindgen::prelude::*;
 
 /// Built-in bots the viewer can pit against each other.
@@ -141,6 +149,31 @@ fn radians(h: Heading) -> f32 {
 pub struct Viewer {
     m: Match,
     bots: Vec<Box<dyn Policy>>,
+    setup: Option<SetupView>,
+}
+
+/// One tank's setup in [`SetupView`].
+#[derive(Serialize, Debug, PartialEq)]
+pub struct TankSetupView {
+    /// Behavior key (`kiter`).
+    pub behavior: &'static str,
+    /// Behavior display name (`Kiter`).
+    pub name: &'static str,
+    /// How the behavior was made (SPEC "Training indicator"): `Scripted` today.
+    pub training: &'static str,
+    /// Loadout, `A-S-D`.
+    pub loadout: String,
+}
+
+/// A Tank Arena duel's setup; serialized by [`WasmMatch::setup_json`].
+#[derive(Serialize, Debug, PartialEq)]
+pub struct SetupView {
+    /// Canonical URL query that reproduces this match.
+    pub query: String,
+    /// Seed as a decimal string.
+    pub seed: String,
+    /// Tank 0 (Blue) then tank 1 (Orange).
+    pub tanks: Vec<TankSetupView>,
 }
 
 impl Viewer {
@@ -170,7 +203,36 @@ impl Viewer {
         Ok(Self {
             m: Match::new(config, seed),
             bots,
+            setup: None,
         })
+    }
+
+    /// A Tank Arena duel from a URL query (see [`tank::MatchSpec::from_query`]):
+    /// fixed spawns, per-tank loadouts, the charger/kiter/sniper policies.
+    pub fn tank(query: &str) -> Result<Self, String> {
+        let spec = MatchSpec::from_query(query)?;
+        let (m, [a, b]) = spec.start();
+        let view = |t: &tank::TankSpec| TankSetupView {
+            behavior: t.behavior.key(),
+            name: t.behavior.name(),
+            training: t.behavior.training(),
+            loadout: t.loadout.to_string(),
+        };
+        let setup = SetupView {
+            query: spec.to_query(),
+            seed: spec.seed.to_string(),
+            tanks: vec![view(&spec.blue), view(&spec.orange)],
+        };
+        Ok(Self {
+            m,
+            bots: vec![a, b],
+            setup: Some(setup),
+        })
+    }
+
+    /// The Tank Arena setup, or `None` for a built-in-bot duel.
+    pub fn setup(&self) -> Option<&SetupView> {
+        self.setup.as_ref()
     }
 
     /// Advance up to `n` ticks (stops early when the match ends). Returns true if over.
@@ -290,6 +352,20 @@ impl WasmMatch {
             .map_err(|e| JsError::new(&e))
     }
 
+    /// A Tank Arena duel from a URL query (`seed=42&blue=kiter-5-3-1&orange=charger`);
+    /// missing keys take defaults, unknown keys are ignored. Bad input throws.
+    pub fn tank(query: &str) -> Result<WasmMatch, JsError> {
+        Viewer::tank(query)
+            .map(WasmMatch)
+            .map_err(|e| JsError::new(&e))
+    }
+
+    /// Tank Arena setup as JSON (see `SetupView`), or `"null"` for built-in bots.
+    #[wasm_bindgen(js_name = setupJson)]
+    pub fn setup_json(&self) -> String {
+        serde_json::to_string(&self.0.setup()).expect("setup serializes")
+    }
+
     /// Advance up to `n` ticks; returns true once the match is over.
     pub fn step(&mut self, n: u32) -> bool {
         self.0.step(n)
@@ -331,6 +407,74 @@ impl WasmMatch {
 #[wasm_bindgen(js_name = duelConfigJson)]
 pub fn duel_config_json() -> String {
     serde_json::to_string(&MatchConfig::duel()).expect("config serializes")
+}
+
+/// Everything the Customize tab shows, from `games/tank` (one source of truth).
+#[derive(Serialize, Debug)]
+pub struct CatalogView {
+    /// Points per tank.
+    pub budget: u8,
+    /// Damage by Attack level (index 0 = level 1).
+    pub damage: [i32; 5],
+    /// Max speed (u/s) by Speed level.
+    pub max_speed: [f32; 5],
+    /// Turn rate (BAU/tick) by Speed level.
+    pub turn_rate: [u16; 5],
+    /// Fire cooldown (ticks between shots) by Speed level.
+    pub fire_cooldown: [u32; 5],
+    /// Max HP by Defense level.
+    pub max_hp: [i32; 5],
+    /// The 19 valid loadouts as `A-S-D`, ordered by Attack then Speed.
+    pub loadouts: Vec<String>,
+    /// `(name, loadout)` presets.
+    pub presets: Vec<(&'static str, String)>,
+    /// `(key, name, training)` behaviors.
+    pub behaviors: Vec<(&'static str, &'static str, &'static str)>,
+    /// The default match's canonical query.
+    pub default_query: String,
+}
+
+/// The Customize tab's tables and lists.
+pub fn catalog() -> CatalogView {
+    CatalogView {
+        budget: loadout::BUDGET,
+        damage: loadout::DAMAGE,
+        max_speed: loadout::MAX_SPEED,
+        turn_rate: loadout::TURN_RATE,
+        fire_cooldown: loadout::FIRE_COOLDOWN,
+        max_hp: loadout::MAX_HP,
+        loadouts: Loadout::ALL.iter().map(|l| l.to_string()).collect(),
+        presets: Preset::ALL
+            .iter()
+            .map(|p| (p.name(), p.loadout().to_string()))
+            .collect(),
+        behaviors: Behavior::ALL
+            .iter()
+            .map(|b| (b.key(), b.name(), b.training()))
+            .collect(),
+        default_query: MatchSpec::default().to_query(),
+    }
+}
+
+/// The Customize tab's tables and lists as JSON (see `CatalogView`).
+#[wasm_bindgen(js_name = tankCatalogJson)]
+pub fn tank_catalog_json() -> String {
+    serde_json::to_string(&catalog()).expect("catalog serializes")
+}
+
+/// Snap barycentric triangle weights (Attack, Speed, Defense corners) to a loadout,
+/// returned as `A-S-D` (`tank::Loadout::snap`).
+#[wasm_bindgen(js_name = snapLoadout)]
+pub fn snap_loadout(attack: f32, speed: f32, defense: f32) -> String {
+    Loadout::snap([attack, speed, defense]).to_string()
+}
+
+/// Canonical form of a Tank Arena URL query; throws on invalid input.
+#[wasm_bindgen(js_name = canonicalTankQuery)]
+pub fn canonical_tank_query(query: &str) -> Result<String, JsError> {
+    MatchSpec::from_query(query)
+        .map(|m| m.to_query())
+        .map_err(|e| JsError::new(&e))
 }
 
 /// Engine crate version.
@@ -407,6 +551,53 @@ mod tests {
         assert_eq!((s.tanks[0].max_hp, s.tanks[1].max_hp), (100, 140));
         assert_eq!(s.tanks[1].hp, 140);
         assert!(Viewer::with_config(MatchConfig::duel(), "x", "Chaser", "Wanderer").is_err());
+    }
+
+    #[test]
+    fn tank_duel_matches_the_tank_crate() {
+        for q in [
+            "seed=42&blue=kiter-5-3-1&orange=charger-4-1-4",
+            "seed=7&blue=sniper&orange=kiter",
+            "",
+        ] {
+            let mut v = Viewer::tank(q).unwrap();
+            while !v.step(13) {}
+            let spec = MatchSpec::from_query(q).unwrap();
+            let (o, hash) = spec.run();
+            assert_eq!(v.inner().outcome(), Some(o), "{q}");
+            assert_eq!(v.inner().state_hash(), hash, "{q}");
+            let s = v.setup().unwrap();
+            assert_eq!(s.query, spec.to_query());
+            assert_eq!(s.tanks[0].training, "Scripted");
+        }
+        let v = Viewer::tank("seed=1&blue=kiter-5-3-1&orange=charger-4-1-4").unwrap();
+        let s = v.setup().unwrap();
+        assert_eq!(
+            (s.tanks[0].loadout.as_str(), s.tanks[1].name),
+            ("5-3-1", "Charger")
+        );
+        let st = v.state();
+        assert_eq!((st.tanks[0].max_hp, st.tanks[1].max_hp), (460, 790));
+        assert!(Viewer::tank("blue=kiter-5-3-2").is_err());
+        assert!(Viewer::new("1", "Chaser", "Wanderer")
+            .unwrap()
+            .setup()
+            .is_none());
+    }
+
+    #[test]
+    fn catalog_and_snap() {
+        let c = catalog();
+        assert_eq!(c.loadouts.len(), 19);
+        assert_eq!(c.presets[1], ("Glass Cannon", "5-3-1".to_string()));
+        assert_eq!(c.fire_cooldown, tank::loadout::FIRE_COOLDOWN);
+        assert_eq!(c.max_hp[2], 650);
+        assert_eq!(snap_loadout(1.0, 1.0, 1.0), "3-3-3");
+        assert_eq!(snap_loadout(1.0, 0.0, 0.0), "5-2-2");
+        assert_eq!(
+            MatchSpec::from_query(&c.default_query).unwrap(),
+            MatchSpec::default()
+        );
     }
 
     #[test]

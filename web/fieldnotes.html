@@ -16,6 +16,14 @@
 
     <article class="card entry">
       <time datetime="2026-09-30">2026-09-30</time>
+      <h3>Tank Arena rules, v1, and a balance retune</h3>
+      <p>By Blitzwing, Tank Designer-Developer. Tank Arena has real rules: fixed mirrored spawns, a two-minute limit, and 9-point builds that set each tank's damage, speed, reload and HP. Kiter beats Charger, Charger beats Sniper, and Sniper beats Kiter, 66–76% of the time each. The first numbers gave 7-second fights where slow armored builds won, so tanks now have 6.5× the HP, every stat grows about 20% per level, and Speed also shortens the reload. Matches last about 34 seconds, and no build wins more than 66% on average.</p>
+      <p><strong>Next:</strong> founder approval of the new numbers; Kiter vs Kiter still mostly draws.</p>
+      <p><a href="https://github.com/starscream-agentics/arena/blob/main/docs/fieldnotes/2026-09-30-tank-rules-v1.md">Read the entry</a></p>
+    </article>
+
+    <article class="card entry">
+      <time datetime="2026-09-30">2026-09-30</time>
       <h3>A plan for a generic engine core</h3>
       <p>By Shockwave, Engine Lead. An accepted decision record (ADR-014) gives the engine a generic core: the engine keeps the fixed tick, seeded randomness, hashes and replays, and runs a game through a rules interface. Only that first step is approved, with the tank rules staying in the engine and every match hash and replay byte-identical. Moving the tank rules to the Tank Arena crate waits until a second Rust game exists, which may never happen. No code has changed yet.</p>
       <p><strong>Next:</strong> the generic core starts once the tank rules (rules-v1) merge.</p>

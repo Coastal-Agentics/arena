@@ -36,14 +36,35 @@ export function duelConfigJson() {
 }
 
 /**
- * Engine crate version.
+ * The Customize tab's tables and lists as JSON (see `CatalogView`).
  * @returns {string}
  */
-export function engineVersion() {
+export function tankCatalogJson() {
     let deferred1_0;
     let deferred1_1;
     try {
-        const ret = wasm.engineVersion();
+        const ret = wasm.tankCatalogJson();
+        deferred1_0 = ret[0];
+        deferred1_1 = ret[1];
+        return getStringFromWasm0(ret[0], ret[1]);
+    } finally {
+        wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+    }
+}
+
+/**
+ * Snap barycentric triangle weights (Attack, Speed, Defense corners) to a loadout,
+ * returned as `A-S-D` (`tank::Loadout::snap`).
+ * @param {number} attack
+ * @param {number} speed
+ * @param {number} defense
+ * @returns {string}
+ */
+export function snapLoadout(attack, speed, defense) {
+    let deferred1_0;
+    let deferred1_1;
+    try {
+        const ret = wasm.snapLoadout(attack, speed, defense);
         deferred1_0 = ret[0];
         deferred1_1 = ret[1];
         return getStringFromWasm0(ret[0], ret[1]);
@@ -113,6 +134,48 @@ function takeFromExternrefTable0(idx) {
     wasm.__externref_table_dealloc(idx);
     return value;
 }
+/**
+ * Canonical form of a Tank Arena URL query; throws on invalid input.
+ * @param {string} query
+ * @returns {string}
+ */
+export function canonicalTankQuery(query) {
+    let deferred3_0;
+    let deferred3_1;
+    try {
+        const ptr0 = passStringToWasm0(query, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.canonicalTankQuery(ptr0, len0);
+        var ptr2 = ret[0];
+        var len2 = ret[1];
+        if (ret[3]) {
+            ptr2 = 0; len2 = 0;
+            throw takeFromExternrefTable0(ret[2]);
+        }
+        deferred3_0 = ptr2;
+        deferred3_1 = len2;
+        return getStringFromWasm0(ptr2, len2);
+    } finally {
+        wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
+    }
+}
+
+/**
+ * Engine crate version.
+ * @returns {string}
+ */
+export function engineVersion() {
+    let deferred1_0;
+    let deferred1_1;
+    try {
+        const ret = wasm.engineVersion();
+        deferred1_0 = ret[0];
+        deferred1_1 = ret[1];
+        return getStringFromWasm0(ret[0], ret[1]);
+    } finally {
+        wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+    }
+}
 
 const WasmMatchFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
@@ -140,6 +203,22 @@ export class WasmMatch {
     free() {
         const ptr = this.__destroy_into_raw();
         wasm.__wbg_wasmmatch_free(ptr, 0);
+    }
+    /**
+     * Tank Arena setup as JSON (see `SetupView`), or `"null"` for built-in bots.
+     * @returns {string}
+     */
+    setupJson() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.wasmmatch_setupJson(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
     }
     /**
      * Current state hash as 16 hex digits; at the end of a Chaser vs Wanderer match
@@ -245,6 +324,21 @@ export class WasmMatch {
     step(n) {
         const ret = wasm.wasmmatch_step(this.__wbg_ptr, n);
         return ret !== 0;
+    }
+    /**
+     * A Tank Arena duel from a URL query (`seed=42&blue=kiter-5-3-1&orange=charger`);
+     * missing keys take defaults, unknown keys are ignored. Bad input throws.
+     * @param {string} query
+     * @returns {WasmMatch}
+     */
+    static tank(query) {
+        const ptr0 = passStringToWasm0(query, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.wasmmatch_tank(ptr0, len0);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return WasmMatch.__wrap(ret[0]);
     }
     /**
      * Ticks simulated so far.
