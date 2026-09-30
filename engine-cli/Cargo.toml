@@ -11,3 +11,5 @@ clap = { version = "4", features = ["derive"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 engine = { path = "../engine" }
+# The placeholder bots Chaser and Wanderer (ADR-014 Phase A).
+tank = { path = "../games/tank" }

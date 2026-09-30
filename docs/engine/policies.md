@@ -1,6 +1,7 @@
 # Observations, actions and policies
 
-Source: `engine/src/policy.rs`, `engine/src/bots.rs`, `Match::observe` in `engine/src/sim.rs`.
+Source: `engine/src/policy.rs`, `Match::observe` in `engine/src/sim.rs`, and the placeholder
+bots in `games/tank/src/bots.rs`.
 
 This interface is tank-specific and currently lives in `engine/` (the module doc says "Tank-only
 observation/action interface"). ADR-009 (corrected 2026-09-30) records that tank specifics
@@ -88,10 +89,18 @@ let outcome = m.run(&mut [&mut sit, &mut spin]); // draw at the 7200-tick limit
 `Match::step_policies` and `Match::run` take `&mut [&mut dyn Policy]`, indexed by tank id.
 The policy for a dead tank isn't called.
 
-## Built-in policies
+## Placeholder bots (`tank::Chaser`, `tank::Wanderer`)
 
-Both live in `engine::bots` and are placeholders "for the CLI smoke run, tests, and the
-viewer" (module doc). They use `angle::turn_toward(h, target, tol)`. It returns `0` when the
+Both live in `games/tank` (`games/tank/src/bots.rs`), exported as `tank::{Chaser, Wanderer}`.
+Until 2026-09-30 they were `engine::bots`; ADR-014 Phase A moved them unchanged (Blitzwing
+copied them in #19, then `engine-cli` and `engine-wasm` switched over and `engine::bots` was
+deleted). They play the engine's random-spawn duel (`MatchConfig::duel`), not the Tank Arena
+rules, and every Chaser vs Wanderer hash quoted in these pages comes from them. `games/tank`
+pins those hashes (`documented_hashes_are_unchanged`, and a digest of seeds 0–199 in
+`smoke_run_seeds_0_to_199_are_unchanged`). The engine's own tests don't use them. They drive
+test-only policies instead (`engine/src/testing.rs`, compiled only under `cfg(test)`).
+
+They use `engine::angle::turn_toward(h, target, tol)`. It returns `0` when the
 target is in front and the sine of the angle to it is within `tol`. Otherwise it returns `1`
 (turn counter-clockwise) or `-1` (clockwise); a target directly behind gives `1`.
 
@@ -122,8 +131,9 @@ end 195 Wanderer wins to 5 Chaser wins, all by `last_standing` (run on 2026-09-3
 
 ## games/tank
 
-`games/tank` currently exports only `GAME_NAME = "Tank Arena"` and `tick_hz()` (which returns
-`engine::TICK_HZ`). It has no rules, observations, actions or policies yet. The Tank Arena spec
-(`games/tank/SPEC.md`, GATE-002) is merged; its scripted policies (Charger, Kiter, Sniper) and
-the stat-to-params mapping for loadouts belong in `games/tank`, not in the engine. The engine
+`games/tank` holds the Tank Arena rules v1 (#18): the loadouts and their stat-to-params
+mapping, the pillar arena and fixed spawns, and the scripted policies (Charger, Kiter,
+Sniper), implementing `games/tank/SPEC.md` (GATE-002). It also holds the placeholder bots
+above. Those policies implement this page's `Policy` trait on the engine's tank
+`Observation`/`Action`, which still live in the engine. The engine
 side of the spec's asks is described in [world](world.md#per-tank-params) and above.

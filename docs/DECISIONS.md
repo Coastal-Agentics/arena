@@ -72,6 +72,7 @@ Short ADRs. Status is one of: Accepted, Proposed, Open, Superseded.
 **Correction (2026-09-30):** The code does not match this yet. Today the tank specifics live in `engine/`: the `Tank` and `Projectile` entities, `TankParams`, `TankSpawn`, `MatchConfig::duel` and the tank step rules (driving, turret, firing, hits) in `sim.rs`; the tank `Observation`/`Action` pair, with the `Policy` trait typed on them, in `policy.rs`; and the placeholder policies `Chaser` and `Wanderer` in `bots.rs`. `games/tank` is a stub (`GAME_NAME`, `tick_hz()`) waiting on the Tank Arena spec (GATE-002). See `docs/engine/`.
 **Future work:** Move the tank-specific code from `engine/` into `games/tank` so `engine/` is the generic core this ADR describes. Not scheduled; no code has moved.
 **Amended by ADR-014 (2026-09-30):** the move is planned in two phases (bots first, then a generic core with a `Rules` trait). Only the generic core inside `engine/` (B1) is approved; moving the tank rules into `games/tank` is deferred until a second Rust game exists. Transition re-exports, if ever needed, live in `games/tank`, never in `engine`.
+**Update (2026-09-30):** ADR-014 Phase A is done. `Chaser` and `Wanderer` live in `games/tank` (`tank::{Chaser, Wanderer}`), `engine-cli` and `engine-wasm` use them, and `engine::bots` is deleted. The rest of the correction stands: the tank entities, `TankParams`, `TankSpawn`, the step rules and the tank `Observation`/`Action` are still in `engine/`. (`games/tank` is no longer a stub: it has held the Tank Arena rules v1 since #18.)
 
 ## ADR-010 — The Rust core is a candidate browser viewer for Saltmarsh
 **Status:** Open (candidate, 2026-09-30)
@@ -96,6 +97,10 @@ Short ADRs. Status is one of: Accepted, Proposed, Open, Superseded.
 
 ## ADR-014 — Phase B: a generic sim core (moving the tank rules to `games/tank` deferred)
 **Status:** Accepted (2026-09-30; CoS decision on internal architecture, no founder gate). Amends ADR-009: it plans the "Future work" move in two phases and fixes where any transition re-exports live. **Only step B1 is approved**; B2–B5 are deferred (see Sequencing).
+**Progress (2026-09-30):**
+- **Phase A is done.** In step 1 (#19, Blitzwing), the bots were copied into `games/tank` with their hash pins. In step 2 (Shockwave), `engine-cli` and `engine-wasm` switched to `tank::{Chaser, Wanderer}` and `engine::bots` was deleted.
+- **Hash pins.** The Chaser vs Wanderer pins named below (`documented_hashes_are_unchanged`, plus the seeds 0–199 digest) now live in `games/tank/src/bots.rs`. `engine` pins its own hashes with test-only policies (`engine/src/testing.rs`), and `engine-cli` pins the rows its docs quote.
+- **rules-v1** has merged (#18). B1 has not started.
 **Context:** Blitzwing proposed moving the tank code out of `engine/` in two phases. **Phase A** moves the placeholder bots: Blitzwing copies `Chaser` and `Wanderer` into `games/tank` with hash-pinned tests, then an engine PR switches `engine-cli` and `engine-wasm` to those copies and deletes `engine::bots`. **Phase B**, this ADR, makes the sim core generic. What is tank-specific in `engine/` on `main` (`d4db1c5`, which includes the #16 API):
 - `sim.rs`:
   - config types: `TankParams` (including `projectile_spread_still`), `TankSpawn` (including `params: Option<TankParams>`), and `MatchConfig` with `duel()` and `tank_params()`;

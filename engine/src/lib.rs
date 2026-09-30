@@ -24,11 +24,12 @@
 
 pub mod angle;
 pub mod arena;
-pub mod bots;
 pub mod json_u64;
 pub mod policy;
 pub mod replay;
 pub mod sim;
+#[cfg(test)]
+mod testing;
 
 pub use angle::Heading;
 pub use arena::{Arena, Rect};
@@ -53,22 +54,14 @@ pub fn version() -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bots::{Chaser, Wanderer};
     use replay::REPLAY_FORMAT;
     use serde_json::json;
+    use testing::{play, play_config};
 
     #[test]
     fn tick_rate_is_60hz() {
         assert_eq!(TICK_HZ, 60);
         assert!(!version().is_empty());
-    }
-
-    fn play(seed: u64) -> Match {
-        let mut m = Match::new(MatchConfig::duel(), seed);
-        let mut a = Chaser;
-        let mut b = Wanderer::new(seed ^ 0x5eed);
-        m.run(&mut [&mut a, &mut b]);
-        m
     }
 
     #[test]
@@ -250,30 +243,91 @@ mod tests {
     }
 
     #[test]
-    fn documented_hashes_are_unchanged() {
-        // Values quoted in docs/engine (engine-cli.md, replay-format.md). Default
-        // configs play exactly as before the per-tank params and stationary accuracy
-        // asks, and serialize the same, so setup hashes are unchanged too.
-        let cases: [(u64, u32, &str, &str); 4] = [
-            (42, 447, "03722b5e86d38fac", "-"),
-            (7, 276, "51234f61b02b5784", "0b24ce74f45e9a27"),
-            (101, 274, "baf3fcb2cbb76c06", "9cfd58498bbe3f85"),
-            (u64::MAX, 532, "f1d983e88de5d020", "-"),
+    fn pinned_hashes_are_unchanged() {
+        // The engine's own pins, played by the test-only policies in `testing` (the
+        // Chaser vs Wanderer hashes quoted in docs/engine are pinned in games/tank, next
+        // to the bots). Any change to the sim, the RNG draws or the state hash shows here.
+        // Setup hashes depend only on the seed and config: 7 and 101 are the values
+        // quoted in docs/engine/replay-format.md.
+        type Case = (u64, Option<u8>, u32, EndReason, &'static str, &'static str);
+        let cases: [Case; 5] = [
+            (
+                42,
+                Some(1),
+                224,
+                EndReason::LastStanding,
+                "29fa9f3144214302",
+                "b2557d87094fc136",
+            ),
+            (
+                7,
+                Some(0),
+                365,
+                EndReason::LastStanding,
+                "3b5685112157684e",
+                "0b24ce74f45e9a27",
+            ),
+            (
+                101,
+                Some(1),
+                316,
+                EndReason::LastStanding,
+                "7995003f2c72df6f",
+                "9cfd58498bbe3f85",
+            ),
+            (
+                1234,
+                None,
+                626,
+                EndReason::AllDestroyed,
+                "51c931686ff72116",
+                "c5de22a2ba76cd0a",
+            ),
+            (
+                u64::MAX,
+                Some(1),
+                818,
+                EndReason::LastStanding,
+                "fb9d9c2c45cece64",
+                "eff32d1c58acf13c",
+            ),
         ];
-        for (seed, ticks, hash, setup) in cases {
+        for (seed, winner, ticks, reason, hash, setup) in cases {
             for _ in 0..2 {
                 let m = play(seed);
                 assert_eq!(
-                    m.outcome().map(|o| (o.winner, o.ticks)),
-                    Some((Some(1), ticks))
+                    m.outcome(),
+                    Some(Outcome {
+                        winner,
+                        ticks,
+                        reason
+                    }),
+                    "seed {seed}"
                 );
                 let r = m.replay();
                 assert_eq!(r.final_hash, hash, "seed {seed}");
-                if setup != "-" {
-                    assert_eq!(r.setup_hash.as_deref(), Some(setup), "seed {seed}");
-                }
+                assert_eq!(r.setup_hash.as_deref(), Some(setup), "seed {seed}");
             }
         }
+    }
+
+    #[test]
+    fn seeds_0_to_199_are_unchanged() {
+        // FNV-1a over (winner or 255, ticks, state hash) of seeds 0..200, the same digest
+        // games/tank computes for Chaser vs Wanderer, here for the test-only policies.
+        let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+        for seed in 0..200 {
+            let m = play(seed);
+            let o = m.outcome().expect("match ends");
+            for b in [o.winner.unwrap_or(255)]
+                .into_iter()
+                .chain(o.ticks.to_le_bytes())
+                .chain(m.state_hash().to_le_bytes())
+            {
+                h = (h ^ b as u64).wrapping_mul(0x0100_0000_01b3);
+            }
+        }
+        assert_eq!(format!("{h:016x}"), "ee310c1f1be4f6ba");
     }
 
     /// Glass Cannon (A/S/D 5/3/1) vs Brawler (4/1/4), mapped with the spec's table.
@@ -293,12 +347,6 @@ mod tests {
             ..Default::default()
         });
         c
-    }
-
-    fn play_config(config: MatchConfig, seed: u64) -> Match {
-        let mut m = Match::new(config, seed);
-        m.run(&mut [&mut Chaser, &mut Wanderer::new(seed ^ 0x5eed)]);
-        m
     }
 
     #[test]
@@ -442,6 +490,6 @@ mod tests {
             assert!(o.ticks <= MatchConfig::duel().max_ticks);
             winners += o.winner.is_some() as u32;
         }
-        assert!(winners > 0, "placeholder bots should decide some matches");
+        assert!(winners > 0, "the test policies should decide some matches");
     }
 }

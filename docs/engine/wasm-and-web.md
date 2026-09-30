@@ -4,15 +4,18 @@ Source: `engine-wasm/` (`Cargo.toml`, `src/lib.rs`), `scripts/build-wasm.sh`,
 `rust-toolchain.toml`, `web/arena.html`, `web/arena.js`, `web/pkg/`,
 `.github/workflows/ci.yml` (`wasm` job) and `.github/workflows/pages.yml`.
 
-The viewer landed on `main` in PR #8. It plays **live** matches between the built-in bots; it
-doesn't load replay files.
+The viewer landed on `main` in PR #8. It plays **live** matches: between the placeholder bots
+(`tank::Chaser`, `tank::Wanderer`), or Tank Arena duels (rules v1, #18). It doesn't load
+replay files.
 
 ## How the pieces plug together
 
 ```
-engine (rlib)  ──►  engine-wasm (cdylib + rlib, wasm-bindgen =0.2.100)
-                        │  scripts/build-wasm.sh
-                        ▼
+engine (rlib) ──► games/tank (rlib: bots, rules v1)
+      │                  │
+      └──────────────────┴──►  engine-wasm (cdylib + rlib, wasm-bindgen =0.2.100)
+                                  │  scripts/build-wasm.sh
+                                  ▼
                     web/pkg/engine_wasm.js       (ES module glue, wasm-bindgen --target web)
                     web/pkg/engine_wasm_bg.wasm  (the compiled engine)
                         ▲  import init, { WasmMatch } from "./pkg/engine_wasm.js"
@@ -28,7 +31,7 @@ avoids OS, thread and time dependencies, and pulls in `rand_chacha` without defa
 Two layers:
 
 - **`Viewer`**, plain Rust and unit-tested natively. It wraps a `Match` and two boxed
-  built-in policies, chosen by name with `BotKind::parse` (`"chaser"` or `"wanderer"`,
+  policies. For the placeholder bots (`tank::Chaser`, `tank::Wanderer`) they're chosen by name with `BotKind::parse` (`"chaser"` or `"wanderer"`,
   case-insensitive, trimmed). `Viewer::new(seed, team0, team1)` uses `MatchConfig::duel()`;
   `Viewer::with_config(config, seed, team0, team1)` takes any `MatchConfig`. Either way the
   first bot drives tank 0 and the second tank 1; any further tanks idle.
@@ -71,7 +74,10 @@ cfg.tanks[1].params = { ...cfg.params, projectile_damage: 24, max_speed: 90, tur
 const m = WasmMatch.withConfig(JSON.stringify(cfg), "42", "Chaser", "Wanderer");
 ```
 
-Only the two built-in bots are available from JS so far.
+Besides the two placeholder bots, `WasmMatch.tank(query)` plays a Tank Arena duel from a URL
+query (rules v1, #18), with `setupJson()`, `tankCatalogJson()`, `snapLoadout()` and
+`canonicalTankQuery()` alongside. Those are the rules-v1 API. This page doesn't cover them
+yet; see the rustdoc in `engine-wasm/src/lib.rs`.
 
 `StateView` JSON:
 

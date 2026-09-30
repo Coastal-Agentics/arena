@@ -6,8 +6,9 @@
 //! * **Tank Arena** ([`Viewer::tank`], JS `WasmMatch.tank(query)`): the `games/tank`
 //!   rules, loadouts and charger/kiter/sniper policies from a URL query
 //!   (`seed=42&blue=kiter-5-3-1&orange=charger-4-1-4`);
-//! * **Built-in bots** ([`Viewer::new`] / [`Viewer::with_config`]): the engine's
-//!   placeholder Chaser/Wanderer, `MatchConfig::duel` by default, identical to `engine-cli`.
+//! * **Built-in bots** ([`Viewer::new`] / [`Viewer::with_config`]): the placeholder
+//!   [`tank::Chaser`]/[`tank::Wanderer`], `MatchConfig::duel` by default, identical to
+//!   `engine-cli`.
 //!
 //! The sim logic lives in [`Viewer`] (plain Rust, unit-tested natively); the
 //! `#[wasm_bindgen]` [`WasmMatch`] wrapper only converts errors to JS.
@@ -16,18 +17,17 @@
 //! radians (counter-clockwise from +X), converted from integer headings for display
 //! only; the sim itself never sees them.
 
-use engine::bots::{Chaser, Wanderer};
 use engine::{Action, EndReason, Heading, Match, MatchConfig, Policy, Vec2};
 use serde::Serialize;
-use tank::{loadout, Behavior, Loadout, MatchSpec, Preset};
+use tank::{loadout, Behavior, Chaser, Loadout, MatchSpec, Preset, Wanderer};
 use wasm_bindgen::prelude::*;
 
 /// Built-in bots the viewer can pit against each other.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BotKind {
-    /// [`engine::bots::Chaser`].
+    /// [`tank::Chaser`].
     Chaser,
-    /// [`engine::bots::Wanderer`], seeded from the match seed (see [`Viewer::new`]).
+    /// [`tank::Wanderer`], seeded from the match seed (see [`Viewer::new`]).
     Wanderer,
 }
 

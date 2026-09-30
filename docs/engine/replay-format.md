@@ -142,8 +142,9 @@ The format 4 fields are covered the same way: `per_tank_params_replay_roundtrip_
 edits a per-tank `max_hp`, a per-tank damage and a per-tank `projectile_spread_still`, and
 adds and removes a spawn's `params`, and expects `SetupMismatch` every time. Because unset
 fields are left out of the serialized config, **a config without them hashes exactly as it
-did in format 3**: every setup hash quoted in these pages is unchanged (test
-`documented_hashes_are_unchanged`). Adding a spawn's `params` equal to the shared set
+did in format 3**: every setup hash quoted in these pages is unchanged (tests
+`documented_hashes_are_unchanged` in `games/tank` and `pinned_hashes_are_unchanged` in
+`engine`). Adding a spawn's `params` equal to the shared set
 changes the setup hash, even though the match plays the same.
 
 `Match::state_hash()` (the `final_hash` and `engine-cli`'s `hash`) is **unchanged** by this.

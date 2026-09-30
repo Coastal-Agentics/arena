@@ -5,11 +5,12 @@
 //! change what the match does.
 //!
 //! ```
-//! use engine::bots::{Chaser, Wanderer};
-//! use engine::{Match, MatchConfig, Replay};
+//! use engine::{Action, Match, MatchConfig, Observation, Replay};
 //!
+//! // Any closure is a policy: this one circles and fires.
+//! let mut circle = |_: &Observation| Action { throttle: 1.0, turn: 0.5, fire: true, ..Action::default() };
 //! let mut m = Match::new(MatchConfig::duel(), 7);
-//! m.run(&mut [&mut Chaser, &mut Wanderer::new(7 ^ 0x5eed)]);
+//! m.run(&mut [&mut circle.clone(), &mut circle]);
 //! let json = m.replay().to_json();
 //! let replay = Replay::from_json(&json).expect("parses");
 //! let again = replay.verify().expect("reproduces");
