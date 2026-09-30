@@ -3,17 +3,26 @@
 //! * Fixed 60 Hz step ([`TICK_HZ`], [`DT`]); no wall clock anywhere.
 //! * All randomness from a seeded `ChaCha8Rng` owned by the [`Match`]; policies bring their own.
 //! * Headings are integer binary angle units with a compile-time sin/cos table ([`angle`]);
-//!   collision uses squared distances, so the sim core calls no `sin`/`cos`/`atan2`/`sqrt`.
+//!   the sim core calls no `sin`/`cos`/`atan2`. Overlap tests use squared distances; the
+//!   swept projectile test uses `sqrt`, which IEEE-754 requires to be correctly rounded.
 //! * Same seed + same actions → bit-identical state on the same platform ([`Match::state_hash`]).
 //! * No OS/threads/time dependencies: builds for `wasm32-unknown-unknown`.
 //!
 //! Extension points for rule crates: [`TankParams`] (speeds, HP, cooldown, projectile
 //! stats), [`MatchConfig`] (arena, obstacles, spawns, tick limit), and per-step
-//! [`Event`]s (fired/hit/destroyed). Projectiles are generic straight-line shots.
+//! [`Event`]s (fired/hit/destroyed). Projectiles are generic straight-line shots with
+//! swept (segment) collision, so fast shots cannot tunnel through tanks or obstacles.
+//! Seeds in JSON are decimal strings ([`json_u64`]) so JavaScript reads them exactly.
+//!
+//! Longer-form docs (architecture, tick loop, determinism, replay format, CLI, wasm):
+//! `docs/engine/` in the repository.
+
+#![warn(missing_docs)]
 
 pub mod angle;
 pub mod arena;
 pub mod bots;
+pub mod json_u64;
 pub mod policy;
 pub mod replay;
 pub mod sim;
@@ -42,6 +51,7 @@ pub fn version() -> &'static str {
 mod tests {
     use super::*;
     use bots::{Chaser, Wanderer};
+    use serde_json::json;
 
     #[test]
     fn tick_rate_is_60hz() {
@@ -89,6 +99,25 @@ mod tests {
     }
 
     #[test]
+    fn replay_seed_is_a_string_and_numbers_still_load() {
+        let m = play(u64::MAX);
+        let json = m.replay().to_json();
+        assert!(json.contains(r#""seed":"18446744073709551615""#), "{json}");
+        Replay::from_json(&json)
+            .unwrap()
+            .verify()
+            .expect("reproduces");
+        // Older writers (and hand-written JSON) used a plain number: still accepted.
+        let numeric = json.replace(
+            r#""seed":"18446744073709551615""#,
+            r#""seed":18446744073709551615"#,
+        );
+        let r = Replay::from_json(&numeric).expect("numeric seed parses");
+        assert_eq!(r.seed, u64::MAX);
+        r.verify().expect("reproduces");
+    }
+
+    #[test]
     fn tampered_replay_is_detected() {
         let m = play(42);
         let mut r = m.replay();
@@ -97,6 +126,123 @@ mod tests {
             a[0].fire = false;
         }
         assert!(r.verify().is_err());
+    }
+
+    /// Re-serialize a replay's JSON after editing it as a `serde_json::Value`.
+    fn edit(json: &str, f: impl FnOnce(&mut serde_json::Value)) -> String {
+        let mut v: serde_json::Value = serde_json::from_str(json).unwrap();
+        f(&mut v);
+        v.to_string()
+    }
+
+    #[test]
+    fn edited_config_fails_verification() {
+        // Regression: in format 2, deleting the obstacles from the seed-7 duel still
+        // verified, because nothing in that match touches them and the state hash
+        // doesn't cover the config.
+        let m = play(7);
+        let json = m.replay().to_json();
+        let no_obstacles = edit(&json, |v| v["config"]["arena"]["obstacles"] = json!([]));
+        let r = Replay::from_json(&no_obstacles).expect("still parses");
+        assert!(r.config.arena.obstacles.is_empty());
+        // The gap is real: the edited config re-simulates to the same outcome and state...
+        let edited = r.play();
+        assert_eq!(edited.outcome(), m.outcome());
+        assert_eq!(edited.state_hash(), m.state_hash());
+        // ...but verification now catches the edit.
+        assert!(
+            matches!(r.verify(), Err(ReplayError::SetupMismatch { .. })),
+            "{:?}",
+            r.verify().err()
+        );
+
+        // Any other config field, and the seed, are covered too.
+        type Edit = (&'static str, fn(&mut serde_json::Value));
+        let edits: [Edit; 7] = [
+            ("arena size", |v| {
+                v["config"]["arena"]["size"] = json!([801.0, 600.0])
+            }),
+            ("tank param", |v| {
+                v["config"]["params"]["max_hp"] = json!(101)
+            }),
+            ("spread", |v| {
+                v["config"]["params"]["projectile_spread"] = json!(0)
+            }),
+            ("spawn", |v| v["config"]["tanks"][0]["heading"] = json!(0)),
+            ("team", |v| v["config"]["tanks"][1]["team"] = json!(2)),
+            ("max_ticks", |v| v["config"]["max_ticks"] = json!(7201)),
+            ("seed", |v| v["seed"] = json!("8")),
+        ];
+        for (what, f) in edits {
+            let r = Replay::from_json(&edit(&json, f)).expect(what);
+            assert!(
+                matches!(r.verify(), Err(ReplayError::SetupMismatch { .. })),
+                "{what}: {:?}",
+                r.verify().err()
+            );
+        }
+    }
+
+    #[test]
+    fn setup_hash_ignores_json_formatting() {
+        let json = play(7).replay().to_json();
+        let v: serde_json::Value = serde_json::from_str(&json).unwrap();
+        let pretty = serde_json::to_string_pretty(&v).unwrap();
+        // `16` instead of `16.0`, and an explicit `null` spawn left out, parse to the
+        // same config, so they hash the same.
+        let reworded = pretty
+            .replace("\"radius\": 16.0", "\"radius\": 16")
+            .replace("\"pos\": null,", "");
+        assert_ne!(reworded, pretty);
+        Replay::from_json(&reworded)
+            .unwrap()
+            .verify()
+            .expect("verifies");
+    }
+
+    #[test]
+    fn format_2_replays_still_load_and_upgrade() {
+        let m = play(7);
+        let v3 = m.replay().to_json();
+        assert!(v3.contains(r#""format":3"#), "{v3}");
+        let v2 = edit(&v3, |v| {
+            v["format"] = json!(2);
+            v.as_object_mut().unwrap().remove("setup_hash");
+        });
+        let r = Replay::from_json(&v2).expect("format 2 loads");
+        assert_eq!((r.format, r.setup_hash.as_deref()), (2, None));
+        let out = r.to_json();
+        assert!(
+            out.contains(r#""format":2"#) && !out.contains("setup_hash"),
+            "{out}"
+        );
+        let back = r
+            .verify()
+            .expect("v2 verifies (outcome and final hash only)");
+        assert_eq!(back.state_hash(), m.state_hash());
+        // Documented limit: without a setup hash, v2 can't see config edits.
+        let v2_edited = edit(&v2, |v| v["config"]["arena"]["obstacles"] = json!([]));
+        assert!(Replay::from_json(&v2_edited).unwrap().verify().is_ok());
+        // Upgrade: verify, then re-record.
+        let up = back.replay();
+        assert_eq!(up.format, 3);
+        assert_eq!(up.setup_hash, m.replay().setup_hash);
+    }
+
+    #[test]
+    fn replay_format_bounds() {
+        let json = play(7).replay().to_json();
+        let missing = edit(&json, |v| {
+            v.as_object_mut().unwrap().remove("setup_hash");
+        });
+        assert_eq!(
+            Replay::from_json(&missing),
+            Err(ReplayError::MissingSetupHash)
+        );
+        for f in [0, 1, 4] {
+            let other = edit(&json, |v| v["format"] = json!(f));
+            assert_eq!(Replay::from_json(&other), Err(ReplayError::Format(f)));
+        }
     }
 
     #[test]

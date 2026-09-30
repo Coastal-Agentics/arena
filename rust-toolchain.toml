@@ -1,4 +1,5 @@
 [toolchain]
-channel = "stable"
+# Pinned: web/pkg is committed and CI checks it is byte-identical to a rebuild.
+channel = "1.98.1"
 components = ["rustfmt", "clippy"]
 targets = ["wasm32-unknown-unknown"]

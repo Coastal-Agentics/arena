@@ -1,9 +1,9 @@
 [workspace]
 resolver = "2"
-members = ["engine", "engine-cli", "games/tank"]
+members = ["engine", "engine-cli", "engine-wasm", "games/tank"]
 
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
-repository = "https://github.com/starscream-agentics/starscream"
+repository = "https://github.com/starscream-agentics/arena"

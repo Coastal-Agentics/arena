@@ -7,6 +7,11 @@ use rand_chacha::rand_core::{RngCore, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 
 /// Drives at the nearest enemy, aims the turret at it, fires when roughly aligned.
+///
+/// Stateless. Per tick: full throttle while the nearest enemy is more than 220 units
+/// away (else stop); hull turns toward it (tolerance 0.2); turret turns toward it
+/// (tolerance 0.08) and `fire` is set when the turret is within that tolerance.
+/// Line of sight is not checked. With no living enemy it returns [`Action::default`].
 #[derive(Clone, Debug, Default)]
 pub struct Chaser;
 
@@ -28,6 +33,10 @@ impl Policy for Chaser {
 
 /// Wanders with seeded random steering, tracks the nearest enemy with its turret,
 /// and fires whenever it is roughly aligned.
+///
+/// Always drives at throttle 0.8. It picks a hull turn of -1, 0 or +1 from its own
+/// RNG and holds it for 20 to 59 ticks, then picks again. The turret and `fire` work
+/// like [`Chaser`]'s (tolerance 0.08).
 #[derive(Clone, Debug)]
 pub struct Wanderer {
     rng: ChaCha8Rng,
@@ -36,6 +45,9 @@ pub struct Wanderer {
 }
 
 impl Wanderer {
+    /// A wanderer whose steering RNG is `ChaCha8Rng::seed_from_u64(seed)`.
+    ///
+    /// `engine-cli` and the web viewer seed team 1's wanderer with `match_seed ^ 0x5eed`.
     pub fn new(seed: u64) -> Self {
         Self {
             rng: ChaCha8Rng::seed_from_u64(seed),

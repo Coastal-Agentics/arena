@@ -53,3 +53,26 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: wasm build check
         run: cargo build -p engine --target wasm32-unknown-unknown
+      # web/pkg is committed and deployed as-is (ADR-008). Rebuild it from source with the
+      # pinned toolchain and wasm-bindgen-cli, and fail if it differs from the committed copy.
+      - name: Cache wasm-bindgen-cli
+        id: wbg-cache
+        uses: actions/cache@v6
+        with:
+          path: ~/.cargo/bin/wasm-bindgen*
+          key: wasm-bindgen-cli-0.2.100-${{ runner.os }}
+      - name: Install wasm-bindgen-cli 0.2.100
+        if: steps.wbg-cache.outputs.cache-hit != 'true'
+        run: cargo install --locked wasm-bindgen-cli --version 0.2.100
+      - name: Rebuild web/pkg (builds engine-wasm)
+        run: |
+          wasm-bindgen --version
+          ./scripts/build-wasm.sh
+      - name: web/pkg matches committed copy
+        run: |
+          git status --short -- web/pkg
+          git diff --exit-code --stat -- web/pkg || {
+            echo "::error::web/pkg is stale or not reproducible. Run ./scripts/build-wasm.sh with the pinned toolchain and wasm-bindgen-cli 0.2.100, then commit web/pkg."
+            exit 1
+          }
+          test -z "$(git status --porcelain -- web/pkg)"

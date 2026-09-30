@@ -1,13 +1,10 @@
 name: Nightly self-play
 
-# Publishes nightly results to main WITHOUT new credentials (ADR-007):
-#   1. build results and commit them locally (only web/data/ and docs/devlog/ allowed)
-#   2. push that commit to a temporary nightly/<run-id> branch
-#   3. dispatch ci.yml on that branch (workflow_dispatch is allowed from GITHUB_TOKEN)
-#      so lint/test/wasm checks run on the exact commit
-#   4. when green, fast-forward main to that same commit; branch protection accepts it
-#      because its required checks already passed
-#   5. delete the temporary branch
+# Publishes nightly results WITHOUT new credentials and WITHOUT touching protected main (ADR-007):
+#   - results are committed to the unprotected `nightly-data` branch (never force-pushed)
+#   - only web/data/ and docs/fieldnotes/ may change; anything else fails the job
+#   - `nightly-data` merges main first, so a CoS PR `nightly-data -> main` shows only new results
+#   - the site reads live nightly data from `nightly-data`; the CoS folds it into main by PR
 on:
   schedule:
     - cron: "0 7 * * *" # 07:00 UTC = 3:00 AM America/New_York (EDT)
@@ -19,30 +16,39 @@ on:
         default: false
 
 permissions:
-  contents: write # push the nightly/* branch and fast-forward main
-  actions: write # dispatch ci.yml on the nightly/* branch
-  checks: read
+  contents: write # push to nightly-data only (main is protected and rejects this token)
 
 concurrency:
   group: nightly
   cancel-in-progress: false
 
+env:
+  DATA_BRANCH: nightly-data
+
 jobs:
   self-play:
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    env:
-      GH_TOKEN: ${{ github.token }}
-      BRANCH: nightly/${{ github.run_id }}
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: main
           fetch-depth: 0
+
+      - name: Switch to data branch (create from main if missing) and merge main
+        run: |
+          # No email addresses in this public repo (charter): commit with an empty email.
+          git config user.name "github-actions[bot]"
+          git config user.email ""
+          if git ls-remote --exit-code --heads origin "$DATA_BRANCH" >/dev/null; then
+            git checkout -B "$DATA_BRANCH" "origin/$DATA_BRANCH"
+            git merge --no-edit origin/main
+          else
+            git checkout -B "$DATA_BRANCH" origin/main
+          fi
 
       - name: Self-play evolution (placeholder)
         run: echo "self-play not yet implemented"
-        # Phase 3: run evolution headless; write results to web/data/ and a devlog entry to docs/devlog/.
+        # Phase 3: run evolution headless; write results to web/data/ and a field note to docs/fieldnotes/.
 
       - name: Probe output
         if: ${{ inputs.probe }}
@@ -51,48 +57,17 @@ jobs:
           printf '{\n  "generation": 0,\n  "status": "self-play not yet implemented"\n}\n' > web/data/nightly.json
 
       - name: Commit results (allowed paths only)
-        id: commit
         run: |
-          # No email addresses in this public repo (charter): commit with an empty email.
-          git config user.name "github-actions[bot]"
-          git config user.email ""
           git add -A
           if git diff --cached --quiet; then
-            echo "Nothing to publish."
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-            exit 0
+            echo "No new results."
+          else
+            if git diff --cached --name-only | grep -vE '^(web/data/|docs/fieldnotes/)'; then
+              echo "::error::Nightly may only change web/data/ and docs/fieldnotes/ (files above are outside)."
+              exit 1
+            fi
+            git commit -m "nightly: results $(date -u +%Y-%m-%d) [run ${{ github.run_id }}]"
           fi
-          if git diff --cached --name-only | grep -vE '^(web/data/|docs/devlog/)'; then
-            echo "::error::Nightly may only change web/data/ and docs/devlog/ (files above are outside)."
-            exit 1
-          fi
-          git commit -m "nightly: results $(date -u +%Y-%m-%d) [run ${{ github.run_id }}]"
-          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-          echo "changed=true" >> "$GITHUB_OUTPUT"
 
-      - name: Push to temporary branch
-        if: steps.commit.outputs.changed == 'true'
-        run: git push origin "HEAD:refs/heads/$BRANCH"
-
-      - name: Run CI on the exact commit
-        if: steps.commit.outputs.changed == 'true'
-        run: |
-          gh workflow run ci.yml --ref "$BRANCH"
-          run_id=""
-          for _ in $(seq 1 30); do
-            sleep 10
-            run_id=$(gh run list --workflow ci.yml --branch "$BRANCH" --event workflow_dispatch \
-              --json databaseId,headSha --jq ".[] | select(.headSha == \"${{ steps.commit.outputs.sha }}\") | .databaseId" | head -n1)
-            [ -n "$run_id" ] && break
-          done
-          [ -n "$run_id" ] || { echo "::error::CI run did not start"; exit 1; }
-          echo "CI run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$run_id"
-          gh run watch "$run_id" --exit-status --interval 30
-
-      - name: Fast-forward main
-        if: steps.commit.outputs.changed == 'true'
-        run: git push origin "${{ steps.commit.outputs.sha }}:refs/heads/main"
-
-      - name: Delete temporary branch
-        if: always() && steps.commit.outputs.changed == 'true'
-        run: git push origin --delete "$BRANCH" || true
+      - name: Push data branch (never force)
+        run: git push origin "HEAD:refs/heads/$DATA_BRANCH"
