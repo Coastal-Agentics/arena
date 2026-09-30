@@ -31,7 +31,10 @@ and history stop growing.
 
 ## Inside one step
 
-This is the order in `Match::step`, which the determinism guarantees depend on.
+This is the order in `Match::step`, which the determinism guarantees depend on. Every tank
+uses its own params (`Match::tank_params(i)`, see [per-tank params](world.md#per-tank-params))
+for `turn_rate`, `turret_turn_rate`, `max_speed` and everything about its gun; the collision
+radius `r` is the shared `MatchConfig::params.radius`.
 
 0. **Record actions.** For each tank id, take `actions[i]` (or the default) and clamp it:
    `throttle`, `turn` and `turret_turn` to `[-1, 1]`, NaN to 0. This clamped list is what
@@ -52,9 +55,13 @@ This is the order in `Match::step`, which the determinism guarantees depend on.
    `movement_does_not_depend_on_tank_id_order` swaps ids and gets the same positions).
 3. **Fire**, in tank id order. Each living tank takes its new position, decrements
    `cooldown` if it is above 0, and if `fire` is set and `cooldown == 0`:
-   - draws a spread from the match RNG (only if `projectile_spread > 0`),
-   - spawns a projectile `radius + 1` in front of it along `turret + spread`,
-   - sets `cooldown = fire_cooldown` and emits `Event::Fired`.
+   - picks its effective spread: `projectile_spread_still` if that is set **and** the tank's
+     applied velocity this tick is exactly zero, else `projectile_spread`
+     ([stationary accuracy](world.md#stationary-accuracy));
+   - draws a deviation from the match RNG (only if the effective spread is above 0),
+   - spawns a projectile `radius + 1` in front of it along `turret + deviation`, with its own
+     `projectile_speed`, `projectile_ttl` and `projectile_damage`,
+   - sets `cooldown` to its own `fire_cooldown` and emits `Event::Fired`.
    New shots are held aside; they don't move this tick.
 4. **Move projectiles** that already existed, in list order. Each sweeps its whole segment
    `pos → pos + vel`:

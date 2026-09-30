@@ -1,4 +1,4 @@
-# Replay format (version 3)
+# Replay format (version 4)
 
 Source: `engine/src/replay.rs`, `engine/src/json_u64.rs`, the serde derives in
 `engine/src/sim.rs`, `policy.rs` and `arena.rs`, and the replay tests in `engine/src/lib.rs`
@@ -7,8 +7,10 @@ and `engine-cli/src/main.rs`.
 A replay is **config + seed + every tick's actions**. It stores no positions or frames:
 playing a replay means re-simulating it, so a replay is both viewer input and a determinism
 check. Writing and reading use `serde_json` on the `Replay` struct; there is no separate
-schema. Format 3 (current) is format 2 plus one field, `setup_hash`, which lets `verify` catch
-edits to the seed or config. Format 2 files still load ([versioning](#versioning)).
+schema. Format 4 (current) lets the config carry per-tank params (`tanks[].params`) and
+stationary accuracy (`projectile_spread_still`). Format 3 added `setup_hash`, which lets
+`verify` catch edits to the seed or config. Format 2 and 3 files still load
+([versioning](#versioning)).
 
 ## Top level
 
@@ -16,14 +18,14 @@ Written by `Replay::to_json()` as compact JSON, one object:
 
 | Field | JSON type | Rust type | Required on read | Meaning |
 | --- | --- | --- | --- | --- |
-| `format` | integer | `u32` | yes | `REPLAY_FORMAT`, currently `3`. `2` is also read |
+| `format` | integer | `u32` | yes | `REPLAY_FORMAT`, currently `4`. `2` and `3` are also read |
 | `engine_version` | string | `String` | yes | `engine` crate version of the writer, e.g. `"0.1.0"`. Informational: never checked |
 | `seed` | string (number accepted) | `u64` | yes | Match seed as a decimal string, e.g. `"18446744073709551615"`. See [JS-safe seeds](determinism.md#js-safe-seeds) |
 | `config` | object | `MatchConfig` | yes | Full match config, below |
 | `actions` | array of arrays | `Vec<Vec<Action>>` | yes | One entry per simulated tick; each entry is indexed by tank id |
 | `outcome` | object or `null` | `Option<Outcome>` | no (missing = `null`) | Outcome when recorded; `null` if recorded mid-match |
 | `final_hash` | string | `String` | yes | `Match::state_hash()` after the last recorded tick, 16 lowercase hex digits |
-| `setup_hash` | string | `Option<String>` | yes in format 3; absent in format 2 | `replay::setup_hash(seed, &config)`, 16 lowercase hex digits. See [setup hash](#setup-hash) |
+| `setup_hash` | string | `Option<String>` | yes in formats 3 and 4; absent in format 2 | `replay::setup_hash(seed, &config)`, 16 lowercase hex digits. See [setup hash](#setup-hash) |
 
 Fields are written in this order. A seed 7 duel ends like this:
 `…,"outcome":{"winner":1,"ticks":276,"reason":"last_standing"},"final_hash":"51234f61b02b5784","setup_hash":"0b24ce74f45e9a27"}`.
@@ -54,7 +56,27 @@ Unknown fields are ignored on read (no `deny_unknown_fields`).
 }
 ```
 
-(This is `MatchConfig::duel()` as `engine-cli` writes it, with comments added.) Types:
+(This is `MatchConfig::duel()` as `engine-cli` writes it, with comments added.)
+
+Two optional fields are new in format 4. Both are **left out when unset**, so a config
+without them is written byte-for-byte as in format 3:
+
+```jsonc
+"tanks": [
+  { "team": 0, "pos": null, "heading": null },
+  { "team": 1, "pos": null, "heading": null,
+    "params": {                                  // per-tank params: a full TankParams
+      "radius": 16.0, "max_speed": 90.0, "turn_rate": 273, "turret_turn_rate": 546,
+      "max_hp": 120, "fire_cooldown": 45, "projectile_speed": 360.0, "projectile_ttl": 120,
+      "projectile_damage": 24, "projectile_spread": 256,
+      "projectile_spread_still": 128             // optional here too
+    } }
+],
+"params": { …, "projectile_spread": 256, "projectile_spread_still": 128 }
+```
+
+A per-tank `params` object replaces the shared one for that tank as a whole, and its `radius`
+is ignored ([per-tank params](world.md#per-tank-params)). Types:
 
 | Path | JSON | Rust |
 | --- | --- | --- |
@@ -65,8 +87,11 @@ Unknown fields are ignored on read (no `deny_unknown_fields`).
 | `params.turn_rate`, `turret_turn_rate`, `projectile_spread` | integer 0–65535 | `u16` |
 | `params.max_hp`, `projectile_damage` | integer | `i32` |
 | `params.fire_cooldown`, `projectile_ttl`, `max_ticks` | integer | `u32` |
+| `params.projectile_spread_still` (format 4) | integer 0–65535, `null` or absent | `Option<u16>` |
+| `tanks[].params` (format 4) | object (same fields as `params`), `null` or absent | `Option<TankParams>` |
 
-All `params` fields and `max_ticks` are required. What they mean: [world](world.md).
+All `params` fields except `projectile_spread_still` are required, in `params` and in every
+`tanks[].params` object; so is `max_ticks`. What they mean: [world](world.md).
 
 ## `actions`
 
@@ -113,6 +138,14 @@ leaving out an optional `"pos": null` doesn't change it. Any change to a value d
 `setup_hash_ignores_json_formatting` checks the first part, and
 `edited_config_fails_verification` the second.
 
+The format 4 fields are covered the same way: `per_tank_params_replay_roundtrip_and_verify`
+edits a per-tank `max_hp`, a per-tank damage and a per-tank `projectile_spread_still`, and
+adds and removes a spawn's `params`, and expects `SetupMismatch` every time. Because unset
+fields are left out of the serialized config, **a config without them hashes exactly as it
+did in format 3**: every setup hash quoted in these pages is unchanged (test
+`documented_hashes_are_unchanged`). Adding a spawn's `params` equal to the shared set
+changes the setup hash, even though the match plays the same.
+
 `Match::state_hash()` (the `final_hash` and `engine-cli`'s `hash`) is **unchanged** by this.
 It still covers only the dynamic state ([state hash](determinism.md#state-hash)).
 
@@ -122,14 +155,14 @@ It still covers only the dynamic state ([state hash](determinism.md#state-hash))
 | --- | --- |
 | `Replay::from_match(&m)` / `m.replay()` | Snapshot a match, finished or not |
 | `Replay::to_json()` | Compact JSON string |
-| `Replay::from_json(s)` | Parse. `ReplayError::Json(msg)` on bad JSON or a missing or ill-typed field; `ReplayError::Format(n)` unless `format` is 2 or 3; `ReplayError::MissingSetupHash` for format 3 without `setup_hash`. Doesn't simulate |
+| `Replay::from_json(s)` | Parse, then check in this order: `ReplayError::Json(msg)` on bad JSON or a missing or ill-typed field; `ReplayError::Format(n)` unless `format` is 2, 3 or 4; `ReplayError::MissingSetupHash` for format 3 or 4 without `setup_hash`; `ReplayError::FieldNotInFormat { format, field }` for a format 2 or 3 file that uses a format 4 field. Doesn't simulate |
 | `Replay::play()` | `Match::new(config, seed)`, then `step` each recorded tick; returns the match. No checks |
 | `Replay::verify()` | 1. if `setup_hash` is present, recompute it from `seed` and `config` (`ReplayError::SetupMismatch`); 2. `play()`; 3. compare the outcome (`ReplayError::OutcomeMismatch`); 4. compare `final_hash` (`ReplayError::HashMismatch`). Hashes are exact string compares. Returns the re-simulated `Match` on success |
 | `ReplayPlayer::new(r)`, `.step()`, `.state()`, `.is_finished()` | Tick-by-tick playback for a viewer; `step()` returns `false` once every recorded tick is applied |
 
 What `verify` does and doesn't prove:
 
-- **Seed and config (format 3):** any edit to `seed` or to any value in `config` fails with
+- **Seed and config (formats 3 and 4):** any edit to `seed` or to any value in `config` fails with
   `SetupMismatch`, even if the match would play out the same. The regression test
   `edited_config_fails_verification` deletes `arena.obstacles` from the seed 7 duel, confirms
   the edited replay re-simulates to the same outcome and state hash, and expects
@@ -154,20 +187,33 @@ viewer doesn't load replays yet.
 
 `REPLAY_FORMAT` is "bumped whenever the replay format or sim semantics change incompatibly":
 a replay only means something to a sim that steps the same way. `from_json` accepts
-`OLDEST_READABLE_FORMAT` (2) through `REPLAY_FORMAT` (3). `engine_version` isn't consulted.
+`OLDEST_READABLE_FORMAT` (2) through `REPLAY_FORMAT` (4). `engine_version` isn't consulted.
+Every accepted format keeps its `format` when read and written back; `to_json()` never
+upgrades a file. To upgrade any older replay, verify it and re-record:
+`Replay::from_json(s)?.verify()?.replay()` is a format 4 replay of the same match.
 
-- **v3** (current, 2026-09-30): adds `setup_hash`. **Sim semantics are unchanged from v2**,
+- **v4** (current, 2026-09-30, Tank Arena spec engine ask #5): the config may carry
+  `tanks[].params` and `projectile_spread_still` (in `params` or a spawn's `params`). A config
+  without them **plays exactly as in v2 and v3**, serializes to the same bytes and has the same
+  setup hash. So a replay written today for such a config differs from its v3 twin only in
+  `"format":4`. Why bump at all: a v3 reader would ignore the new fields it doesn't know
+  (unknown fields are ignored) and play a different match.
+- **v3** (2026-09-30): adds `setup_hash`. **Sim semantics are unchanged from v2**,
   so the same seed, config and actions give the same state and `final_hash` as before.
+  **Still read**, with the setup hash checked. `from_json` rejects a v3 file that uses a
+  format 4 field (`ReplayError::FieldNotInFormat`, e.g. `field: "tanks[].params"` or
+  `"params.projectile_spread_still"`); `null` counts as unset. Test:
+  `format_3_replays_still_load_and_verify`.
 - **v2**: swept projectile collision and simultaneous tank movement (so v1 replays would no
   longer reproduce), and `seed` written as a decimal string (numeric seeds still read).
   **Still read:** a v2 file loads with `format: 2` and `setup_hash: None`, verifies on
-  outcome and `final_hash` only, and `to_json()` writes it back as v2 (no `setup_hash`). To
-  upgrade one, verify it and re-record: `Replay::from_json(s)?.verify()?.replay()` is a v3
-  replay of the same match. Test: `format_2_replays_still_load_and_upgrade`.
-- **v1, and anything above 3**: rejected with `ReplayError::Format(n)`.
+  outcome and `final_hash` only, and `to_json()` writes it back as v2 (no `setup_hash`). The
+  format 4 fields are rejected as for v3. Test: `format_2_replays_still_load_and_upgrade`.
+- **v1, and anything above 4**: rejected with `ReplayError::Format(n)`.
 
-No v2 replays are committed in this repo or on `nightly-data` (checked 2026-09-30), so
-nothing needed converting.
+No replays are committed in this repo or on `nightly-data` (checked 2026-09-30), so nothing
+needed converting. The 20 v3 replays `engine-cli --matches 20 --seed 0 --replay-dir` wrote
+from `main` before this change all load and verify with it.
 
-Size: the seed 7 duel (276 ticks, 2 tanks) is 33,657 bytes in v3 (v2 was 33,625; `setup_hash`
-adds 32), about 120 bytes per tick.
+Size: the seed 7 duel (276 ticks, 2 tanks) is 33,657 bytes in v4 and v3 (v2 was 33,625;
+`setup_hash` adds 32), about 120 bytes per tick. A spawn's `params` with the default values adds 207 bytes (more with `projectile_spread_still`).

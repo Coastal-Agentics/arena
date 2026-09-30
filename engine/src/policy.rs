@@ -58,7 +58,7 @@ pub struct SelfObs {
     pub turret: Heading,
     /// Current hit points.
     pub hp: i32,
-    /// [`crate::TankParams::max_hp`].
+    /// This tank's own [`crate::TankParams::max_hp`] ([`crate::Match::tank_params`]).
     pub max_hp: i32,
     /// Ticks until the gun can fire again (0 = ready).
     pub cooldown: u32,
@@ -87,6 +87,13 @@ pub struct TankObs {
     pub turret: Heading,
     /// Its hit points.
     pub hp: i32,
+    /// Its own [`crate::TankParams::max_hp`] ([`crate::Match::tank_params`]); tanks can
+    /// differ when spawns carry their own params.
+    pub max_hp: i32,
+    /// Line of sight from the observer: [`crate::Arena::segment_clear`] between the two
+    /// tank centres. Walls and obstacles block it (touching an obstacle edge or corner
+    /// counts as blocked); other tanks do not.
+    pub los: bool,
 }
 
 /// A projectile in flight (any team, including the observer's own shots).

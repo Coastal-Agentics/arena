@@ -18,6 +18,24 @@ function getStringFromWasm0(ptr, len) {
     return cachedTextDecoder.decode(getUint8ArrayMemory0().subarray(ptr, ptr + len));
 }
 /**
+ * `MatchConfig::duel()` as JSON: the default config, a starting point for
+ * [`WasmMatch::with_config`].
+ * @returns {string}
+ */
+export function duelConfigJson() {
+    let deferred1_0;
+    let deferred1_1;
+    try {
+        const ret = wasm.duelConfigJson();
+        deferred1_0 = ret[0];
+        deferred1_1 = ret[1];
+        return getStringFromWasm0(ret[0], ret[1]);
+    } finally {
+        wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+    }
+}
+
+/**
  * Engine crate version.
  * @returns {string}
  */
@@ -104,6 +122,14 @@ const WasmMatchFinalization = (typeof FinalizationRegistry === 'undefined')
  */
 export class WasmMatch {
 
+    static __wrap(ptr) {
+        ptr = ptr >>> 0;
+        const obj = Object.create(WasmMatch.prototype);
+        obj.__wbg_ptr = ptr;
+        WasmMatchFinalization.register(obj, obj.__wbg_ptr, obj);
+        return obj;
+    }
+
     __destroy_into_raw() {
         const ptr = this.__wbg_ptr;
         this.__wbg_ptr = 0;
@@ -147,6 +173,31 @@ export class WasmMatch {
         } finally {
             wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
         }
+    }
+    /**
+     * Like the constructor, but with a custom config: `config_json` is a
+     * `MatchConfig` as JSON (start from [`duel_config_json`] and edit it, e.g. set
+     * `tanks[i].params` for a loadout). Bad JSON or input throws a JS `Error`.
+     * @param {string} config_json
+     * @param {string} seed
+     * @param {string} team0
+     * @param {string} team1
+     * @returns {WasmMatch}
+     */
+    static withConfig(config_json, seed, team0, team1) {
+        const ptr0 = passStringToWasm0(config_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passStringToWasm0(seed, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        const ptr2 = passStringToWasm0(team0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len2 = WASM_VECTOR_LEN;
+        const ptr3 = passStringToWasm0(team1, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len3 = WASM_VECTOR_LEN;
+        const ret = wasm.wasmmatch_withConfig(ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return WasmMatch.__wrap(ret[0]);
     }
     /**
      * Outcome as JSON, or `"null"` while the match is running.

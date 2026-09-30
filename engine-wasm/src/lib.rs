@@ -1,5 +1,6 @@
 //! Browser bindings for the Coastal Agentics engine: create a duel from a seed and a bot
-//! pairing, step it, and read the state as JSON. Used by `web/arena.html`.
+//! pairing (optionally with a custom `MatchConfig`, e.g. per-tank params), step it, and
+//! read the state as JSON. Used by `web/arena.html`.
 //!
 //! The sim logic lives in [`Viewer`] (plain Rust, unit-tested natively); the
 //! `#[wasm_bindgen]` [`WasmMatch`] wrapper only converts errors to JS.
@@ -65,7 +66,8 @@ pub struct TankView {
     pub turret: f32,
     /// Current hit points.
     pub hp: i32,
-    /// `TankParams::max_hp`.
+    /// This tank's own `TankParams::max_hp` (`Match::tank_params`), so HP bars stay
+    /// right when spawns carry per-tank params.
     pub max_hp: i32,
     /// False once destroyed.
     pub alive: bool,
@@ -146,6 +148,17 @@ impl Viewer {
     /// [`BotKind::parse`]). `seed` is a decimal u64 string (JS numbers can't hold
     /// every u64).
     pub fn new(seed: &str, team0: &str, team1: &str) -> Result<Self, String> {
+        Self::with_config(MatchConfig::duel(), seed, team0, team1)
+    }
+
+    /// Like [`Viewer::new`], but with any config (arena, spawns, per-tank params, tick
+    /// limit). `team0` drives tank 0 and `team1` tank 1; further tanks idle.
+    pub fn with_config(
+        config: MatchConfig,
+        seed: &str,
+        team0: &str,
+        team1: &str,
+    ) -> Result<Self, String> {
         let seed: u64 = seed
             .trim()
             .parse()
@@ -155,7 +168,7 @@ impl Viewer {
             BotKind::parse(team1)?.build(seed, 1),
         ];
         Ok(Self {
-            m: Match::new(MatchConfig::duel(), seed),
+            m: Match::new(config, seed),
             bots,
         })
     }
@@ -224,7 +237,7 @@ impl Viewer {
                     heading: radians(t.heading),
                     turret: radians(t.turret),
                     hp: t.hp,
-                    max_hp: cfg.params.max_hp,
+                    max_hp: self.m.tank_params(t.id).max_hp,
                     alive: t.alive,
                 })
                 .collect(),
@@ -256,6 +269,23 @@ impl WasmMatch {
     #[wasm_bindgen(constructor)]
     pub fn new(seed: &str, team0: &str, team1: &str) -> Result<WasmMatch, JsError> {
         Viewer::new(seed, team0, team1)
+            .map(WasmMatch)
+            .map_err(|e| JsError::new(&e))
+    }
+
+    /// Like the constructor, but with a custom config: `config_json` is a
+    /// `MatchConfig` as JSON (start from [`duel_config_json`] and edit it, e.g. set
+    /// `tanks[i].params` for a loadout). Bad JSON or input throws a JS `Error`.
+    #[wasm_bindgen(js_name = withConfig)]
+    pub fn with_config(
+        config_json: &str,
+        seed: &str,
+        team0: &str,
+        team1: &str,
+    ) -> Result<WasmMatch, JsError> {
+        let config: MatchConfig = serde_json::from_str(config_json)
+            .map_err(|e| JsError::new(&format!("config json: {e}")))?;
+        Viewer::with_config(config, seed, team0, team1)
             .map(WasmMatch)
             .map_err(|e| JsError::new(&e))
     }
@@ -294,6 +324,13 @@ impl WasmMatch {
     pub fn state_hash(&self) -> String {
         format!("{:016x}", self.0.inner().state_hash())
     }
+}
+
+/// `MatchConfig::duel()` as JSON: the default config, a starting point for
+/// [`WasmMatch::with_config`].
+#[wasm_bindgen(js_name = duelConfigJson)]
+pub fn duel_config_json() -> String {
+    serde_json::to_string(&MatchConfig::duel()).expect("config serializes")
 }
 
 /// Engine crate version.
@@ -348,6 +385,28 @@ mod tests {
         assert!(serde_json::to_string(&v.outcome())
             .unwrap()
             .contains("reason"));
+    }
+
+    #[test]
+    fn custom_config_with_per_tank_params() {
+        // The default config through JSON plays exactly like `Viewer::new`.
+        let duel: MatchConfig = serde_json::from_str(&duel_config_json()).unwrap();
+        let mut a = Viewer::new("42", "Chaser", "Wanderer").unwrap();
+        let mut b = Viewer::with_config(duel, "42", "Chaser", "Wanderer").unwrap();
+        while !a.step(50) {}
+        while !b.step(50) {}
+        assert_eq!(a.inner().state_hash(), b.inner().state_hash());
+        // Per-tank params: each TankView reports its own max_hp.
+        let mut c = MatchConfig::duel();
+        c.tanks[1].params = Some(engine::TankParams {
+            max_hp: 140,
+            ..Default::default()
+        });
+        let v = Viewer::with_config(c, "42", "Chaser", "Wanderer").unwrap();
+        let s = v.state();
+        assert_eq!((s.tanks[0].max_hp, s.tanks[1].max_hp), (100, 140));
+        assert_eq!(s.tanks[1].hp, 140);
+        assert!(Viewer::with_config(MatchConfig::duel(), "x", "Chaser", "Wanderer").is_err());
     }
 
     #[test]

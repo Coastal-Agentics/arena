@@ -26,12 +26,13 @@ as forward. `fire` while the gun is cooling down is ignored, not queued.
 ## Observation
 
 `Match::observe(id)` builds what tank `id` sees. Policies get **full information**: there's no
-fog of war, view cone or line-of-sight check.
+fog of war or view cone, and tanks without line of sight are still listed. Each listed tank
+carries a `los` flag, so a policy can choose to act on it; the sim itself never checks it.
 
 | Field | Type | Contents |
 | --- | --- | --- |
 | `tick` | `u32` | `Match::tick()` when observed |
-| `me` | `SelfObs` | own `id`, `team`, `pos`, `vel`, `heading`, `turret`, `hp`, `max_hp`, `cooldown`, `radius` |
+| `me` | `SelfObs` | own `id`, `team`, `pos`, `vel`, `heading`, `turret`, `hp`, `max_hp` (its own, see below), `cooldown`, `radius` (the shared one) |
 | `enemies` | `Vec<TankObs>` | living tanks of other teams, nearest first (ties by id), at most `MAX_OBSERVED_TANKS` = 4 |
 | `allies` | `Vec<TankObs>` | living teammates except self, same order and cap |
 | `projectiles` | `Vec<ProjectileObs>` | every projectile in flight, **including your own team's**, nearest first, at most `MAX_OBSERVED_PROJECTILES` = 8 |
@@ -40,8 +41,22 @@ fog of war, view cone or line-of-sight check.
 | `obstacles` | `Vec<Rect>` | every obstacle |
 
 `TankObs` = `id`, `team`, `pos`, `rel` (= `pos - me.pos`), `dist_sq` (= `rel.length_squared()`),
-`vel`, `heading`, `turret`, `hp`. `ProjectileObs` = `pos`, `rel`, `dist_sq`, `vel`,
-`owner_team`. Velocities are in units per tick. Headings are BAU ([world](world.md#headings)).
+`vel`, `heading`, `turret`, `hp`, `max_hp`, `los`. `ProjectileObs` = `pos`, `rel`, `dist_sq`,
+`vel`, `owner_team`. Velocities are in units per tick. Headings are BAU ([world](world.md#headings)).
+
+- **`max_hp`** (in `TankObs` and `SelfObs`) is that tank's own `TankParams::max_hp`
+  (`Match::tank_params(id)`), so it differs between tanks when spawns carry
+  [per-tank params](world.md#per-tank-params). `hp / max_hp` is the fraction left.
+- **`los`** is `arena.segment_clear(me.pos, other.pos)`, between the two tank **centres**
+  ([line of sight](world.md#line-of-sight)): walls and obstacles block it, grazing an obstacle
+  corner or edge counts as blocked, and **other tanks never block it**. It's computed for
+  allies too. It is a sight line, not a shot prediction: shells start `radius + 1` ahead of
+  the centre along the turret (plus spread), so a shot can be blocked when `los` is true or
+  get through when it's false, and an enemy tank on the line takes the hit first (shells
+  pass through allies).
+
+Test `observation_reports_max_hp_and_los` covers per-tank `max_hp`, a tank hidden behind an
+obstacle and a tank standing on the sight line.
 
 `step_policies` builds every tank's observation from the same tick-start state before any
 action is applied.
@@ -108,5 +123,7 @@ end 195 Wanderer wins to 5 Chaser wins, all by `last_standing` (run on 2026-09-3
 ## games/tank
 
 `games/tank` currently exports only `GAME_NAME = "Tank Arena"` and `tick_hz()` (which returns
-`engine::TICK_HZ`). It has no rules, observations, actions or policies yet. Its doc says the
-rules wait for the Tank Arena spec (`games/tank/SPEC.md`, GATE-002). That file isn't on `main`.
+`engine::TICK_HZ`). It has no rules, observations, actions or policies yet. The Tank Arena spec
+(`games/tank/SPEC.md`, GATE-002) is merged; its scripted policies (Charger, Kiter, Sniper) and
+the stat-to-params mapping for loadouts belong in `games/tank`, not in the engine. The engine
+side of the spec's asks is described in [world](world.md#per-tank-params) and above.
