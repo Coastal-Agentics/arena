@@ -12,8 +12,8 @@ next to the code.
 **Current shape, stated plainly:** the engine is tank-shaped today. Tanks, projectiles, the tank
 `Observation`/`Action` pair, `TankParams` and the two placeholder bots all live in `engine/`.
 `games/tank` is a stub (a `GAME_NAME` constant and `tick_hz()`), waiting for the Tank Arena
-spec (GATE-002). ADR-009 says tank specifics should live in `games/tank`; the code has not been
-split that way yet.
+spec (GATE-002). ADR-009 plans for tank specifics to live in `games/tank`; its 2026-09-30
+correction records that they are in `engine/` today and that the move is future work.
 
 ## Architecture
 
@@ -30,7 +30,7 @@ flowchart LR
   wasm -->|depends on| engine
 
   cli -->|"summary JSON (stdout)"| out["results: seed, winner,<br/>ticks, reason, hash"]
-  cli -->|"--replay-dir"| replays["match-SEED.json<br/>(replay format 2)"]
+  cli -->|"--replay-dir"| replays["match-SEED.json<br/>(replay format 3)"]
 
   wasm -->|"scripts/build-wasm.sh<br/>cargo build wasm32 + wasm-bindgen 0.2.100"| pkg["web/pkg<br/>engine_wasm.js + engine_wasm_bg.wasm<br/>(committed)"]
   pkg -->|"import ./pkg/engine_wasm.js"| js["web/arena.js<br/>canvas renderer"]
@@ -54,7 +54,7 @@ Data flow in one line each:
 | [Tick loop](tick-loop.md) | The fixed 60 Hz step, the exact order of work inside `Match::step`, how callers drive it |
 | [Seeds and determinism](determinism.md) | The ChaCha8 RNG and what draws from it, simultaneous movement, trig table, state hash, JS-safe string seeds |
 | [Observations, actions and policies](policies.md) | `Observation`, `Action`, the `Policy` trait, and the built-in `Chaser` and `Wanderer` |
-| [Replay format](replay-format.md) | `REPLAY_FORMAT` 2 field by field, versioning, `verify`, `ReplayPlayer` |
+| [Replay format](replay-format.md) | `REPLAY_FORMAT` 3 field by field, the setup hash, versioning (format 2 still read), `verify`, `ReplayPlayer` |
 | [engine-cli](engine-cli.md) | Flags, output, replay files, examples |
 | [engine-wasm and the web viewer](wasm-and-web.md) | The JS API, building `web/pkg`, relative paths, the CI check, Pages deploy |
 

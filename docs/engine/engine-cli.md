@@ -21,7 +21,7 @@ change them.
 From `cargo run -p engine-cli -- --help`:
 
 ```
-Run headless Starscream matches
+Coastal Agentics Arena: run headless duels between the built-in bots and print JSON results
 
 Usage: engine-cli [OPTIONS]
 
@@ -37,10 +37,10 @@ Options:
 | --- | --- | --- | --- |
 | `--matches` | `u32` | 10 | `0` is allowed and prints an empty `results` list |
 | `--seed` | `u64` | 42 | Decimal, 0 to 18446744073709551615. Negative or non-numeric input is rejected by clap (exit code 2) |
-| `--replay-dir` | path | none | Created if missing (`create_dir_all`). Writes `match-<seed>.json` per match in [replay format 2](replay-format.md), overwriting existing files |
+| `--replay-dir` | path | none | Created if missing (`create_dir_all`). Writes `match-<seed>.json` per match in [replay format 3](replay-format.md), overwriting existing files |
 | `-V`, `--version` | | | Prints `engine-cli 0.1.0` (the workspace version) |
 
-There are no subcommands. The help text still says "Starscream", the company's former name (ADR-011 kept crate names, and this string wasn't changed).
+There are no subcommands. The binary and crate keep the name `engine-cli` (ADR-011 keeps crate names). The first line of `--help` is the clap `about` string in `engine-cli/src/main.rs`; test `help_uses_current_branding` keeps "Starscream" out of it.
 
 ## Output
 
@@ -97,9 +97,9 @@ match-100.json
 match-101.json
 ```
 
-`match-101.json` has `"format":2`, `"seed":"101"`, 274 entries in `actions`, outcome
-`{"winner":1,"ticks":274,"reason":"last_standing"}` and `"final_hash":"baf3fcb2cbb76c06"`,
-the same hash as the summary line.
+`match-101.json` has `"format":3`, `"seed":"101"`, 274 entries in `actions`, outcome
+`{"winner":1,"ticks":274,"reason":"last_standing"}`, `"final_hash":"baf3fcb2cbb76c06"` (the
+same hash as the summary line) and `"setup_hash":"9cfd58498bbe3f85"`.
 
 The seed 42 result (Wanderer wins at tick 447) is the same match the web viewer shows at
 `arena.html?seed=42` with Chaser vs Wanderer.

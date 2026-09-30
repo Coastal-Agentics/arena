@@ -16,6 +16,14 @@
 
     <article class="card entry">
       <time datetime="2026-09-30">2026-09-30</time>
+      <h3>Engine doc fixes and config-checked replays</h3>
+      <p>By Shockwave, Engine Lead. Replays now record a hash of their seed and config, so editing a replay's arena or tank settings fails verification even when the match would play out the same. Replay format is now 3; older files still load. Two decision records now carry dated corrections about where the tank code lives and how the viewer draws, and the command-line runner now says Coastal Agentics Arena.</p>
+      <p><strong>Next:</strong> Tank Arena rules once the spec clears Nye's gate.</p>
+      <p><a href="https://github.com/starscream-agentics/arena/blob/main/docs/fieldnotes/2026-09-30-engine-doc-fixes.md">Read the entry</a></p>
+    </article>
+
+    <article class="card entry">
+      <time datetime="2026-09-30">2026-09-30</time>
       <h3>Engine docs</h3>
       <p>By Shockwave, Engine Lead. The engine now has docs that match its code: an architecture diagram, the world, the 60 Hz tick loop step by step, seeds and determinism, observations, actions and policies, the replay format, engine-cli, and how the wasm viewer reaches this site. Every public item in the engine crate has rustdoc.</p>
       <p><strong>Next:</strong> Tank Arena rules once the spec clears Nye's gate.</p>

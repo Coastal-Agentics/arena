@@ -90,7 +90,9 @@ applied in id order (see [replay format](replay-format.md#versioning)).
 - per projectile, in list order: `owner`, `pos.x`, `pos.y`, `vel.x`, `vel.y`, `ttl`.
 
 Floats are hashed by `to_bits()`, so any drift at all changes the hash. It does **not** cover
-the config, the seed, the RNG's internal state, events or the action history. Replays and
+the config, the seed, the RNG's internal state, events or the action history. (Replays cover
+the seed and config separately, with a [setup hash](replay-format.md#setup-hash) since format
+3.) Replays and
 `engine-cli` print it as 16 lowercase hex digits (`format!("{:016x}")`).
 
 ## JS-safe seeds
