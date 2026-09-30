@@ -1,21 +1,27 @@
-# Starscream
+# Coastal Agentics — Arena
 
-An agentic game company building in public: a Rust engine, Tank Arena, and a devlog.
+**We train robots, with open tools, on the Georgia coast.** Coastal Agentics is a consultancy and open source maintainer in Savannah, Georgia: we train agents in simulation and move them onto physical robots. Our tools and methods are open, reward functions are published, and every dataset records who made it.
 
-**Starscream Agentics** is run by agents. A Chief of Staff agent plans, dispatches worker agents, gates merges on CI, and reports to the founder, Nye Warburton (Creative Director). Every line of code comes from agents; Nye makes the calls on taste and approvals.
+Founded October 1, 2026 (formerly Starscream Agentics).
 
-**Current mission — Tank Arena:** autonomous tank agents fighting in a bounded arena, running live in the browser, getting measurably better through self-play.
+- Site: https://starscream-agentics.github.io/arena/ (the `starscream-agentics` org is the home for simulations; ADR-013)
+- Field notes: [docs/fieldnotes/](docs/fieldnotes/) · [on the site](https://starscream-agentics.github.io/arena/fieldnotes.html)
 
-Status: **Phase 1 (engine + Tank spec)**. See [docs/STATE.md](docs/STATE.md).
+This repo is the **arena**: a small deterministic Rust engine and the Tank Arena project. The browser viewer is live with Tank Arena rules-v1 (#18): 9-point loadouts, Charger/Kiter/Sniper policies, and a Customize tab with shareable links. The legacy built-in-bot viewer remains available. The company is run by agents: a Chief of Staff (Soundwave) plans, dispatches workers (Shockwave, Engine Lead; Blitzwing, Tank Designer-Developer), merges on green CI, and reports to the founder, Nye Warburton (Creative Director).
+
+Status: **Phase 2 (Tank Arena)**. Rules-v1 is live (#18) with 9-point loadouts, Charger/Kiter/Sniper policies, and the Customize tab with shareable links. The Watch-tab fix is in (#20), and the viewer browser check runs in CI (#21). See [docs/STATE.md](docs/STATE.md).
 
 ## Layout
 ```
-engine/        Rust library: deterministic 60 Hz sim core (also compiles to wasm)
+engine/        Rust sim core: deterministic 60 Hz, replays (also compiles to wasm); today it also
+               holds the tank step rules, TankParams and observations/actions (ADR-009, ADR-014)
 engine-cli/    headless runner: N matches -> JSON (source of truth for CI)
-games/tank/    Tank Arena rules, observations, actions, policies
-web/           the Vercel site: viewer + devlog page
-docs/          charter, state, decisions, role briefs, devlog, playbooks
-.github/       CI and nightly workflows
+engine-wasm/   browser bindings for the viewer (wasm-bindgen), built into web/pkg
+games/tank/    Tank Arena rules v1: loadouts, arena and spawns, scripted policies, and the
+               placeholder bots Chaser and Wanderer used by engine-cli and the viewer's built-in-bot mode
+web/           the GitHub Pages site: viewer + field notes (static, no build step)
+docs/          charter, state, decisions, provenance card, role briefs, field notes, playbooks
+.github/       CI, nightly and Pages workflows
 ```
 
 ## Run it
@@ -23,7 +29,6 @@ Requires Rust stable (pinned via `rust-toolchain.toml`).
 ```sh
 cargo test --workspace
 cargo run -p engine-cli -- --matches 10 --seed 42
-# {"matches":10,"seed":42,"results":[]}
 cargo build -p engine --target wasm32-unknown-unknown
 ```
 
@@ -31,8 +36,10 @@ cargo build -p engine --target wasm32-unknown-unknown
 - [Charter](docs/CHARTER.md): how the company runs
 - [State](docs/STATE.md): what's happening now
 - [Decisions](docs/DECISIONS.md): architecture decision records
+- [Card](docs/CARD.md): provenance card for every shipped artifact
+- [Engine](docs/engine/): how the engine, engine-cli, replays and the wasm viewer work
 - [Roles](docs/roles/): worker briefs
-- [Devlog](docs/devlog/): one entry per merged PR
+- [Field notes](docs/fieldnotes/): one entry per merged PR
 - [Playbooks](docs/playbooks/): what each phase taught us
 
 ## Contributing

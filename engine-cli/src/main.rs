@@ -1,19 +1,20 @@
 //! Headless match runner: N matches -> JSON summary on stdout. Source of truth for CI.
 //!
 //! Match `i` uses seed `seed + i` (wrapping), so `--matches 1 --seed S+i` reproduces it.
-//! Team 0 is the built-in `Chaser`, team 1 the built-in `Wanderer` placeholder policy.
+//! Team 0 is the placeholder `tank::Chaser`, team 1 the placeholder `tank::Wanderer`
+//! (both from `games/tank`), on the engine's default duel (`MatchConfig::duel`).
 
 use clap::Parser;
-use engine::bots::{Chaser, Wanderer};
 use engine::{EndReason, Match, MatchConfig, Replay};
 use serde::Serialize;
 use std::path::PathBuf;
+use tank::{Chaser, Wanderer};
 
 #[derive(Parser, Debug)]
 #[command(
     name = "engine-cli",
     version,
-    about = "Run headless Starscream matches"
+    about = "Coastal Agentics Arena: run headless duels between the built-in bots and print JSON results"
 )]
 struct Args {
     /// Number of matches to run.
@@ -115,6 +116,14 @@ mod tests {
     }
 
     #[test]
+    fn help_uses_current_branding() {
+        use clap::CommandFactory;
+        let help = Args::command().render_help().to_string();
+        assert!(help.starts_with("Coastal Agentics Arena: "), "{help}");
+        assert!(!help.contains("Starscream"), "{help}");
+    }
+
+    #[test]
     fn same_seed_same_json() {
         let a = serde_json::to_string(&run(&args(5, 42)).unwrap()).unwrap();
         let b = serde_json::to_string(&run(&args(5, 42)).unwrap()).unwrap();
@@ -136,6 +145,25 @@ mod tests {
         let all = run(&args(4, 100)).unwrap();
         let third = run(&args(1, 102)).unwrap();
         assert_eq!(all.results[2], third.results[0]);
+    }
+
+    #[test]
+    fn documented_rows_are_unchanged() {
+        // The seeds docs/engine/engine-cli.md quotes, through this binary's own pairing
+        // (Chaser vs Wanderer seeded `seed ^ 0x5eed`). The bots and their full pins
+        // (4 seeds, seeds 0-199 digest) live in games/tank; this pins the CLI wiring.
+        for (seed, ticks, hash) in [
+            (42, 447, "03722b5e86d38fac"),
+            (101, 274, "baf3fcb2cbb76c06"),
+            (u64::MAX, 532, "f1d983e88de5d020"),
+        ] {
+            let r = &run(&args(1, seed)).unwrap().results[0];
+            assert_eq!(
+                (r.winner, r.ticks, r.reason, r.hash.as_str()),
+                (Some(1), ticks, EndReason::LastStanding, hash),
+                "seed {seed}"
+            );
+        }
     }
 
     #[test]

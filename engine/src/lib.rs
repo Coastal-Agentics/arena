@@ -1,4 +1,5 @@
-//! Starscream engine: deterministic fixed-timestep 2D simulation core (Tank Arena first).
+//! Coastal Agentics Arena engine: deterministic fixed-timestep 2D simulation core
+//! (Tank Arena first).
 //!
 //! * Fixed 60 Hz step ([`TICK_HZ`], [`DT`]); no wall clock anywhere.
 //! * All randomness from a seeded `ChaCha8Rng` owned by the [`Match`]; policies bring their own.
@@ -9,18 +10,26 @@
 //! * No OS/threads/time dependencies: builds for `wasm32-unknown-unknown`.
 //!
 //! Extension points for rule crates: [`TankParams`] (speeds, HP, cooldown, projectile
-//! stats), [`MatchConfig`] (arena, obstacles, spawns, tick limit), and per-step
-//! [`Event`]s (fired/hit/destroyed). Projectiles are generic straight-line shots with
+//! stats, optional stationary accuracy), shared in [`MatchConfig::params`] or per tank in
+//! [`TankSpawn::params`]; [`MatchConfig`] (arena, obstacles, spawns, tick limit);
+//! [`Arena::segment_clear`] (line of sight, also reported as [`TankObs::los`]); and
+//! per-step [`Event`]s (fired/hit/destroyed). Projectiles are generic straight-line shots with
 //! swept (segment) collision, so fast shots cannot tunnel through tanks or obstacles.
 //! Seeds in JSON are decimal strings ([`json_u64`]) so JavaScript reads them exactly.
+//!
+//! Longer-form docs (architecture, tick loop, determinism, replay format, CLI, wasm):
+//! `docs/engine/` in the repository.
+
+#![warn(missing_docs)]
 
 pub mod angle;
 pub mod arena;
-pub mod bots;
 pub mod json_u64;
 pub mod policy;
 pub mod replay;
 pub mod sim;
+#[cfg(test)]
+mod testing;
 
 pub use angle::Heading;
 pub use arena::{Arena, Rect};
@@ -45,20 +54,14 @@ pub fn version() -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bots::{Chaser, Wanderer};
+    use replay::REPLAY_FORMAT;
+    use serde_json::json;
+    use testing::{play, play_config};
 
     #[test]
     fn tick_rate_is_60hz() {
         assert_eq!(TICK_HZ, 60);
         assert!(!version().is_empty());
-    }
-
-    fn play(seed: u64) -> Match {
-        let mut m = Match::new(MatchConfig::duel(), seed);
-        let mut a = Chaser;
-        let mut b = Wanderer::new(seed ^ 0x5eed);
-        m.run(&mut [&mut a, &mut b]);
-        m
     }
 
     #[test]
@@ -122,6 +125,350 @@ mod tests {
         assert!(r.verify().is_err());
     }
 
+    /// Re-serialize a replay's JSON after editing it as a `serde_json::Value`.
+    fn edit(json: &str, f: impl FnOnce(&mut serde_json::Value)) -> String {
+        let mut v: serde_json::Value = serde_json::from_str(json).unwrap();
+        f(&mut v);
+        v.to_string()
+    }
+
+    #[test]
+    fn edited_config_fails_verification() {
+        // Regression: in format 2, deleting the obstacles from the seed-7 duel still
+        // verified, because nothing in that match touches them and the state hash
+        // doesn't cover the config.
+        let m = play(7);
+        let json = m.replay().to_json();
+        let no_obstacles = edit(&json, |v| v["config"]["arena"]["obstacles"] = json!([]));
+        let r = Replay::from_json(&no_obstacles).expect("still parses");
+        assert!(r.config.arena.obstacles.is_empty());
+        // The gap is real: the edited config re-simulates to the same outcome and state...
+        let edited = r.play();
+        assert_eq!(edited.outcome(), m.outcome());
+        assert_eq!(edited.state_hash(), m.state_hash());
+        // ...but verification now catches the edit.
+        assert!(
+            matches!(r.verify(), Err(ReplayError::SetupMismatch { .. })),
+            "{:?}",
+            r.verify().err()
+        );
+
+        // Any other config field, and the seed, are covered too.
+        type Edit = (&'static str, fn(&mut serde_json::Value));
+        let edits: [Edit; 7] = [
+            ("arena size", |v| {
+                v["config"]["arena"]["size"] = json!([801.0, 600.0])
+            }),
+            ("tank param", |v| {
+                v["config"]["params"]["max_hp"] = json!(101)
+            }),
+            ("spread", |v| {
+                v["config"]["params"]["projectile_spread"] = json!(0)
+            }),
+            ("spawn", |v| v["config"]["tanks"][0]["heading"] = json!(0)),
+            ("team", |v| v["config"]["tanks"][1]["team"] = json!(2)),
+            ("max_ticks", |v| v["config"]["max_ticks"] = json!(7201)),
+            ("seed", |v| v["seed"] = json!("8")),
+        ];
+        for (what, f) in edits {
+            let r = Replay::from_json(&edit(&json, f)).expect(what);
+            assert!(
+                matches!(r.verify(), Err(ReplayError::SetupMismatch { .. })),
+                "{what}: {:?}",
+                r.verify().err()
+            );
+        }
+    }
+
+    #[test]
+    fn setup_hash_ignores_json_formatting() {
+        let json = play(7).replay().to_json();
+        let v: serde_json::Value = serde_json::from_str(&json).unwrap();
+        let pretty = serde_json::to_string_pretty(&v).unwrap();
+        // `16` instead of `16.0`, and an explicit `null` spawn left out, parse to the
+        // same config, so they hash the same.
+        let reworded = pretty
+            .replace("\"radius\": 16.0", "\"radius\": 16")
+            .replace("\"pos\": null,", "");
+        assert_ne!(reworded, pretty);
+        Replay::from_json(&reworded)
+            .unwrap()
+            .verify()
+            .expect("verifies");
+    }
+
+    #[test]
+    fn format_2_replays_still_load_and_upgrade() {
+        let m = play(7);
+        let v4 = m.replay().to_json();
+        assert!(v4.contains(r#""format":4"#), "{v4}");
+        let v2 = edit(&v4, |v| {
+            v["format"] = json!(2);
+            v.as_object_mut().unwrap().remove("setup_hash");
+        });
+        let r = Replay::from_json(&v2).expect("format 2 loads");
+        assert_eq!((r.format, r.setup_hash.as_deref()), (2, None));
+        let out = r.to_json();
+        assert!(
+            out.contains(r#""format":2"#) && !out.contains("setup_hash"),
+            "{out}"
+        );
+        let back = r
+            .verify()
+            .expect("v2 verifies (outcome and final hash only)");
+        assert_eq!(back.state_hash(), m.state_hash());
+        // Documented limit: without a setup hash, v2 can't see config edits.
+        let v2_edited = edit(&v2, |v| v["config"]["arena"]["obstacles"] = json!([]));
+        assert!(Replay::from_json(&v2_edited).unwrap().verify().is_ok());
+        // Upgrade: verify, then re-record.
+        let up = back.replay();
+        assert_eq!(up.format, REPLAY_FORMAT);
+        assert_eq!(up.setup_hash, m.replay().setup_hash);
+    }
+
+    #[test]
+    fn replay_format_bounds() {
+        let json = play(7).replay().to_json();
+        let missing = edit(&json, |v| {
+            v.as_object_mut().unwrap().remove("setup_hash");
+        });
+        assert_eq!(
+            Replay::from_json(&missing),
+            Err(ReplayError::MissingSetupHash)
+        );
+        for f in [0, 1, 5] {
+            let other = edit(&json, |v| v["format"] = json!(f));
+            assert_eq!(Replay::from_json(&other), Err(ReplayError::Format(f)));
+        }
+    }
+
+    #[test]
+    fn pinned_hashes_are_unchanged() {
+        // The engine's own pins, played by the test-only policies in `testing` (the
+        // Chaser vs Wanderer hashes quoted in docs/engine are pinned in games/tank, next
+        // to the bots). Any change to the sim, the RNG draws or the state hash shows here.
+        // Setup hashes depend only on the seed and config: 7 and 101 are the values
+        // quoted in docs/engine/replay-format.md.
+        type Case = (u64, Option<u8>, u32, EndReason, &'static str, &'static str);
+        let cases: [Case; 5] = [
+            (
+                42,
+                Some(1),
+                224,
+                EndReason::LastStanding,
+                "29fa9f3144214302",
+                "b2557d87094fc136",
+            ),
+            (
+                7,
+                Some(0),
+                365,
+                EndReason::LastStanding,
+                "3b5685112157684e",
+                "0b24ce74f45e9a27",
+            ),
+            (
+                101,
+                Some(1),
+                316,
+                EndReason::LastStanding,
+                "7995003f2c72df6f",
+                "9cfd58498bbe3f85",
+            ),
+            (
+                1234,
+                None,
+                626,
+                EndReason::AllDestroyed,
+                "51c931686ff72116",
+                "c5de22a2ba76cd0a",
+            ),
+            (
+                u64::MAX,
+                Some(1),
+                818,
+                EndReason::LastStanding,
+                "fb9d9c2c45cece64",
+                "eff32d1c58acf13c",
+            ),
+        ];
+        for (seed, winner, ticks, reason, hash, setup) in cases {
+            for _ in 0..2 {
+                let m = play(seed);
+                assert_eq!(
+                    m.outcome(),
+                    Some(Outcome {
+                        winner,
+                        ticks,
+                        reason
+                    }),
+                    "seed {seed}"
+                );
+                let r = m.replay();
+                assert_eq!(r.final_hash, hash, "seed {seed}");
+                assert_eq!(r.setup_hash.as_deref(), Some(setup), "seed {seed}");
+            }
+        }
+    }
+
+    #[test]
+    fn seeds_0_to_199_are_unchanged() {
+        // FNV-1a over (winner or 255, ticks, state hash) of seeds 0..200, the same digest
+        // games/tank computes for Chaser vs Wanderer, here for the test-only policies.
+        let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+        for seed in 0..200 {
+            let m = play(seed);
+            let o = m.outcome().expect("match ends");
+            for b in [o.winner.unwrap_or(255)]
+                .into_iter()
+                .chain(o.ticks.to_le_bytes())
+                .chain(m.state_hash().to_le_bytes())
+            {
+                h = (h ^ b as u64).wrapping_mul(0x0100_0000_01b3);
+            }
+        }
+        assert_eq!(format!("{h:016x}"), "ee310c1f1be4f6ba");
+    }
+
+    /// Glass Cannon (A/S/D 5/3/1) vs Brawler (4/1/4), mapped with the spec's table.
+    /// The mapping itself is game rules and belongs to `games/tank`; this is test data.
+    fn loadout_config() -> MatchConfig {
+        let mut c = MatchConfig::duel();
+        c.tanks[0].params = Some(TankParams {
+            projectile_damage: 28,
+            max_hp: 60,
+            ..Default::default()
+        });
+        c.tanks[1].params = Some(TankParams {
+            projectile_damage: 24,
+            max_speed: 90.0,
+            turn_rate: 273,
+            max_hp: 120,
+            ..Default::default()
+        });
+        c
+    }
+
+    #[test]
+    fn default_params_per_tank_play_like_shared_params() {
+        // Spec acceptance: 3/3/3 vs 3/3/3 is bit-identical to the default match.
+        for seed in [0, 7, 42, u64::MAX] {
+            let mut c = MatchConfig::duel();
+            for t in &mut c.tanks {
+                t.params = Some(TankParams::default());
+            }
+            let (a, b) = (play(seed), play_config(c, seed));
+            assert_eq!(a.outcome(), b.outcome());
+            assert_eq!(a.history(), b.history());
+            assert_eq!(a.state_hash(), b.state_hash());
+            // Different config, so a different setup hash.
+            assert_ne!(a.replay().setup_hash, b.replay().setup_hash);
+        }
+    }
+
+    #[test]
+    fn per_tank_params_are_deterministic_and_change_the_match() {
+        let mut changed = 0;
+        for seed in [1, 7, 42] {
+            let a = play_config(loadout_config(), seed);
+            let b = play_config(loadout_config(), seed);
+            assert_eq!(a.state_hash(), b.state_hash());
+            assert_eq!(a.history(), b.history());
+            assert_eq!(a.outcome(), b.outcome());
+            changed += (a.state_hash() != play(seed).state_hash()) as u32;
+        }
+        assert_eq!(changed, 3, "a loadout change alters the sim");
+    }
+
+    #[test]
+    fn per_tank_params_replay_roundtrip_and_verify() {
+        let mut cfg = loadout_config();
+        cfg.params.projectile_spread_still = Some(128);
+        cfg.tanks[1]
+            .params
+            .as_mut()
+            .unwrap()
+            .projectile_spread_still = Some(128);
+        let m = play_config(cfg, 42);
+        let json = m.replay().to_json();
+        assert!(json.contains(r#""format":4"#), "{json}");
+        assert!(json.contains(r#""params":{"radius""#), "{json}");
+        assert!(json.contains(r#""projectile_spread_still":128"#), "{json}");
+        let r = Replay::from_json(&json).expect("parses");
+        assert_eq!(r.config.tanks[1].params.as_ref().unwrap().max_hp, 120);
+        let back = r.verify().expect("reproduces");
+        assert_eq!(back.state_hash(), m.state_hash());
+        assert_eq!(back.outcome(), m.outcome());
+        assert_eq!(back.tank_params(1), m.tank_params(1));
+        assert_eq!(Replay::from_json(&back.replay().to_json()).unwrap(), r);
+        // The setup hash covers the per-tank params and stationary accuracy.
+        type Edit = (&'static str, fn(&mut serde_json::Value));
+        let edits: [Edit; 5] = [
+            ("per-tank hp", |v| {
+                v["config"]["tanks"][1]["params"]["max_hp"] = json!(121)
+            }),
+            ("per-tank damage", |v| {
+                v["config"]["tanks"][0]["params"]["projectile_damage"] = json!(27)
+            }),
+            ("drop per-tank params", |v| {
+                v["config"]["tanks"][0]
+                    .as_object_mut()
+                    .unwrap()
+                    .remove("params");
+            }),
+            ("add per-tank params", |v| {
+                v["config"]["tanks"][0]["params"] = v["config"]["params"].clone()
+            }),
+            ("still spread", |v| {
+                v["config"]["tanks"][1]["params"]["projectile_spread_still"] = json!(0)
+            }),
+        ];
+        for (what, f) in edits {
+            let r = Replay::from_json(&edit(&json, f)).expect(what);
+            assert!(
+                matches!(r.verify(), Err(ReplayError::SetupMismatch { .. })),
+                "{what}: {:?}",
+                r.verify().err()
+            );
+        }
+    }
+
+    #[test]
+    fn format_3_replays_still_load_and_verify() {
+        let m = play(7);
+        let v3 = edit(&m.replay().to_json(), |v| v["format"] = json!(3));
+        let r = Replay::from_json(&v3).expect("format 3 loads");
+        assert_eq!(r.format, 3);
+        assert_eq!(r.setup_hash, m.replay().setup_hash, "same config bytes");
+        assert!(r.to_json().contains(r#""format":3"#));
+        let back = r.verify().expect("format 3 verifies, setup hash included");
+        assert_eq!(back.state_hash(), m.state_hash());
+        assert_eq!(back.replay().format, REPLAY_FORMAT);
+        // Formats 2 and 3 have no per-tank params or stationary accuracy.
+        let v4 = play_config(loadout_config(), 7).replay().to_json();
+        for format in [2, 3] {
+            let old = edit(&v4, |v| v["format"] = json!(format));
+            assert_eq!(
+                Replay::from_json(&old),
+                Err(ReplayError::FieldNotInFormat {
+                    format,
+                    field: "tanks[].params"
+                })
+            );
+            let still = edit(&v3, |v| {
+                v["format"] = json!(format);
+                v["config"]["params"]["projectile_spread_still"] = json!(128);
+            });
+            assert_eq!(
+                Replay::from_json(&still),
+                Err(ReplayError::FieldNotInFormat {
+                    format,
+                    field: "params.projectile_spread_still"
+                })
+            );
+        }
+    }
+
     #[test]
     fn replay_player_steps_to_end() {
         let m = play(9);
@@ -143,6 +490,6 @@ mod tests {
             assert!(o.ticks <= MatchConfig::duel().max_ticks);
             winners += o.winner.is_some() as u32;
         }
-        assert!(winners > 0, "placeholder bots should decide some matches");
+        assert!(winners > 0, "the test policies should decide some matches");
     }
 }

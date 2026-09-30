@@ -1,4 +1,9 @@
 //! Match lifecycle: config, entities, fixed-step update, end conditions.
+//!
+//! A [`Match`] is built from a [`MatchConfig`] and a `u64` seed, then advanced one
+//! fixed tick ([`crate::DT`] seconds) at a time with [`Match::step`] (explicit actions)
+//! or [`Match::step_policies`] / [`Match::run`] (policies). See [`Match::step`] for the
+//! exact order of operations inside a tick.
 
 use crate::angle::{self, Heading};
 use crate::arena::{circles_overlap, segment_circle_entry, Arena, Rect};
@@ -15,21 +20,40 @@ use serde::{Deserialize, Serialize};
 
 /// Per-tank tunables. Speeds are per second; the sim scales by `DT`.
 /// Turn rates are BAU per tick (65536 BAU = one turn).
+///
+/// [`MatchConfig::params`] is the shared set; a [`TankSpawn::params`] overrides it for
+/// one tank (all fields except `radius`). [`MatchConfig::tank_params`] resolves the
+/// set a tank actually uses.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct TankParams {
+    /// Collision radius of every tank (tanks are circles). Always taken from
+    /// [`MatchConfig::params`]; a per-tank value is ignored, so collisions stay symmetric.
     pub radius: f32,
+    /// Speed at `throttle = 1.0`, in units per second.
     pub max_speed: f32,
+    /// Hull turn at `turn = 1.0`, in BAU per tick.
     pub turn_rate: u16,
+    /// Turret turn at `turret_turn = 1.0`, in BAU per tick.
     pub turret_turn_rate: u16,
+    /// Starting (and maximum) hit points.
     pub max_hp: i32,
     /// Ticks between shots.
     pub fire_cooldown: u32,
+    /// Projectile speed in units per second.
     pub projectile_speed: f32,
     /// Projectile lifetime in ticks.
     pub projectile_ttl: u32,
+    /// HP removed from a tank by one hit.
     pub projectile_damage: i32,
     /// Max random deviation of a shot, in BAU either side (drawn from the match RNG).
     pub projectile_spread: u16,
+    /// Optional stationary accuracy: the spread used instead of `projectile_spread`
+    /// when the tank fires on a tick in which it did not move (its applied velocity
+    /// that tick is exactly zero, e.g. throttle 0 or blocked; turning in place counts
+    /// as still). `None` (the default): always `projectile_spread`. Omitted from JSON
+    /// when `None`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub projectile_spread_still: Option<u16>,
 }
 
 impl Default for TankParams {
@@ -45,6 +69,7 @@ impl Default for TankParams {
             projectile_ttl: 120,
             projectile_damage: 20,
             projectile_spread: 256, // ~1.4 deg
+            projectile_spread_still: None,
         }
     }
 }
@@ -52,18 +77,32 @@ impl Default for TankParams {
 /// Where a tank starts. `None` fields are drawn from the match RNG.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct TankSpawn {
+    /// Team id. Tanks on the same team are allies; the last team with living tanks wins.
     pub team: u8,
+    /// Start position (circle centre). `None`: random clear spot from the match RNG.
+    /// Explicit positions are used as given (not checked against walls or obstacles).
     #[serde(default)]
     pub pos: Option<Vec2>,
+    /// Start heading (the turret starts aligned with it). `None`: random from the match RNG.
     #[serde(default)]
     pub heading: Option<Heading>,
+    /// Per-tank params. `None` (the default): [`MatchConfig::params`]. When set, it
+    /// replaces the shared set as a whole (no field-by-field merge): every field
+    /// applies to this tank except `radius`, which stays shared. Omitted from JSON when
+    /// `None`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub params: Option<TankParams>,
 }
 
 /// Everything needed (with a seed) to reproduce a match.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct MatchConfig {
+    /// Arena bounds and obstacles.
     pub arena: Arena,
+    /// One spawn per tank; the index is the tank id.
     pub tanks: Vec<TankSpawn>,
+    /// Tunables for every tank without its own [`TankSpawn::params`]; `radius` is
+    /// shared by all tanks.
     pub params: TankParams,
     /// Match ends in a draw after this many ticks.
     pub max_ticks: u32,
@@ -71,6 +110,15 @@ pub struct MatchConfig {
 
 impl MatchConfig {
     /// 1v1 in an 800x600 arena with two obstacles, random spawns, 2-minute limit.
+    ///
+    /// ```
+    /// use engine::{MatchConfig, TICK_HZ};
+    /// let c = MatchConfig::duel();
+    /// assert_eq!((c.arena.size.x, c.arena.size.y), (800.0, 600.0));
+    /// assert_eq!(c.arena.obstacles.len(), 2);
+    /// assert_eq!(c.tanks.len(), 2);
+    /// assert_eq!(c.max_ticks, 120 * TICK_HZ); // 7200 ticks
+    /// ```
     pub fn duel() -> Self {
         Self {
             arena: Arena::new(800.0, 600.0)
@@ -90,20 +138,51 @@ impl MatchConfig {
             max_ticks: 120 * TICK_HZ,
         }
     }
+
+    /// The params tank `id` plays with: its [`TankSpawn::params`] if set, else
+    /// [`MatchConfig::params`]. `radius` is always the shared `params.radius`.
+    ///
+    /// Panics if `id` is out of range.
+    ///
+    /// ```
+    /// use engine::{MatchConfig, TankParams};
+    /// let mut c = MatchConfig::duel();
+    /// c.tanks[1].params = Some(TankParams { max_hp: 140, radius: 99.0, ..Default::default() });
+    /// assert_eq!(c.tank_params(0), c.params);
+    /// assert_eq!(c.tank_params(1).max_hp, 140);
+    /// assert_eq!(c.tank_params(1).radius, c.params.radius); // radius stays shared
+    /// ```
+    pub fn tank_params(&self, id: usize) -> TankParams {
+        match &self.tanks[id].params {
+            Some(p) => TankParams {
+                radius: self.params.radius,
+                ..p.clone()
+            },
+            None => self.params.clone(),
+        }
+    }
 }
 
 /// A tank entity.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Tank {
+    /// Index into [`Match::tanks`] and into each tick's action list.
     pub id: usize,
+    /// Team id, from the spawn.
     pub team: u8,
+    /// Circle centre.
     pub pos: Vec2,
     /// Velocity in units per tick (after collision; blocked axes are zeroed).
     pub vel: Vec2,
+    /// Hull heading.
     pub heading: Heading,
+    /// Turret heading in the world frame (not relative to the hull).
     pub turret: Heading,
+    /// Hit points. Not clamped: stays negative after an overkill hit.
     pub hp: i32,
+    /// Ticks until the gun can fire again (0 = ready).
     pub cooldown: u32,
+    /// False once `hp <= 0`. Dead tanks stay in the list but do not move, fire or block.
     pub alive: bool,
 }
 
@@ -111,27 +190,40 @@ pub struct Tank {
 /// damages the first enemy tank it overlaps.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Projectile {
+    /// Id of the tank that fired it.
     pub owner: usize,
+    /// Team of the tank that fired it; projectiles pass through tanks of this team.
     pub team: u8,
+    /// Current position.
     pub pos: Vec2,
     /// Units per tick.
     pub vel: Vec2,
+    /// Remaining lifetime in ticks.
     pub ttl: u32,
+    /// HP removed on hit.
     pub damage: i32,
 }
 
 /// Things that happened during the last step, for viewers and rule layers.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Event {
+    /// Tank `tank` fired a projectile this tick.
     Fired {
+        /// Id of the tank that fired.
         tank: usize,
     },
+    /// A projectile fired by `owner` hit tank `target`.
     Hit {
+        /// Id of the tank that was hit.
         target: usize,
+        /// Id of the tank that fired the projectile.
         owner: usize,
+        /// HP removed.
         damage: i32,
     },
+    /// Tank `tank` reached `hp <= 0` this tick.
     Destroyed {
+        /// Id of the destroyed tank.
         tank: usize,
     },
 }
@@ -140,9 +232,10 @@ pub enum Event {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum EndReason {
-    /// Exactly one team has living tanks.
+    /// Exactly one team has living tanks, and some tank of another team exists.
     LastStanding,
-    /// Everyone died on the same tick (draw).
+    /// No tank is alive (draw): the last tanks died on the same tick, or the match
+    /// had no tanks at all.
     AllDestroyed,
     /// `max_ticks` reached (draw).
     TickLimit,
@@ -153,15 +246,50 @@ pub enum EndReason {
 pub struct Outcome {
     /// Winning team, or `None` for a draw.
     pub winner: Option<u8>,
+    /// Tick count when the match ended (equals [`Match::tick`] at the end).
     pub ticks: u32,
+    /// Why it ended.
     pub reason: EndReason,
 }
 
 /// A running match. Create with [`Match::new`], drive with [`Match::step`] or
 /// [`Match::run`], inspect with the accessors. Works identically headless and in wasm.
+///
+/// Policies come from game crates (e.g. `tank::Chaser`); any
+/// `FnMut(&Observation) -> Action` closure or function works too.
+///
+/// ```
+/// use engine::angle::turn_toward;
+/// use engine::{Action, Match, MatchConfig, Observation};
+///
+/// // Drive at the nearest enemy and fire when the turret is on it.
+/// fn charge(obs: &Observation) -> Action {
+///     let Some(e) = obs.enemies.first() else {
+///         return Action::default();
+///     };
+///     let aim = turn_toward(obs.me.turret, e.rel, 0.08);
+///     Action {
+///         throttle: 1.0,
+///         turn: turn_toward(obs.me.heading, e.rel, 0.2) as f32,
+///         turret_turn: aim as f32,
+///         fire: aim == 0,
+///     }
+/// }
+///
+/// let mut m = Match::new(MatchConfig::duel(), 42);
+/// let outcome = m.run(&mut [&mut charge, &mut charge]);
+/// assert_eq!(outcome.ticks, m.tick());
+///
+/// // Same seed, same policies: the same match, bit for bit.
+/// let mut again = Match::new(MatchConfig::duel(), 42);
+/// assert_eq!(again.run(&mut [&mut charge, &mut charge]), outcome);
+/// assert_eq!(again.state_hash(), m.state_hash());
+/// ```
 #[derive(Clone, Debug)]
 pub struct Match {
     config: MatchConfig,
+    /// `config.tank_params(id)` for every tank, resolved once in `Match::new`.
+    params: Vec<TankParams>,
     seed: u64,
     rng: ChaCha8Rng,
     tick: u32,
@@ -178,9 +306,19 @@ fn rand_unit(rng: &mut ChaCha8Rng) -> f32 {
 
 impl Match {
     /// Start a match: spawns tanks (random spawns come from the seeded RNG).
+    ///
+    /// The RNG is `ChaCha8Rng::seed_from_u64(seed)`. Tanks are spawned in id order;
+    /// a random position is retried up to 1000 times until it is clear of obstacles
+    /// (by 1.5 radii) and of already-placed tanks (centres at least 6 radii apart),
+    /// falling back to the arena centre. A random heading is drawn after the position.
+    /// Each tank starts with its own [`TankParams::max_hp`] ([`MatchConfig::tank_params`]).
+    /// The outcome is checked once here, so a config with no tanks is over at tick 0.
     pub fn new(config: MatchConfig, seed: u64) -> Self {
         let mut rng = ChaCha8Rng::seed_from_u64(seed);
         let r = config.params.radius;
+        let params: Vec<TankParams> = (0..config.tanks.len())
+            .map(|id| config.tank_params(id))
+            .collect();
         let mut tanks: Vec<Tank> = Vec::with_capacity(config.tanks.len());
         for (id, spawn) in config.tanks.iter().enumerate() {
             let pos = match spawn.pos {
@@ -215,13 +353,14 @@ impl Match {
                 vel: Vec2::ZERO,
                 heading,
                 turret: heading,
-                hp: config.params.max_hp,
+                hp: params[id].max_hp,
                 cooldown: 0,
                 alive: true,
             });
         }
         let mut m = Self {
             config,
+            params,
             seed,
             rng,
             tick: 0,
@@ -235,18 +374,28 @@ impl Match {
         m
     }
 
+    /// The config this match was created with.
     pub fn config(&self) -> &MatchConfig {
         &self.config
     }
+    /// The params tank `id` plays with ([`MatchConfig::tank_params`], resolved at
+    /// creation). Panics if `id` is out of range.
+    pub fn tank_params(&self, id: usize) -> &TankParams {
+        &self.params[id]
+    }
+    /// The seed this match was created with.
     pub fn seed(&self) -> u64 {
         self.seed
     }
+    /// Ticks simulated so far (0 before the first step).
     pub fn tick(&self) -> u32 {
         self.tick
     }
+    /// All tanks, living and dead, indexed by id.
     pub fn tanks(&self) -> &[Tank] {
         &self.tanks
     }
+    /// Projectiles in flight.
     pub fn projectiles(&self) -> &[Projectile] {
         &self.projectiles
     }
@@ -254,9 +403,11 @@ impl Match {
     pub fn events(&self) -> &[Event] {
         &self.events
     }
+    /// The result, once the match has ended.
     pub fn outcome(&self) -> Option<Outcome> {
         self.outcome
     }
+    /// True once the match has ended.
     pub fn is_over(&self) -> bool {
         self.outcome.is_some()
     }
@@ -265,10 +416,16 @@ impl Match {
         &self.history
     }
 
-    /// Build the observation for tank `id`.
+    /// Build the observation for tank `id` from the current state.
+    ///
+    /// `max_hp` values are each tank's own ([`Match::tank_params`]); `los` on each
+    /// listed tank is [`Arena::segment_clear`] between the two tank centres (walls and
+    /// obstacles block it; tanks do not).
+    ///
+    /// Panics if `id` is out of range. Works for dead tanks too.
     pub fn observe(&self, id: usize) -> Observation {
         let me = &self.tanks[id];
-        let p = &self.config.params;
+        let arena = &self.config.arena;
         let mut enemies = Vec::new();
         let mut allies = Vec::new();
         for t in self.tanks.iter().filter(|t| t.alive && t.id != id) {
@@ -283,6 +440,8 @@ impl Match {
                 heading: t.heading,
                 turret: t.turret,
                 hp: t.hp,
+                max_hp: self.params[t.id].max_hp,
+                los: false,
             };
             if t.team == me.team {
                 allies.push(o);
@@ -296,6 +455,9 @@ impl Match {
         allies.sort_by(by_dist);
         enemies.truncate(MAX_OBSERVED_TANKS);
         allies.truncate(MAX_OBSERVED_TANKS);
+        for o in enemies.iter_mut().chain(allies.iter_mut()) {
+            o.los = arena.segment_clear(me.pos, o.pos);
+        }
         let mut projectiles: Vec<ProjectileObs> = self
             .projectiles
             .iter()
@@ -323,9 +485,9 @@ impl Match {
                 heading: me.heading,
                 turret: me.turret,
                 hp: me.hp,
-                max_hp: p.max_hp,
+                max_hp: self.params[id].max_hp,
                 cooldown: me.cooldown,
-                radius: p.radius,
+                radius: self.config.params.radius,
             },
             enemies,
             allies,
@@ -345,6 +507,9 @@ impl Match {
     /// mean "do nothing"; actions for dead tanks are ignored. Returns the outcome once
     /// the match has ended (further calls are no-ops).
     ///
+    /// Each tank moves, turns and fires with its own [`Match::tank_params`]; the radius
+    /// is shared.
+    ///
     /// Step order:
     /// 1. every living tank turns and computes its move against the tick-start
     ///    positions of the others (axis-separated: walls clamp, obstacles and tanks
@@ -352,7 +517,9 @@ impl Match {
     /// 2. moves are applied simultaneously; any tank whose new circle would overlap
     ///    another tank's new circle is held at its old position (repeated until
     ///    stable), so the result does not depend on tank id order;
-    /// 3. tanks fire in id order (spread is drawn from the match RNG in that order);
+    /// 3. tanks fire in id order (spread is drawn from the match RNG in that order, one
+    ///    draw per shot whose effective spread is non-zero; a tank that did not move
+    ///    this tick uses [`TankParams::projectile_spread_still`] if set);
     /// 4. existing projectiles sweep their whole per-tick segment: the earliest
     ///    contact with an enemy tank (at its post-move position) or a wall/obstacle
     ///    wins, ties go to the tank, then to the lower tank id;
@@ -366,8 +533,7 @@ impl Match {
         let recorded: Vec<Action> = (0..n)
             .map(|i| actions.get(i).copied().unwrap_or_default().clamped())
             .collect();
-        let params = self.config.params.clone();
-        let r = params.radius;
+        let r = self.config.params.radius;
         let mut spawned = Vec::new();
 
         // 1. Intents against the tick-start snapshot.
@@ -377,6 +543,7 @@ impl Match {
             if !self.tanks[i].alive {
                 continue;
             }
+            let params = &self.params[i];
             let t = &mut self.tanks[i];
             t.heading = t
                 .heading
@@ -432,13 +599,17 @@ impl Match {
             if !self.tanks[i].alive {
                 continue;
             }
+            let params = &self.params[i];
             let t = &mut self.tanks[i];
             (t.pos, t.vel) = moves[i];
             if t.cooldown > 0 {
                 t.cooldown -= 1;
             }
             if a.fire && t.cooldown == 0 {
-                let spread = params.projectile_spread as u32;
+                let spread = match params.projectile_spread_still {
+                    Some(still) if t.vel == Vec2::ZERO => still,
+                    _ => params.projectile_spread,
+                } as u32;
                 let dev = if spread > 0 {
                     (self.rng.next_u32() % (2 * spread + 1)) as i32 - spread as i32
                 } else {
@@ -509,6 +680,9 @@ impl Match {
     }
 
     /// Query each living tank's policy (`policies[i]` drives tank `i`) and step once.
+    ///
+    /// Dead tanks, and tanks without a policy, get [`Action::default`] (the policy is
+    /// not called). All observations are taken from the same tick-start state.
     pub fn step_policies(&mut self, policies: &mut [&mut dyn Policy]) -> Option<Outcome> {
         let actions: Vec<Action> = (0..self.tanks.len())
             .map(|i| match policies.get_mut(i) {
@@ -520,6 +694,8 @@ impl Match {
     }
 
     /// Run to completion with the given policies.
+    ///
+    /// Always terminates: the tick limit ends every match.
     pub fn run(&mut self, policies: &mut [&mut dyn Policy]) -> Outcome {
         loop {
             if let Some(o) = self.step_policies(policies) {
@@ -553,6 +729,10 @@ impl Match {
     }
 
     /// FNV-1a hash of the full simulation state (bit patterns, so any drift shows).
+    ///
+    /// Covers the tick, every tank (position, velocity, heading, turret, hp, cooldown,
+    /// alive) and every projectile (owner, position, velocity, ttl), in order. It does
+    /// not cover the config, the seed, the RNG state or the action history.
     pub fn state_hash(&self) -> u64 {
         let mut h: u64 = 0xcbf2_9ce4_8422_2325;
         let mut eat = |v: u64| {
@@ -612,6 +792,19 @@ mod tests {
             team,
             pos: Some(Vec2::new(x, y)),
             heading: Some(h),
+            params: None,
+        }
+    }
+
+    fn with_params(mut s: TankSpawn, p: TankParams) -> TankSpawn {
+        s.params = Some(p);
+        s
+    }
+
+    fn fire() -> Action {
+        Action {
+            fire: true,
+            ..Default::default()
         }
     }
 
@@ -908,5 +1101,326 @@ mod tests {
         );
         assert_eq!(o.allies.len(), 1);
         assert_eq!(o.walls.right, 300.0);
+    }
+
+    // --- Engine ask #5: per-tank params ---
+
+    #[test]
+    fn tank_params_resolve_per_spawn_with_shared_radius() {
+        let own = TankParams {
+            max_hp: 60,
+            radius: 99.0,
+            ..Default::default()
+        };
+        let cfg = empty_config(vec![
+            at(0, 100.0, 100.0, 0),
+            with_params(at(1, 300.0, 300.0, 0), own.clone()),
+        ]);
+        assert_eq!(cfg.tank_params(0), cfg.params);
+        assert_eq!(cfg.tank_params(1).max_hp, 60);
+        assert_eq!(cfg.tank_params(1).radius, 16.0, "radius stays shared");
+        let m = Match::new(cfg.clone(), 1);
+        assert_eq!(m.tank_params(1), &cfg.tank_params(1));
+        assert_eq!(m.tanks()[0].hp, 100);
+        assert_eq!(m.tanks()[1].hp, 60, "starts at its own max_hp");
+    }
+
+    #[test]
+    fn per_tank_speed_turn_rate_and_radius() {
+        // Tank 0: Speed 5 (150 u/s, 455 BAU/tick) and a per-tank radius that must be
+        // ignored. Tank 1: shared defaults (120 u/s, 364 BAU/tick).
+        let fast = TankParams {
+            max_speed: 150.0,
+            turn_rate: 455,
+            turret_turn_rate: 600,
+            radius: 50.0,
+            ..Default::default()
+        };
+        let cfg = empty_config(vec![
+            with_params(at(0, 50.0, 100.0, 0), fast),
+            at(1, 50.0, 300.0, 0),
+        ]);
+        let mut m = Match::new(cfg, 1);
+        for _ in 0..60 {
+            m.step(&[drive(), drive()]);
+        }
+        assert!(
+            (m.tanks()[0].pos.x - 200.0).abs() < 0.01,
+            "{:?}",
+            m.tanks()[0]
+        );
+        assert!(
+            (m.tanks()[1].pos.x - 170.0).abs() < 0.01,
+            "{:?}",
+            m.tanks()[1]
+        );
+        // Wall clamp uses the shared radius 16, not the per-tank 50.
+        for _ in 0..200 {
+            m.step(&[drive(), drive()]);
+        }
+        assert_eq!(m.tanks()[0].pos.x, 400.0 - 16.0);
+        let spin = Action {
+            turn: 1.0,
+            turret_turn: 1.0,
+            ..Default::default()
+        };
+        let (h0, h1) = (m.tanks()[0].heading, m.tanks()[1].heading);
+        let (t0, t1) = (m.tanks()[0].turret, m.tanks()[1].turret);
+        for _ in 0..10 {
+            m.step(&[spin, spin]);
+        }
+        assert_eq!(m.tanks()[0].heading, h0.wrapping_add(4550));
+        assert_eq!(m.tanks()[1].heading, h1.wrapping_add(3640));
+        assert_eq!(m.tanks()[0].turret, t0.wrapping_add(6000));
+        assert_eq!(m.tanks()[1].turret, t1.wrapping_add(5460));
+    }
+
+    #[test]
+    fn per_tank_damage_hp_and_gun() {
+        // Glass Cannon (28 dmg, 60 HP) vs Brawler (24 dmg, 120 HP), facing each other.
+        // A spawn's params replace the shared set as a whole, so spread 0 is repeated.
+        let glass = TankParams {
+            projectile_damage: 28,
+            max_hp: 60,
+            projectile_spread: 0,
+            ..Default::default()
+        };
+        let brawler = TankParams {
+            projectile_damage: 24,
+            max_hp: 120,
+            fire_cooldown: 30,
+            projectile_speed: 480.0,
+            projectile_spread: 0,
+            ..Default::default()
+        };
+        let cfg = empty_config(vec![
+            with_params(at(0, 100.0, 200.0, 0), glass),
+            with_params(at(1, 300.0, 200.0, from_degrees(180)), brawler),
+        ]);
+        let mut m = Match::new(cfg, 1);
+        m.step(&[fire(), fire()]);
+        let shots = m.projectiles();
+        assert_eq!(shots.len(), 2);
+        assert_eq!((shots[0].damage, shots[1].damage), (28, 24));
+        assert_eq!(shots[0].vel, angle::dir(0) * (360.0 * DT));
+        assert_eq!(shots[1].vel, angle::dir(from_degrees(180)) * (480.0 * DT));
+        assert_eq!((m.tanks()[0].cooldown, m.tanks()[1].cooldown), (45, 30));
+        let mut hits = [0; 2];
+        let out = loop {
+            let o = m.step(&[fire(), fire()]);
+            for e in m.events() {
+                if let Event::Hit { target, damage, .. } = *e {
+                    hits[target] += 1;
+                    assert_eq!(damage, if target == 1 { 28 } else { 24 });
+                }
+            }
+            if let Some(o) = o {
+                break o;
+            }
+        };
+        // Hits-to-kill from the spec table: 24 dmg kills 60 HP in 3; 28 kills 120 in 5.
+        // The Brawler's faster gun lands its third hit first.
+        assert_eq!(hits[0], 3, "{hits:?}");
+        assert!(hits[1] < 5, "{hits:?}");
+        assert_eq!(out.winner, Some(1));
+        assert_eq!(m.tanks()[1].hp, 120 - 28 * hits[1]);
+    }
+
+    // --- Engine ask #3 (movement fairness) with per-tank speeds ---
+
+    #[test]
+    fn movement_with_per_tank_speeds_does_not_depend_on_id_order() {
+        let fast = TankParams {
+            max_speed: 150.0,
+            ..Default::default()
+        };
+        let left = with_params(at(0, 100.0, 200.0, 0), fast);
+        let right = at(1, 300.0, 200.0, from_degrees(180));
+        let mut a = Match::new(empty_config(vec![left.clone(), right.clone()]), 1);
+        let mut b = Match::new(empty_config(vec![right, left]), 1);
+        for _ in 0..200 {
+            a.step(&[drive(), drive()]);
+            b.step(&[drive(), drive()]);
+            assert_eq!(a.tanks()[0].pos, b.tanks()[1].pos);
+            assert_eq!(a.tanks()[1].pos, b.tanks()[0].pos);
+        }
+    }
+
+    // --- Engine ask #1 (swept hits) with a per-tank shell speed ---
+
+    #[test]
+    fn fast_per_tank_projectile_does_not_tunnel() {
+        let gun = TankParams {
+            projectile_speed: 100.0 * TICK_HZ as f32,
+            ..Default::default()
+        };
+        let mut cfg = empty_config(vec![
+            with_params(at(0, 100.0, 200.0, 0), gun),
+            at(1, 250.0, 200.0, QUARTER_TURN),
+        ]);
+        cfg.arena = Arena::new(1000.0, 400.0);
+        let mut m = Match::new(cfg, 1);
+        m.step(&[fire()]);
+        m.step(&[]);
+        m.step(&[]); // 217 -> 317 passes through the tank at x = 250
+        assert!(m.events().iter().any(|e| matches!(
+            e,
+            Event::Hit {
+                target: 1,
+                owner: 0,
+                ..
+            }
+        )));
+    }
+
+    // --- Engine ask #4: optional stationary accuracy ---
+
+    /// Signed table-bucket offset (64 BAU each) of a shot from the firing turret.
+    fn shot_bucket(turret: Heading, vel: Vec2) -> i32 {
+        let d = vel.normalize();
+        (-8..=8)
+            .find(|&k| {
+                let e = angle::dir(turret.wrapping_add_signed(k as i16 * 64));
+                (e - d).length_squared() < 1e-10
+            })
+            .expect("shot within 8 buckets of the turret")
+    }
+
+    /// Fire `n` shots from tank 0 (standing, or driving back and forth along +X/-X)
+    /// and return the bucket offset of each.
+    fn shot_spreads(spread_still: Option<u16>, moving: bool, n: usize) -> Vec<i32> {
+        // Heading 0 is bucket-aligned, so a deviation in [-s, s] lands in bucket
+        // [-s/64, s/64].
+        let p = TankParams {
+            projectile_spread: 256,
+            projectile_spread_still: spread_still,
+            fire_cooldown: 1,
+            ..Default::default()
+        };
+        let mut cfg = empty_config(vec![at(0, 50.0, 200.0, 0), at(1, 350.0, 380.0, 0)]);
+        cfg.params = p;
+        cfg.max_ticks = 100_000;
+        let mut m = Match::new(cfg, 99);
+        let mut out = Vec::new();
+        let mut tick = 0u32;
+        while out.len() < n {
+            let throttle = if !moving {
+                0.0
+            } else if (tick / 20).is_multiple_of(2) {
+                1.0
+            } else {
+                -1.0
+            };
+            m.step(&[Action {
+                throttle,
+                fire: true,
+                ..Default::default()
+            }]);
+            tick += 1;
+            if m.events()
+                .iter()
+                .any(|e| matches!(e, Event::Fired { tank: 0 }))
+            {
+                let t = &m.tanks()[0];
+                assert_eq!(t.vel == Vec2::ZERO, !moving, "tick {tick}");
+                let pr = m.projectiles().last().expect("new shot is last");
+                out.push(shot_bucket(t.turret, pr.vel));
+            }
+        }
+        out
+    }
+
+    #[test]
+    fn stationary_accuracy_is_optional_and_applies_only_when_still() {
+        // Spec ask #4: 128 BAU when still, 256 when moving.
+        let still = shot_spreads(Some(128), false, 300);
+        let moving = shot_spreads(Some(128), true, 300);
+        let off_still = shot_spreads(None, false, 300);
+        assert!(still.iter().all(|b| b.abs() <= 2), "{still:?}");
+        assert!(moving.iter().all(|b| b.abs() <= 4), "{moving:?}");
+        assert!(
+            moving.iter().any(|b| b.abs() > 2),
+            "moving uses the full spread"
+        );
+        assert!(
+            off_still.iter().any(|b| b.abs() > 2),
+            "None: always full spread"
+        );
+        // Some(0) when still: dead straight, and no RNG draw for those shots.
+        assert!(shot_spreads(Some(0), false, 50).iter().all(|&b| b == 0));
+    }
+
+    #[test]
+    fn blocked_tank_counts_as_still() {
+        // Driving into the wall: throttle 1 but the applied velocity is zero.
+        let mut cfg = empty_config(vec![at(0, 400.0 - 16.0, 200.0, 0), at(1, 50.0, 50.0, 0)]);
+        cfg.params.projectile_spread = 20_000;
+        cfg.params.projectile_spread_still = Some(0);
+        let mut m = Match::new(cfg, 3);
+        m.step(&[Action {
+            throttle: 1.0,
+            fire: true,
+            ..Default::default()
+        }]);
+        assert_eq!(m.tanks()[0].vel, Vec2::ZERO);
+        assert_eq!(m.projectiles()[0].vel, angle::dir(0) * (360.0 * DT));
+    }
+
+    #[test]
+    fn unset_new_fields_are_omitted_from_json() {
+        // Keeps default configs serializing exactly as before, so their setup hashes
+        // (and format 3 replays) are unchanged.
+        let json = serde_json::to_string(&MatchConfig::duel()).unwrap();
+        assert!(!json.contains("projectile_spread_still"), "{json}");
+        assert_eq!(json.matches("\"params\"").count(), 1, "{json}");
+        let back: MatchConfig = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, MatchConfig::duel());
+    }
+
+    // --- Engine ask #2: `los` and `max_hp` on TankObs ---
+
+    #[test]
+    fn observation_reports_max_hp_and_los() {
+        // 0 observes. 1 is hidden behind the pillar. 2 is in the open. 3 (an ally)
+        // stands straight behind 2: tanks don't block line of sight.
+        let mut cfg = empty_config(vec![
+            at(0, 50.0, 200.0, 0),
+            with_params(
+                at(1, 350.0, 200.0, 0),
+                TankParams {
+                    max_hp: 140,
+                    ..Default::default()
+                },
+            ),
+            at(1, 150.0, 50.0, 0),
+            with_params(
+                at(0, 250.0, 50.0, 0),
+                TankParams {
+                    max_hp: 60,
+                    ..Default::default()
+                },
+            ),
+        ]);
+        cfg.tanks[0].params = Some(TankParams {
+            max_hp: 80,
+            ..Default::default()
+        });
+        cfg.tanks[2].pos = Some(Vec2::new(150.0, 125.0));
+        cfg.arena = cfg
+            .arena
+            .with_obstacle(Rect::new(Vec2::new(200.0, 150.0), Vec2::new(220.0, 250.0)));
+        let m = Match::new(cfg, 1);
+        let o = m.observe(0);
+        assert_eq!((o.me.hp, o.me.max_hp), (80, 80));
+        let e: Vec<_> = o.enemies.iter().map(|e| (e.id, e.max_hp, e.los)).collect();
+        assert_eq!(e, vec![(2, 100, true), (1, 140, false)]);
+        let a: Vec<_> = o.allies.iter().map(|a| (a.id, a.max_hp, a.los)).collect();
+        assert_eq!(a, vec![(3, 60, true)]);
+        // Tank 2 is on the segment from 0 to 3, and still does not block it.
+        let (p0, p2, p3) = (m.tanks()[0].pos, m.tanks()[2].pos, m.tanks()[3].pos);
+        let d = p3 - p0;
+        assert!(crate::arena::segment_circle_entry(p0, d, p2, 16.0).is_some());
+        // LOS is symmetric here: 1 cannot see 0 either.
+        assert!(!m.observe(1).enemies.iter().find(|e| e.id == 0).unwrap().los);
     }
 }
