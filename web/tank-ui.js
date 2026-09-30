@@ -88,6 +88,7 @@ export function readout(catalog, mine, theirs) {
     damage,
     speed: catalog.max_speed[m.speed - 1],
     turnDegPerSec: Math.round(turnDegPerSec),
+    reloadSec: Math.round((catalog.fire_cooldown[m.speed - 1] * 100) / 60) / 100,
     hp,
     oppHp,
     hitsToKill: Math.ceil(oppHp / damage),

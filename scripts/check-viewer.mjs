@@ -62,8 +62,9 @@ eq(seen.size, 19, "grid reaches all 19");
 
 // Readout: the spec's example.
 const gc = ui.readout(catalog, "5-3-1", "4-1-4"), br = ui.readout(catalog, "4-1-4", "5-3-1");
-eq([gc.damage, gc.oppHp, gc.hitsToKill], [28, 120, 5]);
-eq([br.damage, br.oppHp, br.hitsToKill], [24, 60, 3]);
+eq([gc.damage, gc.oppHp, gc.hitsToKill, gc.reloadSec], [29, 790, 28, 0.75]);
+eq([br.damage, br.oppHp, br.hitsToKill, br.reloadSec], [24, 460, 20, 1.07]);
+eq(ui.readout(catalog, "2-5-2", "3-3-3").reloadSec, 0.52); // 31 ticks
 eq([ui.readout(catalog, "2-5-2", "3-3-3").speed, ui.readout(catalog, "2-5-2", "3-3-3").turnDegPerSec], [150, 150]); // 455 BAU/tick = 150°/s
 eq(ui.presetName(catalog, "4-1-4"), "Brawler");
 

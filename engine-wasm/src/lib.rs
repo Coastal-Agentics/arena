@@ -420,6 +420,8 @@ pub struct CatalogView {
     pub max_speed: [f32; 5],
     /// Turn rate (BAU/tick) by Speed level.
     pub turn_rate: [u16; 5],
+    /// Fire cooldown (ticks between shots) by Speed level.
+    pub fire_cooldown: [u32; 5],
     /// Max HP by Defense level.
     pub max_hp: [i32; 5],
     /// The 19 valid loadouts as `A-S-D`, ordered by Attack then Speed.
@@ -439,6 +441,7 @@ pub fn catalog() -> CatalogView {
         damage: loadout::DAMAGE,
         max_speed: loadout::MAX_SPEED,
         turn_rate: loadout::TURN_RATE,
+        fire_cooldown: loadout::FIRE_COOLDOWN,
         max_hp: loadout::MAX_HP,
         loadouts: Loadout::ALL.iter().map(|l| l.to_string()).collect(),
         presets: Preset::ALL
@@ -574,7 +577,7 @@ mod tests {
             ("5-3-1", "Charger")
         );
         let st = v.state();
-        assert_eq!((st.tanks[0].max_hp, st.tanks[1].max_hp), (60, 120));
+        assert_eq!((st.tanks[0].max_hp, st.tanks[1].max_hp), (460, 790));
         assert!(Viewer::tank("blue=kiter-5-3-2").is_err());
         assert!(Viewer::new("1", "Chaser", "Wanderer")
             .unwrap()
@@ -587,6 +590,8 @@ mod tests {
         let c = catalog();
         assert_eq!(c.loadouts.len(), 19);
         assert_eq!(c.presets[1], ("Glass Cannon", "5-3-1".to_string()));
+        assert_eq!(c.fire_cooldown, tank::loadout::FIRE_COOLDOWN);
+        assert_eq!(c.max_hp[2], 650);
         assert_eq!(snap_loadout(1.0, 1.0, 1.0), "3-3-3");
         assert_eq!(snap_loadout(1.0, 0.0, 0.0), "5-2-2");
         assert_eq!(

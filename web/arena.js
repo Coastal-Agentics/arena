@@ -171,7 +171,7 @@ function renderWatchCards() {
     const r = readout(catalog, t.loadout, opp.loadout);
     const preset = presetName(catalog, t.loadout);
     return `<div class="tankcard"><h3><span class="team${i}">${TEAM_NAMES[i]}: ${behaviorName(t.behavior)}</span>${trainingBadge()}</h3>
-      <div>Build ${pretty(t.loadout)}${preset ? ` (${preset})` : ""} · ${r.damage} dmg · ${r.speed} u/s · ${r.hp} HP · kills in ${r.hitsToKill}</div></div>`;
+      <div>Build ${pretty(t.loadout)}${preset ? ` (${preset})` : ""} · ${r.damage} dmg · reload ${r.reloadSec} s · ${r.speed} u/s · ${r.hp} HP · kills in ${r.hitsToKill}</div></div>`;
   }).join("");
   $("watch-note").innerHTML = "<strong>Charger</strong> rushes and trades up close; <strong>Kiter</strong> circle-strafes at 250–350 u; <strong>Sniper</strong> holds a far spot with a sight line and fires only when precisely aimed. Set builds in the Customize tab.";
 }
@@ -220,6 +220,7 @@ function renderCustomize() {
     $(`cz-read${i}`).innerHTML = `
       <dt>Build</dt><dd>${pretty(t.loadout)} (A/S/D)${preset ? ` · ${preset}` : ""}</dd>
       <dt>Damage</dt><dd>${r.damage} per hit</dd>
+      <dt>Reload</dt><dd>${r.reloadSec} s between shots</dd>
       <dt>Max speed</dt><dd>${r.speed} u/s · turns ${r.turnDegPerSec}°/s</dd>
       <dt>HP</dt><dd>${r.hp}</dd>
       <dt>Hits to kill</dt><dd>${r.hitsToKill} (${r.damage} dmg vs ${TEAM_NAMES[1 - i]}'s ${r.oppHp} HP)</dd>`;
