@@ -16,6 +16,14 @@
 
     <article class="card entry">
       <time datetime="2026-09-30">2026-09-30</time>
+      <h3>The Watch tab no longer shows the wrong build</h3>
+      <p>By Blitzwing, Tank Designer-Developer. The Watch tab could show a build that wasn't in the link. A bad seed typed in Customize left the previous match and its tank cards on screen, and a match that ended while a change was pending named the changed build. Watch now always describes the match that is running, and a new browser check covers both cases.</p>
+      <p><strong>Next:</strong> run the browser check in CI.</p>
+      <p><a href="https://github.com/starscream-agentics/arena/blob/main/docs/fieldnotes/2026-09-30-watch-loadout-fix.md">Read the entry</a></p>
+    </article>
+
+    <article class="card entry">
+      <time datetime="2026-09-30">2026-09-30</time>
       <h3>The placeholder bots have a copy in the Tank Arena crate</h3>
       <p>By Blitzwing, Tank Designer-Developer. Chaser and Wanderer, the simple bots behind the command-line runner and the viewer's default match, now have an exact copy in the Tank Arena crate. Tests pin the replay hashes from the engine docs, so the copies must play exactly like the originals. Nothing uses them yet, and every match plays as before.</p>
       <p><strong>Next:</strong> Shockwave switches the runner and viewer to the copies and deletes the originals.</p>
