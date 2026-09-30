@@ -1,18 +1,21 @@
 //! Tank Arena game rules on top of the Coastal Agentics Arena engine.
 //!
-//! Implements `games/tank/SPEC.md` (GATE-002, approved):
-//! * [`bots`]: the placeholder `Chaser` and `Wanderer` (copied from `engine::bots`);
+//! Implements `games/tank/SPEC.md` (GATE-002, approved, with its 2026-09-30 amendment):
+//! * [`bots`]: the placeholder `Chaser` and `Wanderer` used by `engine-cli` and the
+//!   viewer's built-in-bot match;
 //! * [`loadout`]: the 9-point Attack/Speed/Defense budget, the 19 valid loadouts,
 //!   presets, the level → [`engine::TankParams`] mapping, hits-to-kill and the
 //!   Customize-triangle snap;
 //! * [`rules`]: the pillar arena, fixed mirrored spawns (duel, 2v2, FFA-4), the
-//!   7200-tick limit, and per-tank loadouts (stubbed until engine ask #5);
-//! * [`los`]: line of sight (a stand-in until engine ask #2);
+//!   7200-tick limit, and per-tank loadouts through `TankSpawn::params`;
+//! * [`los`]: line of sight, from `TankObs::los` between tanks and an obstacle test for
+//!   other points;
 //! * [`policies`]: the charger, kiter and sniper scripted policies with their params;
 //! * [`matchup`]: a shareable duel (seed, behaviors, loadouts) and its URL query form.
 //!
 //! The tank entity, `TankParams`, `TankSpawn`, the step rules and the tank
-//! `Observation`/`Action` still live in `engine/` (see ADR-009).
+//! `Observation`/`Action` still live in `engine/`: ADR-014 keeps them there unless a
+//! second Rust game appears (see ADR-009 and ADR-014).
 
 pub mod bots;
 pub mod loadout;
