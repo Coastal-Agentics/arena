@@ -1,6 +1,6 @@
-//! The placeholder bots `Chaser` and `Wanderer`, copied from `engine::bots` (ADR-014
-//! Phase A, step 1) with unchanged behaviour. Step 2 (Shockwave) switches `engine-cli`
-//! and `engine-wasm` to these copies and deletes `engine::bots`.
+//! The placeholder bots `Chaser` and `Wanderer`, used by `engine-cli` and by the web
+//! viewer's built-in-bot match (`engine-wasm`). They moved here from `engine::bots`
+//! (ADR-014 Phase A, #19 and #22) with unchanged behaviour.
 //!
 //! They play the engine's random-spawn duel (`MatchConfig::duel`), not the Tank Arena
 //! rules; the replay hashes quoted in `docs/engine/` come from them.
@@ -101,8 +101,8 @@ mod tests {
 
     #[test]
     fn documented_hashes_are_unchanged() {
-        // The constants of engine's `documented_hashes_are_unchanged` (ADR-014), quoted
-        // in docs/engine/engine-cli.md (42, 101, u64::MAX) and replay-format.md (7).
+        // The replay pins listed in ADR-014 and quoted in docs/engine/engine-cli.md
+        // (42, 101, u64::MAX) and replay-format.md (7); engine-cli pins its own rows too.
         let cases: [(u64, u32, &str, &str); 4] = [
             (42, 447, "03722b5e86d38fac", "-"),
             (7, 276, "51234f61b02b5784", "0b24ce74f45e9a27"),
@@ -126,8 +126,8 @@ mod tests {
 
     #[test]
     fn smoke_run_seeds_0_to_199_are_unchanged() {
-        // FNV-1a over (winner, ticks, state hash) of seeds 0..200, as engine::bots
-        // produced them when these copies were made.
+        // FNV-1a over (winner, ticks, state hash) of seeds 0..200, recorded from
+        // `engine::bots` before the move, so the bots still play exactly as they did.
         let mut h: u64 = 0xcbf2_9ce4_8422_2325;
         for seed in 0..200 {
             let m = play(seed);
