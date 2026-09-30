@@ -27,9 +27,11 @@ avoids OS, thread and time dependencies, and pulls in `rand_chacha` without defa
 
 Two layers:
 
-- **`Viewer`**, plain Rust and unit-tested natively. It wraps a `Match` on
-  `MatchConfig::duel()` and two boxed built-in policies, chosen by name with `BotKind::parse`
-  (`"chaser"` or `"wanderer"`, case-insensitive, trimmed).
+- **`Viewer`**, plain Rust and unit-tested natively. It wraps a `Match` and two boxed
+  built-in policies, chosen by name with `BotKind::parse` (`"chaser"` or `"wanderer"`,
+  case-insensitive, trimmed). `Viewer::new(seed, team0, team1)` uses `MatchConfig::duel()`;
+  `Viewer::with_config(config, seed, team0, team1)` takes any `MatchConfig`. Either way the
+  first bot drives tank 0 and the second tank 1; any further tanks idle.
   - `Viewer::step(n)` runs up to `n` ticks with the same logic as `Match::step_policies` (dead
     tanks idle) and stops early at the end.
   - `Viewer::state()` returns a `StateView` for drawing.
@@ -45,7 +47,8 @@ Wanderer seeding: `seed ^ 0x5eed` on team 1 (so Chaser vs Wanderer equals
 | JS | Returns | Notes |
 | --- | --- | --- |
 | `await init()` (default export) | | Loads `engine_wasm_bg.wasm` from `new URL('engine_wasm_bg.wasm', import.meta.url)`, i.e. next to the JS file |
-| `new WasmMatch(seed, team0, team1)` | `WasmMatch` | `seed` is a **decimal string**; bots `"Chaser"`/`"Wanderer"`. Throws on bad input |
+| `new WasmMatch(seed, team0, team1)` | `WasmMatch` | `MatchConfig::duel()`. `seed` is a **decimal string**; bots `"Chaser"`/`"Wanderer"`. Throws on bad input |
+| `WasmMatch.withConfig(configJson, seed, team0, team1)` | `WasmMatch` | Same, with a custom `MatchConfig` as a JSON string ([config](replay-format.md#config)), e.g. per-tank params. Throws `config json: …` on bad JSON or a missing field |
 | `m.step(n)` | `boolean` | Advance up to `n` ticks; `true` once the match is over |
 | `m.tick()` | `number` | Ticks so far |
 | `m.isOver()` | `boolean` | |
@@ -53,7 +56,22 @@ Wanderer seeding: `seed ^ 0x5eed` on team 1 (so Chaser vs Wanderer equals
 | `m.outcomeJson()` | `string` | `"null"` while running, else `{"winner":…,"ticks":…,"reason":…}` |
 | `m.stateHash()` | `string` | 16 hex digits; at the end of Chaser vs Wanderer, equal to `engine-cli`'s `hash` |
 | `m.free()` | | Release the Rust object |
+| `duelConfigJson()` | `string` | `MatchConfig::duel()` as JSON, a starting point for `withConfig` |
 | `engineVersion()` | `string` | `engine` crate version |
+
+`withConfig(duelConfigJson(), seed, a, b)` plays exactly like `new WasmMatch(seed, a, b)`
+(test `custom_config_with_per_tank_params`; checked in headless Chrome for six seeds). A
+loadout from JS:
+
+```js
+const cfg = JSON.parse(duelConfigJson());
+// A spawn's params replace the shared set as a whole: start from cfg.params.
+cfg.tanks[0].params = { ...cfg.params, projectile_damage: 28, max_hp: 60 };
+cfg.tanks[1].params = { ...cfg.params, projectile_damage: 24, max_speed: 90, turn_rate: 273, max_hp: 120 };
+const m = WasmMatch.withConfig(JSON.stringify(cfg), "42", "Chaser", "Wanderer");
+```
+
+Only the two built-in bots are available from JS so far.
 
 `StateView` JSON:
 
@@ -63,7 +81,7 @@ Wanderer seeding: `seed ^ 0x5eed` on team 1 (so Chaser vs Wanderer equals
   "obstacles": [{"x": 250.0, "y": 200.0, "w": 50.0, "h": 200.0}, …], // x, y = min corner
   "tanks": [{"id": 0, "team": 0, "x": …, "y": …,
              "heading": …, "turret": …,          // radians, CCW from +X (display only)
-             "hp": 100, "max_hp": 100, "alive": true}, …],
+             "hp": 100, "max_hp": 100, "alive": true}, …], // max_hp: this tank's own
   "projectiles": [{"x": …, "y": …, "vx": …, "vy": …, "team": 0}], // vx, vy per tick
   "outcome": null                                  // or {"winner", "ticks", "reason"}
 }
@@ -108,7 +126,10 @@ Version pins that must agree:
 **Rebuild `web/pkg` in any PR that touches `engine/` or `engine-wasm/`, including
 comment-only changes.** Doc comments on `#[wasm_bindgen]` items are copied into the JS glue as
 JSDoc. Panic locations (file:line) are compiled into the wasm, so moving code lines changes
-the bytes. This PR is an example: rustdoc-only edits changed both files.
+the bytes. PR #12 was an example: rustdoc-only edits changed both files.
+
+Size: `engine_wasm_bg.wasm` is 247,799 bytes (88,900 with `gzip -9`) since `withConfig`, up from
+161,993 (64,526), mostly `serde_json`'s deserializer.
 
 ## CI check (`wasm` job in `ci.yml`)
 

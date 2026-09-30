@@ -11,8 +11,10 @@ next to the code.
 
 **Current shape, stated plainly:** the engine is tank-shaped today. Tanks, projectiles, the tank
 `Observation`/`Action` pair, `TankParams` and the two placeholder bots all live in `engine/`.
-`games/tank` is a stub (a `GAME_NAME` constant and `tick_hz()`), waiting for the Tank Arena
-spec (GATE-002). ADR-009 plans for tank specifics to live in `games/tank`; its 2026-09-30
+`games/tank` is a stub (a `GAME_NAME` constant and `tick_hz()`). The Tank Arena spec
+(`games/tank/SPEC.md`, GATE-002) is merged, and the engine side of its asks is in: line of
+sight, per-tank params, `max_hp` and `los` in observations, optional stationary accuracy
+(replay format 4). The tank rules and policies themselves are not written yet. ADR-009 plans for tank specifics to live in `games/tank`; its 2026-09-30
 correction records that they are in `engine/` today and that the move is future work.
 
 ## Architecture
@@ -30,7 +32,7 @@ flowchart LR
   wasm -->|depends on| engine
 
   cli -->|"summary JSON (stdout)"| out["results: seed, winner,<br/>ticks, reason, hash"]
-  cli -->|"--replay-dir"| replays["match-SEED.json<br/>(replay format 3)"]
+  cli -->|"--replay-dir"| replays["match-SEED.json<br/>(replay format 4)"]
 
   wasm -->|"scripts/build-wasm.sh<br/>cargo build wasm32 + wasm-bindgen 0.2.100"| pkg["web/pkg<br/>engine_wasm.js + engine_wasm_bg.wasm<br/>(committed)"]
   pkg -->|"import ./pkg/engine_wasm.js"| js["web/arena.js<br/>canvas renderer"]
@@ -50,12 +52,12 @@ Data flow in one line each:
 
 | Page | What it covers |
 | --- | --- |
-| [World](world.md) | Arena, coordinates, headings, tanks, projectiles, `TankParams`, `MatchConfig::duel`, events, end conditions |
+| [World](world.md) | Arena, coordinates, headings (64-BAU aim resolution), line of sight, tanks, projectiles, `TankParams`, per-tank params, stationary accuracy, `MatchConfig::duel`, events, end conditions |
 | [Tick loop](tick-loop.md) | The fixed 60 Hz step, the exact order of work inside `Match::step`, how callers drive it |
-| [Seeds and determinism](determinism.md) | The ChaCha8 RNG and what draws from it, simultaneous movement, trig table, state hash, JS-safe string seeds |
-| [Observations, actions and policies](policies.md) | `Observation`, `Action`, the `Policy` trait, and the built-in `Chaser` and `Wanderer` |
-| [Replay format](replay-format.md) | `REPLAY_FORMAT` 3 field by field, the setup hash, versioning (format 2 still read), `verify`, `ReplayPlayer` |
+| [Seeds and determinism](determinism.md) | The ChaCha8 RNG and what draws from it, simultaneous movement, trig table, the one `sqrt`, state hash, JS-safe string seeds |
+| [Observations, actions and policies](policies.md) | `Observation` (including `max_hp` and `los`), `Action`, the `Policy` trait, and the built-in `Chaser` and `Wanderer` |
+| [Replay format](replay-format.md) | `REPLAY_FORMAT` 4 field by field, the setup hash, versioning (formats 2 and 3 still read), `verify`, `ReplayPlayer` |
 | [engine-cli](engine-cli.md) | Flags, output, replay files, examples |
-| [engine-wasm and the web viewer](wasm-and-web.md) | The JS API, building `web/pkg`, relative paths, the CI check, Pages deploy |
+| [engine-wasm and the web viewer](wasm-and-web.md) | The JS API (including `withConfig` and `duelConfigJson`), building `web/pkg`, relative paths, the CI check, Pages deploy |
 
 Related: [ADR-001, -003, -008, -009](../DECISIONS.md) in `docs/DECISIONS.md`.

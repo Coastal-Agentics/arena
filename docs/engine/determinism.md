@@ -11,11 +11,15 @@ Source: `engine/src/sim.rs`, `engine/src/angle.rs`, `engine/src/arena.rs`,
 
 As a spot check on 2026-09-30, Chaser vs Wanderer for seeds 0, 7, 42, 43, 1234 and
 18446744073709551615 gave the same tick count, outcome and final hash in the wasm build
-(headless Chrome) as `engine-cli` on native x86_64 Linux. That's evidence for those seeds on
-those two targets, nothing more.
+(headless Chrome) as `engine-cli` on native x86_64 Linux. So did a per-tank loadout through
+`WasmMatch.withConfig` (Glass Cannon 28 dmg / 60 HP vs Brawler 24 dmg, 90 u/s, 273 BAU/tick,
+120 HP, seed 42: tick 385, hash `86bc2f990b3b015d`). That's evidence for those runs on those
+two targets, nothing more.
 
 Tests that pin this down: `same_seed_same_match`, `different_seeds_differ`,
-`replay_json_roundtrip_reproduces_match`, `tampered_replay_is_detected` (engine),
+`replay_json_roundtrip_reproduces_match`, `tampered_replay_is_detected`,
+`documented_hashes_are_unchanged` (the hashes quoted in these pages),
+`per_tank_params_are_deterministic_and_change_the_match` (engine),
 `same_seed_same_json`, `match_i_is_reproducible_alone` (engine-cli) and
 `chaser_vs_wanderer_matches_headless_run` (engine-wasm, run natively).
 
@@ -37,11 +41,17 @@ In this order, and nowhere else:
      centre is at least 6 radii away. If all 1000 fail, the tank is placed at the arena
      centre;
    - if `heading` is `None`: one `u32`, top 16 bits → heading.
-2. **`Match::step`, per shot fired, in tank id order** (only if `projectile_spread > 0`):
-   one `u32`; deviation = `u32 % (2 * spread + 1) - spread` BAU.
+2. **`Match::step`, per shot fired, in tank id order**, only if that shot's effective spread
+   is above 0: one `u32`; deviation = `u32 % (2 * spread + 1) - spread` BAU. The effective
+   spread is the firing tank's own `projectile_spread`, or its `projectile_spread_still` when
+   that is set and the tank didn't move this tick ([stationary accuracy](world.md#stationary-accuracy)).
 
 Because shots draw in tank id order, the RNG stream depends on the order of `config.tanks`.
-Movement does not (see below).
+Movement does not (see below). The number of draws can depend on movement, though: with
+`projectile_spread_still: Some(0)`, a still tank's shot draws nothing, so every later draw in
+the match shifts by one. That's still deterministic (the same inputs give the same draws), just
+worth knowing when comparing two matches. Per-tank params add no draws: spawns still draw
+exactly as listed in step 1, with the shared radius.
 
 ### Policies bring their own randomness
 
@@ -66,6 +76,12 @@ A replay stores actions, not policies, so it re-simulates without any policy RNG
 - **One `sqrt`**, in the swept projectile-vs-tank test (`arena::segment_circle_entry`).
   IEEE-754 requires `sqrt` to be correctly rounded, so it gives the same bits everywhere.
   ADR-003 says to avoid `sqrt` "where avoidable"; this is the one place the code chose to use it.
+  The Tank Arena spec's engine ask #1 asks for swept hits with "dot products, no sqrt". The
+  swept hits it asks for have been in since PR #6 (the spec's own "Known engine limits"
+  cites it), with this one `sqrt` for the entry time. It was kept: it is deterministic, and a
+  `sqrt`-free rewrite would round differently in edge cases, so it could change outcomes and
+  hashes.
+  Line of sight (`Arena::segment_clear`) uses no `sqrt`.
 - **Plain `f32` arithmetic** otherwise (via `glam::Vec2`).
 - **Deterministic order everywhere:** `Vec`s iterated by index, no hash maps. Observation
   lists are sorted with `f32::total_cmp` (enemies and allies tie-break by id; projectiles use a
@@ -90,7 +106,8 @@ applied in id order (see [replay format](replay-format.md#versioning)).
 - per projectile, in list order: `owner`, `pos.x`, `pos.y`, `vel.x`, `vel.y`, `ttl`.
 
 Floats are hashed by `to_bits()`, so any drift at all changes the hash. It does **not** cover
-the config, the seed, the RNG's internal state, events or the action history. (Replays cover
+the config (including per-tank params), the seed, the RNG's internal state, events or the
+action history. (Replays cover
 the seed and config separately, with a [setup hash](replay-format.md#setup-hash) since format
 3.) Replays and
 `engine-cli` print it as 16 lowercase hex digits (`format!("{:016x}")`).

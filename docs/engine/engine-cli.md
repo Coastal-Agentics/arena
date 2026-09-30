@@ -37,7 +37,7 @@ Options:
 | --- | --- | --- | --- |
 | `--matches` | `u32` | 10 | `0` is allowed and prints an empty `results` list |
 | `--seed` | `u64` | 42 | Decimal, 0 to 18446744073709551615. Negative or non-numeric input is rejected by clap (exit code 2) |
-| `--replay-dir` | path | none | Created if missing (`create_dir_all`). Writes `match-<seed>.json` per match in [replay format 3](replay-format.md), overwriting existing files |
+| `--replay-dir` | path | none | Created if missing (`create_dir_all`). Writes `match-<seed>.json` per match in [replay format 4](replay-format.md), overwriting existing files |
 | `-V`, `--version` | | | Prints `engine-cli 0.1.0` (the workspace version) |
 
 There are no subcommands. The binary and crate keep the name `engine-cli` (ADR-011 keeps crate names). The first line of `--help` is the clap `about` string in `engine-cli/src/main.rs`; test `help_uses_current_branding` keeps "Starscream" out of it.
@@ -97,7 +97,7 @@ match-100.json
 match-101.json
 ```
 
-`match-101.json` has `"format":3`, `"seed":"101"`, 274 entries in `actions`, outcome
+`match-101.json` has `"format":4`, `"seed":"101"`, 274 entries in `actions`, outcome
 `{"winner":1,"ticks":274,"reason":"last_standing"}`, `"final_hash":"baf3fcb2cbb76c06"` (the
 same hash as the summary line) and `"setup_hash":"9cfd58498bbe3f85"`.
 
