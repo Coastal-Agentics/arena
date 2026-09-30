@@ -137,6 +137,7 @@ dependencies = [
  "engine",
  "serde",
  "serde_json",
+ "tank",
  "wasm-bindgen",
 ]
 

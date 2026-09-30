@@ -12,6 +12,7 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 engine = { path = "../engine" }
+tank = { path = "../games/tank" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 # Pinned exactly: the committed web/pkg glue must come from the same wasm-bindgen-cli version.
