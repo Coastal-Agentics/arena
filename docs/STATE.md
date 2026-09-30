@@ -1,60 +1,71 @@
 # STATE
 
-_Single source of truth. Owned by the CoS (Soundwave). Updated at the end of every work cycle._
+_Single source of truth for Coastal Agentics (formerly Starscream Agentics). Owned by the CoS (Soundwave). Updated at the end of every work cycle._
 
-**Last updated:** 2026-09-27 12:00 ET (America/New_York)
-**Phase:** 1 — Engine + Tank spec (started 2026-09-27)
+**Last updated:** 2026-09-30 15:30 ET (America/New_York)
+**Phase:** 2 — Tank Arena (engine criteria of Phase 1 met; spec gate and Phase 1 playbook still open)
 
-## Phase 0 — done
-Repo, workspace stubs, CI (`lint`, `test`, `wasm`), nightly workflow, docs, web placeholder, branch protection on `main` requiring CI. Playbook: `docs/playbooks/phase-0-scaffold.md`.
+## Restructure — 2026-09-30 (ADR-011)
+- Company renamed **Coastal Agentics**, Savannah, Georgia. Founded on GitHub October 1, 2026. Charter replaced (`docs/CHARTER.md`).
+- Repo renamed `starscream` → **`arena`**; old URLs redirect. Org profile updated (name, description, location).
+- Org login rename `starscream-agentics` → `coastal-agentics`: **pending Nye** (the API can't rename orgs; Settings → Rename organization).
+- Hosting moved from Vercel to **GitHub Pages** (ADR-008): `.github/workflows/pages.yml`, site at https://starscream-agentics.github.io/arena/ (moves with the org rename). `web/vercel.json` removed.
+- Devlog is now **field notes**: `docs/fieldnotes/`, `web/fieldnotes.html` (`web/devlog.html` redirects). Role briefs rebranded in `docs/roles/`. Provenance card template: `docs/CARD.md`.
 
-## Phase 1 exit criteria (CHARTER: "Done when CI runs 10 headless matches green and a seed reproduces a match")
+## Phase 2 status
+| Item | Status |
+|---|---|
+| Tank Arena spec (`games/tank/SPEC.md`) | At **GATE-002**, awaiting Nye (#4). Do not merge until approved |
+| Browser viewer (wasm) | **In progress**: Shockwave, branch `engine/viewer-v0` (#8). Needs a rebase onto the rename (field notes paths, `fieldnotes.html`) |
+| Pages deploy | **Workflow added** (`pages.yml`), deploys `web/` on push to `main` |
+| Tank rules, three scripted policies | Blocked on GATE-002 |
+
+## Phase 1 exit criteria
 | Criterion | Status |
 |---|---|
-| CI runs 10 headless matches green | **Met.** The `test` job runs `engine-cli --matches 10 --seed 42`; green on `main` after #6 |
-| A seed reproduces a match | **Met.** Same seed gives identical output (verified in #2; `engine-cli` tests `same_seed_same_json` and `match_i_is_reproducible_alone` run in CI) |
-| `games/tank/SPEC.md` approved (GATE-002) | **Not met.** In revision (#4) |
-| Phase 1 playbook entry in `docs/playbooks/` | **Not met.** Written when Phase 1 closes |
-
-The engine criteria are met. Phase 1 stays open until GATE-002 clears and the playbook entry exists.
+| CI runs 10 headless matches green | **Met** (#6) |
+| A seed reproduces a match | **Met** (#2) |
+| `games/tank/SPEC.md` approved (GATE-002) | **Not met** (#4) |
+| Phase 1 playbook entry | **Not met** |
 
 ## Merged
 | PR | What |
 |---|---|
-| #1 | CoS housekeeping; GATE-001 approved: Vercel Hobby for the POC (ADR-006) |
-| #2 | Phase 1 engine core + `engine-cli`, deterministic; verified same seed gives identical output |
-| #5 | Nightly publishes to the unprotected `nightly-data` branch (ADR-007 revised); the CoS copies results to `main` by PR in its daily cycle; deleting or force-pushing `nightly-data` is gated |
+| #1 | CoS housekeeping; GATE-001 (Vercel Hobby, now superseded by ADR-008) |
+| #2 | Phase 1 engine core + `engine-cli`, deterministic |
+| #5 | Nightly publishes to the unprotected `nightly-data` branch (ADR-007) |
 | #6 | Swept projectile hits, seeds as strings, simultaneous movement, `REPLAY_FORMAT` 2 |
+| #7 | CoS cycle 2026-09-27: STATE, roster names, cards |
+| this PR | Coastal Agentics restructure (charter, rename, Pages, field notes, CARD.md) |
 
 ## Gates
 | Gate | Question | Status |
 |---|---|---|
-| GATE-001 | Vercel plan tier for the POC | **APPROVED** by Nye 2026-09-27: Hobby for the POC; move to Pro before anything commercial (ADR-006) |
-| GATE-002 | Tank Arena spec (`games/tank/SPEC.md`, PR #4) | **IN REVISION.** Nye answered the questions: a match is a draw at the time cap; one tank type with adjustable attack, speed and defense stats. Blitzwing is revising; then it goes back to Nye for `APPROVE` |
+| GATE-001 | Vercel plan tier | APPROVED 2026-09-27 (Hobby); **moot** since Vercel was dropped (ADR-008) |
+| GATE-002 | Tank Arena spec (#4) | **OPEN.** Revised per Nye's answers (draw at time cap; one tank type with adjustable attack, speed, defense); awaiting `APPROVE` |
 
 ## Open tasks
 | Task | Owner | PR | Status |
 |---|---|---|---|
-| Revise `games/tank/SPEC.md` per Nye's GATE-002 answers | Blitzwing (Tank Designer-Developer) | #4 | in revision |
-| Import repo into Vercel (Hobby, root `web/`) | Nye | — | pending Nye |
-| Verify the AgentMail inbox (optional) | Nye | — | pending Nye, optional |
-| Decide wasm-to-Vercel pipeline (ADR-005) | Soundwave → Nye | — | open decision; needed before Phase 2 deploy |
-
-## Open PRs
-- #4 — GATE-002 draft: Tank Arena `SPEC.md` (Blitzwing). Do not merge until Nye approves.
+| Rename org to `coastal-agentics` | Nye | — | pending Nye |
+| Tank spec gate | Blitzwing → Nye | #4 | awaiting GATE-002 |
+| Viewer v0 | Shockwave | #8 | in progress |
+| Verify the AgentMail inbox (optional) | Nye | — | optional |
 
 ## Known engine limits
-- The swept hit check treats target tanks as stationary within a tick (the projectile's path is swept; the target's motion during that tick is not).
+- The swept hit check treats target tanks as stationary within a tick.
 
 ## Work budget used
-- 2026-09-27: cycles for Phase 0 scaffold, housekeeping, nightly fix, and this 12:00 ET cycle, all started by Nye's messages. Worker tasks: Shockwave (engine core #2, follow-ups #6) done; Blitzwing (spec #4) in revision.
-- Limits: 1 scheduled cycle/day + cycles from Nye's messages; max 2 worker tasks at once.
+- 2026-09-27: Phase 0 scaffold, housekeeping, nightly fix, 12:00 ET cycle (all Nye-triggered). Shockwave #2, #6; Blitzwing #4.
+- 2026-09-30: restructure cycle (Nye-triggered); Shockwave viewer #8 running (1 of 2 worker slots).
+- Limits: 1 scheduled cycle per weekday + founder-triggered cycles; max 2 concurrent workers.
 
 ## Blockers
-- **Vercel import pending Nye.** The site is not live until the project is imported.
-- wasm-to-Vercel pipeline is OPEN (ADR-005); not blocking Phase 1, blocks the Phase 2 deploy.
+- Org rename needs Nye in the GitHub UI.
+- Tank rules wait on GATE-002.
 
 ## Next
-1. **GATE-002**: Blitzwing's revised spec goes back to Nye for `APPROVE`.
-2. After approval: implement the tank game (charger / kiter / sniper policies), a line-of-sight helper, adjustable tank stats (attack, speed, defense), and the wasm browser viewer.
+1. GATE-002 approval, then tank rules and the three scripted policies.
+2. Merge the viewer (#8) once rebased and green; confirm it on the Pages site.
 3. Write the Phase 1 playbook entry and close Phase 1.
+4. First `[COASTAL][MONTHLY]` roll-up to Nye on 2026-10-01.
