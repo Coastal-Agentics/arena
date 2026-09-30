@@ -28,7 +28,7 @@
 - **Where:** the nightly workflow already exists (`.github/workflows/nightly.yml`, 07:00 UTC = 3:00 AM ET, `timeout-minutes: 60`). Its self-play step is an `echo` placeholder today. It merges `main` into the unprotected `nightly-data` branch and may commit only `web/data/` and `docs/fieldnotes/` (ADR-007).
 - **Budget:** public-repo `ubuntu-latest` runners have 4 CPUs and 16 GB, are free, and allow up to 6 hours per job ([runner specs](https://docs.github.com/en/actions/reference/runners/github-hosted-runners), [limits](https://docs.github.com/en/actions/reference/limits)). On the box, one core plays about **600 Tank Arena matches per second** (1,200 triangle matches in 2.0 s). A generation (32 candidates × about 280 matches ≈ 9,000 matches) therefore takes roughly 4–15 s on 4 cores. The plan caps training at **30 minutes and 100 generations a night**, well inside the job's 60 minutes.
 - **Promotion:** the nightly publishes to `nightly-data` only. The CoS brings `nightly-data` into `main` with a normal PR, as ADR-007 says. A champion becomes the viewer's **default** "Gen N" only through a reviewed PR (Blitzwing + CoS), never automatically.
-- **Change to `.github/`:** M1 needs the placeholder step replaced. That file is outside Blitzwing's paths (`games/tank/`, `web/`), so the change is proposed as a separate PR for whoever owns workflows.
+- **Change to `.github/`:** M1 needs the placeholder step replaced. That file is outside Blitzwing's paths (`games/tank/`, `web/`), so it goes to the workflow owner (the CoS) as a spec: [`GATE-003-nightly-spec.md`](GATE-003-nightly-spec.md), with the exact commands, layout, caps and hold rule.
 
 ## 4. What Nye sees
 
