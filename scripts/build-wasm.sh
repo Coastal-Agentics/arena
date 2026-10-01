@@ -12,6 +12,8 @@ cd "$(dirname "$0")/.."
 cargo_home="${CARGO_HOME:-$HOME/.cargo}"
 export RUSTFLAGS="${RUSTFLAGS:-} --remap-path-prefix=${cargo_home%/}=/cargo --remap-path-prefix=$PWD=/src"
 cargo build -p engine-wasm --release --target wasm32-unknown-unknown
-wasm-bindgen --target web --no-typescript --out-dir web/pkg \
-  target/wasm32-unknown-unknown/release/engine_wasm.wasm
+# --remove-name-section drops the debug `name` section (function names, ~70 KB) that only
+# profilers and stack traces use; --remove-producers-section drops the toolchain telemetry.
+wasm-bindgen --target web --no-typescript --remove-name-section --remove-producers-section \
+  --out-dir web/pkg target/wasm32-unknown-unknown/release/engine_wasm.wasm
 ls -l web/pkg

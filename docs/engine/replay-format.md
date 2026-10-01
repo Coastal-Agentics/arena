@@ -1,8 +1,10 @@
 # Replay format (version 4)
 
-Source: `engine/src/replay.rs`, `engine/src/json_u64.rs`, the serde derives in
-`engine/src/sim.rs`, `policy.rs` and `arena.rs`, and the replay tests in `engine/src/lib.rs`
-and `engine-cli/src/main.rs`.
+Source: `engine/src/generic/replay.rs` (the generic `Replay<R>`, `ReplayPlayer<R>`,
+`setup_hash`, `ReplayError`), `engine/src/replay.rs` (the tank aliases `engine::Replay` and
+`engine::ReplayPlayer`), `TankRules::check_format` in `engine/src/sim.rs`,
+`engine/src/json_u64.rs`, the serde derives in `engine/src/sim.rs`, `policy.rs` and
+`arena.rs`, and the replay tests in `engine/src/lib.rs` and `engine-cli/src/main.rs`.
 
 A replay is **config + seed + every tick's actions**. It stores no positions or frames:
 playing a replay means re-simulating it, so a replay is both viewer input and a determinism
@@ -156,7 +158,7 @@ It still covers only the dynamic state ([state hash](determinism.md#state-hash))
 | --- | --- |
 | `Replay::from_match(&m)` / `m.replay()` | Snapshot a match, finished or not |
 | `Replay::to_json()` | Compact JSON string |
-| `Replay::from_json(s)` | Parse, then check in this order: `ReplayError::Json(msg)` on bad JSON or a missing or ill-typed field; `ReplayError::Format(n)` unless `format` is 2, 3 or 4; `ReplayError::MissingSetupHash` for format 3 or 4 without `setup_hash`; `ReplayError::FieldNotInFormat { format, field }` for a format 2 or 3 file that uses a format 4 field. Doesn't simulate |
+| `Replay::from_json(s)` | Parse, then check in this order: `ReplayError::Json(msg)` on bad JSON or a missing or ill-typed field; `ReplayError::Format(n)` unless `format` is 2, 3 or 4; `ReplayError::MissingSetupHash` for format 3 or 4 without `setup_hash`; `ReplayError::FieldNotInFormat { format, field }` for a format 2 or 3 file that uses a format 4 field (the rules' `check_format`; for tanks, `TankRules::check_format`). Doesn't simulate |
 | `Replay::play()` | `Match::new(config, seed)`, then `step` each recorded tick; returns the match. No checks |
 | `Replay::verify()` | 1. if `setup_hash` is present, recompute it from `seed` and `config` (`ReplayError::SetupMismatch`); 2. `play()`; 3. compare the outcome (`ReplayError::OutcomeMismatch`); 4. compare `final_hash` (`ReplayError::HashMismatch`). Hashes are exact string compares. Returns the re-simulated `Match` on success |
 | `ReplayPlayer::new(r)`, `.step()`, `.state()`, `.is_finished()` | Tick-by-tick playback for a viewer; `step()` returns `false` once every recorded tick is applied |

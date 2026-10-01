@@ -32,7 +32,8 @@ jobs:
 
   test:
     name: test
-    runs-on: ubuntu-latest
+    # Pinned: the tests compare pinned match and state hashes (ADR-003: same platform).
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
       - name: Install toolchain (from rust-toolchain.toml)
@@ -45,7 +46,9 @@ jobs:
 
   wasm:
     name: wasm
-    runs-on: ubuntu-latest
+    # Pinned: rebuilt web/pkg must byte-match the committed copy, and the viewer check
+    # uses the image's /usr/bin/google-chrome.
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
       - name: Install toolchain (from rust-toolchain.toml)
@@ -76,6 +79,17 @@ jobs:
             exit 1
           }
           test -z "$(git status --porcelain -- web/pkg)"
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          package-manager-cache: false
+      - name: Native-vs-wasm parity (pinned replays)
+        run: |
+          node --version
+          node scripts/check-parity.mjs || {
+            echo "::error::web/pkg disagrees with the natively recorded manifest in engine-wasm/tests/parity/. See docs/engine/determinism.md (Native-vs-wasm parity)."
+            exit 1
+          }
       - name: Browser viewer check
         run: |
           python3 -m venv .ci-venv
