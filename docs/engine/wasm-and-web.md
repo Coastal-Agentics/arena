@@ -199,8 +199,19 @@ cargo install wasm-bindgen-cli --version 0.2.100 --locked
 1. sets `RUSTFLAGS` to remap `$CARGO_HOME` → `/cargo` and the repo root → `/src`, so paths
    embedded in panic messages don't depend on who built it;
 2. `cargo build -p engine-wasm --release --target wasm32-unknown-unknown`;
-3. `wasm-bindgen --target web --no-typescript --out-dir web/pkg
-   target/wasm32-unknown-unknown/release/engine_wasm.wasm`.
+3. `wasm-bindgen --target web --no-typescript --remove-name-section --remove-producers-section
+   --out-dir web/pkg target/wasm32-unknown-unknown/release/engine_wasm.wasm`. The two
+   `--remove-*` flags (since 2026-09-30) drop the `name` custom section (Rust function names,
+   about 71 KB, used only by profilers and stack traces) and the `producers` section
+   (toolchain telemetry, 112 bytes). Code and data are unchanged.
+
+**Debugging a wasm stack trace.** Without the `name` section, stack frames read
+`wasm://wasm/…:wasm-function[84]:0x22244` instead of `engine_wasm::check_replay_json`. The
+error message itself is unchanged: `engine-wasm` has no panic hook, so a Rust panic surfaces
+as `RuntimeError: unreachable` in either build, and `Result` errors keep their text. To get
+names back locally, run the step-3 `wasm-bindgen` command without the two `--remove-*` flags
+(into another `--out-dir`, not `web/pkg`). The function indices are the same in both
+builds, so a stripped trace maps back to names.
 
 Output: `web/pkg/engine_wasm.js` and `web/pkg/engine_wasm_bg.wasm`, both committed.
 
@@ -216,11 +227,15 @@ comment-only changes.** Doc comments on `#[wasm_bindgen]` items are copied into 
 JSDoc. Panic locations (file:line) are compiled into the wasm, so moving code lines changes
 the bytes. PR #12 was an example: rustdoc-only edits changed both files.
 
-Size: `engine_wasm_bg.wasm` is 356,307 bytes (117,336 with `gzip -9`) since `checkReplayJson`
-(the parity check, 2026-09-30), up from 303,694 (105,297): +52,613 bytes, +12,039 gzipped.
-`twiggy diff` puts 14,000 of that in the function-names section; the rest is mostly
-`serde_json` deserializers for `Replay`, `Action` and `Outcome` (the viewer never parsed
-those before). History: 161,993 (64,526 gzipped) before `withConfig`; 247,799 (88,900)
+Size: `engine_wasm_bg.wasm` is 284,864 bytes (108,790 with `gzip -9 -n`) since
+`build-wasm.sh` strips the `name` and `producers` sections (2026-09-30), down from 356,307
+(117,316): −71,443 bytes (−20.1%), −8,526 gzipped. (`gzip -n` leaves the file name out of the
+header. The older gzipped figures in this paragraph were measured with `gzip -9 -c <file>`,
+which stores the name: 20 bytes for `engine_wasm_bg.wasm`, so #31's "117,336" is 117,316
+without it.) History: 356,307 with `checkReplayJson` (the
+parity check, #31), up from 303,694 (105,297): +52,613 bytes, 14,000 of it more
+function names and the rest mostly `serde_json` deserializers for `Replay`, `Action` and
+`Outcome`; 161,993 (64,526 gzipped) before `withConfig`; 247,799 (88,900)
 with it, mostly `serde_json`'s deserializer; 303,811 with rules v1 (#18, the `tank` crate and
 its catalog); 303,841 after the bots moved to `games/tank` (#22); 302,941 after the evolution
 loop (#27); 303,694 with the generic core (ADR-014 B1, #30).
@@ -232,12 +247,13 @@ loop (#27); 303,694 with the generic core (ADR-014 B1, #30).
 3. run `./scripts/build-wasm.sh`;
 4. fail if `git diff --exit-code -- web/pkg` shows a change, or `git status --porcelain --
    web/pkg` shows untracked files;
-5. run the headless browser check (`scripts/check-viewer-browser.py`, Playwright with the
+5. set up Node 22 and run the [parity check](determinism.md#native-vs-wasm-parity)
+   (`node scripts/check-parity.mjs`, added in #32 from [CI specs](ci-specs.md) (a));
+6. run the headless browser check (`scripts/check-viewer-browser.py`, Playwright with the
    image's Chrome).
 
-So a PR with a stale or non-reproducible `web/pkg` goes red. The job runs on `ubuntu-24.04`
-by name (#29). The [parity check](determinism.md#native-vs-wasm-parity)'s Node step is
-specified for this job in [CI specs](ci-specs.md) and is not wired in yet.
+So a PR with a stale or non-reproducible `web/pkg`, or one whose wasm disagrees with the
+native parity manifest, goes red. The job runs on `ubuntu-24.04` by name (#29).
 
 ## Deploy: GitHub Pages
 

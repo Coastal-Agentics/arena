@@ -13,7 +13,7 @@ Shockwave against the workflows on `main` at `2e899fb`:
 Checkout is `actions/checkout@v7` and caching is `actions/cache@v6` or `Swatinem/rust-cache@v2`.
 The new steps below use the same pins.
 
-## (a) Native-vs-wasm parity hookup (ready to apply)
+## (a) Native-vs-wasm parity hookup (applied in #32)
 
 What it runs: `node scripts/check-parity.mjs`, the wasm side of the
 [parity check](determinism.md#native-vs-wasm-parity). The native side,

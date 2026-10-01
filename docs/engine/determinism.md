@@ -177,8 +177,8 @@ check makes that a standing test on a fixed set of pinned replays (GATE-003 ask 
   to 0.5.) The script exports `checkFixtures(manifest, texts, checkReplayJson)`, so the same
   comparison runs in a browser page. On 2026-09-30 headless Chrome 154 and Node 20 gave
   identical `checkReplayJson` output for all seven fixtures.
-- **CI:** the native side is in the `test` job. Hooking the Node script into the `wasm` job
-  is specified in [CI specs](ci-specs.md) for the workflow owner.
+- **CI:** the native side runs in the `test` job, and the Node script in the `wasm` job
+  (since #32, from [CI specs](ci-specs.md) (a)).
 
 **Regenerating:** `cargo run -p engine-wasm --example parity_fixtures` rewrites every fixture
 and the manifest. It's deterministic: two runs give byte-identical files. The replays store
