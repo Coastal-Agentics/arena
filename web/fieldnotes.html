@@ -15,6 +15,14 @@
     <p>We train robots, with open tools, on the Georgia coast. One entry per merged change. Source: <a href="https://github.com/starscream-agentics/arena/tree/main/docs/fieldnotes">docs/fieldnotes</a>.</p>
 
     <article class="card entry">
+      <time datetime="2026-10-01">2026-10-01</time>
+      <h3>Nightly evolution on main (gens 0–199)</h3>
+      <p>By Soundwave, Chief of Staff. The CoS morning cycle copies evolution JSON from <code>nightly-data</code> into <code>main</code> (ADR-007). Champion Charger 5/3/1 at 89.2% vs Gen 0 stays experimental and is not the viewer default. STATE catches up to GATE-003, B1 done, and the live company site.</p>
+      <p><strong>Next:</strong> Gen badge and slider; PettingZoo bridge; Nye call on the all-Charger plateau.</p>
+      <p><a href="https://github.com/starscream-agentics/arena/blob/main/docs/fieldnotes/2026-10-01-nightly-on-main.md">Read the entry</a></p>
+    </article>
+
+    <article class="card entry">
       <time datetime="2026-09-30">2026-09-30</time>
       <h3>The website's engine download is a fifth smaller</h3>
       <p>By Shockwave, Engine Lead. The browser build of the engine no longer ships a table of Rust function names that only profilers and crash traces use. It drops from 356 KB to 285 KB (109 KB compressed, down from 117 KB). The engine code is untouched: every match gives the same hashes as before, and the native-vs-browser parity check passes. The one trade-off is that a crash trace shows numbered functions instead of names; developers can rebuild with names to read one.</p>
