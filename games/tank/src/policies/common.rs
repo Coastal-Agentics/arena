@@ -486,26 +486,14 @@ mod tests {
         }
         assert!((160..=240).contains(&reacted), "{reacted}");
         // A shell we ignore does not hide a second one we react to.
+        let (ignored, other) = (Vec2::new(-6.0, 0.1), Vec2::new(-6.0, -0.1));
         let mut r = Reflex::new(0);
-        let (mut ignored, mut chance) = (None, 0.0);
-        for k in 0..64 {
-            let v = Vec2::new(-6.0, 0.001 * k as f32);
-            obs.projectiles = vec![shell(Vec2::new(60.0, 5.0), v)];
-            if r.update(&obs, &p(0.5)).is_none() {
-                ignored = Some(v);
-                chance = 0.5;
-                break;
-            }
-        }
-        let ignored = ignored.expect("some roll says ignore");
+        r.seen = vec![(ignored, false), (other, true)];
         obs.projectiles = vec![
             shell(Vec2::new(30.0, 5.0), ignored),
-            shell(Vec2::new(90.0, -5.0), Vec2::new(-6.0, 0.0)),
+            shell(Vec2::new(90.0, -5.0), other),
         ];
-        let mut r2 = r.clone();
-        r2.seen.retain(|(v, _)| *v == ignored);
-        r2.seen.push((Vec2::new(-6.0, 0.0), true));
-        let d = r2.update(&obs, &p(chance)).expect("second shell");
+        let d = r.update(&obs, &p(0.5)).expect("second shell");
         assert!(d.y > 0.0, "{d}");
     }
 
