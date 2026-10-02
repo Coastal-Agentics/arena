@@ -54,8 +54,8 @@ impl Default for SniperParams {
             replan_every: 30,
             replan_gain: 80.0,
             arrive_radius: 10.0,
-            aim_tol: 0.02,
-            evade_dist: 250.0,
+            aim_tol: 0.025,
+            evade_dist: 238.0,
             evade_ticks: 60,
             evade_jitter: 15,
             blind_ticks: 120,
@@ -63,9 +63,9 @@ impl Default for SniperParams {
             steer_tol: 0.2,
             route_margin: 12.0,
             dodge: DodgeParams {
-                horizon: 20.0,
-                margin: 4.0,
-                chance: 1.0,
+                horizon: 15.0,
+                margin: 5.4,
+                chance: 0.61,
             },
             stall: StallParams::default(),
         }

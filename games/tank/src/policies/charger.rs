@@ -38,16 +38,16 @@ impl Default for ChargerParams {
         Self {
             steer_tol: 0.2,
             stop_dist: 60.0,
-            aim_tol: 0.05,
+            aim_tol: 0.044,
             route_margin: 12.0,
-            weave_deg: 20.0,
+            weave_deg: 14.0,
             weave_period: 30,
             weave_jitter: 10,
             weave_until: 150.0,
             dodge: DodgeParams {
-                horizon: 20.0,
-                margin: 4.0,
-                chance: 1.0,
+                horizon: 23.0,
+                margin: 5.3,
+                chance: 0.65,
             },
             stall: StallParams::default(),
         }

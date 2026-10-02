@@ -37,18 +37,18 @@ impl Default for KiterParams {
     fn default() -> Self {
         Self {
             min_dist: 250.0,
-            max_dist: 350.0,
+            max_dist: 348.0,
             bend_deg: 30.0,
             wall_margin: 60.0,
-            flip_every: 180,
-            flip_jitter: 60,
+            flip_every: 190,
+            flip_jitter: 40,
             wall_flip_cooldown: 30,
             steer_tol: 0.2,
-            aim_tol: 0.05,
+            aim_tol: 0.048,
             dodge: DodgeParams {
-                horizon: 10.0,
-                margin: 1.1,
-                chance: 1.0,
+                horizon: 11.0,
+                margin: 0.66,
+                chance: 0.95,
             },
             stall: StallParams::default(),
         }
