@@ -10,13 +10,17 @@ compares the URL, the page's spec, the running match's setup, the Watch cards, t
 Customize readout and each tank's max_hp, and checks that no web storage is used.
 Regression cases: a bad seed typed in Customize used to leave the previous match (and its
 build on the Watch cards) showing; a match that ended while a Customize edit was pending
-used to name the edited build in its result line. Not run by CI (it needs a browser).
+used to name the edited build in its result line. The result-line check is
+winner-neutral: it reads the winner from the sim's outcome instead of assuming one.
+CI runs this in the `wasm` job (.github/workflows/ci.yml) with the runner's
+/usr/bin/google-chrome, after the web/pkg freshness and parity checks.
 """
-import functools, http.server, os, sys, threading
+import functools, http.server, os, re, sys, threading
 from playwright.sync_api import sync_playwright
 
 WEB = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "web")
 HP = {1: 460, 2: 550, 3: 650, 4: 790, 5: 940}  # MAX_HP by Defense level (games/tank)
+TEAMS = ["Blue", "Orange"]  # TEAM_NAMES in web/arena.js, by side
 fails = []
 
 
@@ -49,6 +53,8 @@ PROBE = """() => {
     cards: [...document.querySelectorAll('#watch-cards .tankcard')].map(text),
     read: [0, 1].map(i => { const r = document.getElementById('cz-read' + i); return r ? text(r) : ''; }),
     result: document.getElementById('result').textContent,
+    ended: !!(a.state && a.state.outcome),
+    winner: a.state && a.state.outcome ? a.state.outcome.winner : null,
     storage: Object.keys(localStorage).length + Object.keys(sessionStorage).length,
   };
 }"""
@@ -56,6 +62,21 @@ PROBE = """() => {
 
 def build(t):
     return "Build " + t.split("-", 1)[1].replace("-", "/")
+
+
+def result_names_match(s, want):
+    """The result line names both running builds, with the sim's winner first (or a draw).
+
+    Winner-neutral: who wins comes from the outcome, never from an assumed side."""
+    side = [f"{TEAMS[i]} \\([^()]+ {re.escape(build(w)[len('Build '):])}\\)" for i, w in enumerate(want)]
+    if not s["ended"]:
+        return False
+    w = s["winner"]
+    if w is None:
+        pat = rf"Draw \(.+\) at [0-9.]+s: {side[0]} vs {side[1]}$"
+    else:
+        pat = rf"{side[w]} beats {side[1 - w]} — .+, [0-9.]+s$"
+    return re.match(pat, s["result"]) is not None
 
 
 def agree(pg, label, want):
@@ -121,7 +142,8 @@ def main():
         pg.wait_for_function("window.__arena.state.outcome", timeout=180000)
         preset(0, "3-3-3"); pg.click("#tab-watch")
         s = agree(pg, "ended during an undone edit", ["kiter-3-3-3", "charger-4-1-4"])
-        check("5/3/1" not in s["result"] and "3/3/3" in s["result"], f"result line names the running build: {s['result']!r}")
+        check("5/3/1" not in s["result"] and result_names_match(s, ["kiter-3-3-3", "charger-4-1-4"]),
+              f"result line names the running builds, winner per the sim (winner={s['winner']}): {s['result']!r}")
         b.close()
     check(not errors, f"no page errors {errors}")
     print(f"check-viewer-browser: {'FAILED: ' + str(len(fails)) if fails else 'all checks passed'}")

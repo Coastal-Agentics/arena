@@ -9,7 +9,7 @@ _Single source of truth for Coastal Agentics (formerly Starscream Agentics). Own
 - **GATE-002 is approved** (Sep 30 amendment): HP 460–940 across Defense 1–5; Speed sets reload (64/54/45/37/31 ticks). Rules-v1 is live (#18).
 - **GATE-003 is approved** (learning tanks plan, #26). M1 evolution loop (#27) and M2 nightly job (#28) are live. M3 (Python/PettingZoo bridge) is next and owned by Shockwave.
 - **ADR-014 B1 is done** (#30): generic sim core with the `Rules` trait. B2–B5 stay deferred until a second Rust game exists.
-- Nightly evolution on `nightly-data` reached **generation 299** ([run 36874495749](https://github.com/starscream-agentics/arena/actions/runs/36874495749); tip commit message `nightly: results 2026-10-01`). Champion is **Charger 2/5/2** at **99.88%** vs Gen 0 on 1,000 held-out seeds — **held as experimental** (>70% promotion ceiling). Population remains all Chargers. Plateau continues: further gains likely need scripted dodging or a rules change — note for Nye.
+- **Evolution lineage reset 2026-10-02** after #37 (scripted dodge) changed the gene tables. The pre-dodge lineage (seed 1, gens 0–399; last champion Gen 399 Charger 5/3/1 at 92.92% vs the old Gen 0, held as experimental) is archived on `nightly-data` in `web/data/evolution/archive/pre-dodge-2026-10-02/`. Its copy on `main` is removed. The next nightly starts a fresh Gen 0 under the new rules, after Blitzwing's dodge-strength cap PR lands.
 - The Oct 2 3 AM ET scheduled nightly appears skipped again; this morning cycle dispatched `workflow_dispatch` to catch up ([run 37012871253](https://github.com/starscream-agentics/arena/actions/runs/37012871253)).
 - Parity and packaging: native-vs-wasm check (#31, #32); wasm strip (#33). Runner pinned to `ubuntu-24.04` (#29).
 - Live viewer: [arena](https://starscream-agentics.github.io/arena/arena.html). Company site live: [coastal-agentics.github.io](https://coastal-agentics.github.io/) (headline v1.2). Sims stay under `starscream-agentics`.
@@ -22,8 +22,8 @@ _Single source of truth for Coastal Agentics (formerly Starscream Agentics). Own
 | ADR-014 B1 generic core | **Done** (#30) |
 | GATE-003 plan | **Approved** (#26) |
 | Evolution M1 (Rust GA) | **Live** (#27) |
-| Evolution M2 (nightly) | **Live** (#28); gens 0–299 on `nightly-data` / promoted to `main` |
-| Champion promotion | **Held** — experimental at 99.88% vs Gen 0 |
+| Evolution M2 (nightly) | **Live** (#28); lineage reset to Gen 0 after #37 (pre-dodge gens 0–399 archived on `nightly-data`) |
+| Champion promotion | None yet under the new rules (pre-dodge champions were all held as experimental) |
 | Viewer Gen badge / slider (M2 UI) | **Not started** (Blitzwing) |
 | PettingZoo bridge (M3) | **Not started** (Shockwave) |
 | Company website | **Live** at coastal-agentics.github.io |
@@ -46,8 +46,7 @@ _Single source of truth for Coastal Agentics (formerly Starscream Agentics). Own
 ## Known engine / training limits
 - Kiter mirrors draw **72.8%** of the time (informational under the 120 s cap).
 - Kiter beats Charger **76.2%** over 400 mirrored games (near 80% ceiling).
-- Evolved champion wins **99.88%** vs Gen 0 → experimental hold (70% promotion ceiling). Note for Nye.
-- Population collapsed to Chargers only by ~gen 100; gens 200–299 still plateau (near-perfect vs Gen 0, no new behaviors).
+- Pre-dodge lineage (archived): champions won 89.6–99.9% vs the old Gen 0, all held as experimental; the population collapsed to Chargers by ~gen 100. The new lineage starts after the dodge-strength cap.
 - Swept projectile hits treat targets as stationary within a tick.
 - Placeholder Chaser/Wanderer bots remain lopsided; balance is judged on Charger, Kiter and Sniper.
 
