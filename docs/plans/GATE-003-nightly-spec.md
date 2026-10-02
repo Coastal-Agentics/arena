@@ -8,7 +8,7 @@ This is one edit to `.github/workflows/nightly.yml`. The step `Self-play evoluti
 
 | Setting | Value |
 |---|---|
-| Schedule | unchanged: `cron: "0 7 * * *"`. That is 07:00 UTC, which is 3:00 AM ET in summer (EDT) and 2:00 AM ET in winter (EST). `workflow_dispatch` is also unchanged. |
+| Schedule | `cron: "37 6 * * *"` (moved from `"0 7 * * *"` on 2026-10-02 because GitHub delayed the top-of-the-hour schedule by up to 7 hours). That is 06:37 UTC, which is 2:37 AM ET in summer (EDT) and 1:37 AM ET in winter (EST). `workflow_dispatch` is unchanged, and `concurrency: nightly` with `cancel-in-progress: false` queues a late scheduled run behind a manual one. |
 | Runner | `ubuntu-latest`, unchanged (public repo: 4 CPUs, 16 GB). |
 | Job timeout | `timeout-minutes: 60`, unchanged. |
 | Training cap | `--minutes 30` and `--generations 100` per night. The loop checks the clock before each generation and stops early if the cap is reached, keeping every finished generation. |

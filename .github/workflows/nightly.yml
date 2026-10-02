@@ -7,7 +7,10 @@ name: Nightly self-play
 #   - the site reads live nightly data from `nightly-data`; the CoS folds it into main by PR
 on:
   schedule:
-    - cron: "0 7 * * *" # 07:00 UTC = 3:00 AM America/New_York (EDT)
+    # 06:37 UTC = 2:37 AM America/New_York in summer (EDT), 1:37 AM in winter (EST).
+    # Off the top of the hour on purpose: GitHub delays congested round-hour crons by hours.
+    # Late or manual runs queue behind each other via `concurrency` below (never cancelled).
+    - cron: "37 6 * * *"
   workflow_dispatch:
     inputs:
       probe:
