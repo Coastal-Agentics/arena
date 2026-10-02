@@ -1,4 +1,4 @@
-# Tank Arena — SPEC (GATE-002, approved; amended 2026-09-30; dodge amendment 2026-10-02 pending founder approval)
+# Tank Arena — SPEC (GATE-002, approved; amended 2026-09-30; dodge amendment approved 2026-10-02)
 
 Units: engine units (u), ticks at 60 Hz, headings in BAU (65536 = 1 turn, 0 = +X, CCW, Y-up). The policy numbers are starting values; the tuned ones are in the policy params structs (`games/tank/src/policies/`), with results in `BALANCE.md`.
 
@@ -53,7 +53,7 @@ Keep the engine's current shapes. **Observation:** `tick`; `me` (pos, vel, headi
 ## Scripted policies (in `games/tank`)
 Shared: target = `enemies[0]`. Lead aim point `L = rel + vel · (dist / 6)` (dist via `f32::sqrt`, IEEE-exact). Aim with `turn_toward(turret, L, tol)`; fire when aligned, `cooldown == 0` and `los`. Stall = throttle ≠ 0 but `|vel| < 0.2` for 10 ticks → reverse 20 ticks turning +1. Each policy's numbers live in a params struct (the Phase 3 evolution genome).
 
-**Dodge reflex (all three policies; amendment 2026-10-02, needs founder approval as a GATE-002 amendment).** Each tick, an enemy shell is a *threat* if, assuming we stand still, its closest approach to our centre comes within the **look-ahead** (ticks) and passes closer than `radius + `**threshold** (u). Each threatening shell is rolled once, the first tick it is a threat, against the **strength** (chance of reacting; seeded ChaCha8 stream `seed ^ DODGE_SALT`, so rolls never shift a policy's other timing). The tank drives (forward or reverse, whichever end is nearer) perpendicular to the most urgent shell it reacts to, away from its closest-approach point; that overrides the policy's own steering for the tick (stall recovery still comes first). Shells it chose to ignore stay ignored for their flight. Faster tanks get out of the way sooner, so Speed buys survival as well as reload.
+**Dodge reflex (all three policies; GATE-002 amendment, approved by the founder 2026-10-02).** Each tick, an enemy shell is a *threat* if, assuming we stand still, its closest approach to our centre comes within the **look-ahead** (ticks) and passes closer than `radius + `**threshold** (u). Each threatening shell is rolled once, the first tick it is a threat, against the **strength** (chance of reacting; seeded ChaCha8 stream `seed ^ DODGE_SALT`, so rolls never shift a policy's other timing). The tank drives (forward or reverse, whichever end is nearer) perpendicular to the most urgent shell it reacts to, away from its closest-approach point; that overrides the policy's own steering for the tick (stall recovery still comes first). Shells it chose to ignore stay ignored for their flight. Faster tanks get out of the way sooner, so Speed buys survival as well as reload.
 
 | Policy | Look-ahead (ticks) | Threshold (u) | Strength |
 |---|---|---|---|
