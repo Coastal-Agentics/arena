@@ -74,9 +74,10 @@ impl Default for SniperParams {
 
 /// Relocates to the point on its own half (≥ 60 u from walls) that maximises distance
 /// to `enemies[0]` while keeping line of sight, then holds still (throttle 0) and fires
-/// with tolerance 0.02. If the target comes within 250 u it drives away perpendicular
+/// with tolerance 0.025. If the target comes within 238 u it drives away perpendicular
 /// to `rel` for 60 ticks. After 120 ticks without sight it moves along the nearest
-/// pillar edge until it sees the target.
+/// pillar edge until it sees the target. Dodges enemy shells first (look-ahead 15
+/// ticks, threshold 5.4 u, strength 0.61).
 ///
 /// "Its half" is the half of the arena (split at `x = width / 2`) it first observes
 /// itself in.

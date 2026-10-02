@@ -54,9 +54,10 @@ impl Default for ChargerParams {
     }
 }
 
-/// Steers at `enemies[0]` (`tol 0.2`, routing around a pillar in the way, weaving ±20°
+/// Steers at `enemies[0]` (`tol 0.2`, routing around a pillar in the way, weaving ±14°
 /// every 30 ticks until within 150 u) at full throttle until it is within 60 u, then
-/// holds; lead-aims with tolerance 0.05 and fires when aligned, ready and in sight.
+/// holds; lead-aims with tolerance 0.044 and fires when aligned, ready and in sight.
+/// Dodges enemy shells (look-ahead 23 ticks, threshold 5.3 u, strength 0.65).
 #[derive(Clone, Debug, PartialEq)]
 pub struct Charger {
     /// Tunables.

@@ -55,10 +55,11 @@ impl Default for KiterParams {
     }
 }
 
-/// Holds 250–350 u from `enemies[0]` with its hull perpendicular to `rel` (circle
+/// Holds 250–348 u from `enemies[0]` with its hull perpendicular to `rel` (circle
 /// strafe at full throttle), bent 30° outward when too close and inward when too far.
-/// Flips strafe direction near a wall, on a stall, and every 180 ticks. Lead-aims with
-/// tolerance 0.05.
+/// Flips strafe direction near a wall, on a stall, and every 190 ± 40 ticks. Lead-aims
+/// with tolerance 0.048. Dodges enemy shells (look-ahead 11 ticks, threshold 0.66 u,
+/// strength 0.95), which overrides the strafe for that tick.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Kiter {
     /// Tunables.
