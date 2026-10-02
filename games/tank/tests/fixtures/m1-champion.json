@@ -15,57 +15,57 @@
   "generation": 99,
   "genome": {
     "behavior": "charger",
-    "loadout": "4-4-1",
+    "loadout": "2-5-2",
     "params": {
-      "aim_tol": 0.2,
-      "dodge_chance": 1.0,
-      "dodge_horizon": 20.841,
-      "dodge_margin": 4.093,
-      "route_margin": 40.0,
-      "stall.min_speed": 0.348,
-      "stall.reverse_ticks": 11,
-      "stall.stuck_ticks": 18,
-      "steer_tol": 0.51,
+      "aim_tol": 0.156,
+      "dodge_chance": 0.648,
+      "dodge_horizon": 44.494,
+      "dodge_margin": 16.958,
+      "route_margin": 31.357,
+      "stall.min_speed": 0.062,
+      "stall.reverse_ticks": 5,
+      "stall.stuck_ticks": 26,
+      "steer_tol": 0.6,
       "stop_dist": 20.0,
       "weave_deg": 0.0,
-      "weave_jitter": 44,
-      "weave_period": 19,
-      "weave_until": 131.977
+      "weave_jitter": 15,
+      "weave_period": 13,
+      "weave_until": 129.563
     }
   },
   "held_out": {
-    "digest": "92575320ebf3f47e",
+    "digest": "d15709d4b3bd6953",
     "matches": 6000,
     "seed_base": "9000000000",
     "seeds": 1000,
     "status": "experimental",
     "vs_wdl": {
       "charger": [
-        1996,
-        0,
-        4
+        1936,
+        6,
+        58
       ],
       "kiter": [
-        1851,
-        149,
-        0
+        1825,
+        29,
+        146
       ],
       "sniper": [
-        1886,
-        111,
-        3
+        1539,
+        139,
+        322
       ]
     },
-    "win_rate": 0.9555,
-    "wins": 5733
+    "win_rate": 0.8833,
+    "wins": 5300
   },
-  "label": "charger-4-4-1",
+  "label": "charger-2-5-2",
   "promotion": "win rate vs Gen 0 >= 65% to promote; above 70% the champion is held from promotion and labeled experimental, and the CoS tells Nye",
   "training": {
-    "damage": 0.9922,
-    "fitness": 0.7784,
+    "damage": 0.9727,
+    "fitness": 0.706,
     "matches": 176,
     "seed_base": "1000000",
-    "vs_scripted": 1.0
+    "vs_scripted": 0.875
   }
 }

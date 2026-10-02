@@ -73,7 +73,7 @@ All files live under `web/data/evolution/` on `nightly-data`. The CLI writes the
 - **Total:** at most 5 MB (checked by the CLI and the workflow). Each nightly change is at most 200 KB (checked by the workflow).
 - **No replay files:** the viewer re-simulates from (genome, loadout, seed).
 - **Lineage:** the run seed is fixed at `--seed 1`. Nightly runs resume from `state.json`, so night *k* equals an uninterrupted run of 100·*k* generations (see determinism below).
-- **Starting a new lineage:** a new seed, or changed gene tables (which make `state.json` refuse to load, and the job fails loudly), needs a reviewed PR that chooses a new directory. Nothing is deleted from `nightly-data` without Nye: deleting or force-pushing it is a gate (ADR-007).
+- **Starting a new lineage:** a new seed, or changed gene tables (which make `state.json` refuse to load, and the job fails loudly), starts a new lineage. The new lineage reuses `web/data/evolution/`. The old lineage's files move on `nightly-data` to `web/data/evolution/archive/<name>/`, with a README giving its seed, generations and last champion, and the next night starts at Gen 0 because there is no `state.json`. The first archive is `archive/pre-dodge-2026-10-02/` (Gen 0–399, from before the dodge reflex; PR #38). Archiving is a move pushed without force. Nothing is deleted from `nightly-data` without Nye: deleting or force-pushing it is a gate (ADR-007).
 
 ## Promotion rule and the 70% hold
 
@@ -85,7 +85,7 @@ All files live under `web/data/evolution/` on `nightly-data`. The CLI writes the
 | `promotable` | 65–70% | Eligible. It becomes the viewer's default "Gen N" only through a reviewed PR (Blitzwing + CoS) with a `docs/CARD.md` provenance card. The nightly job never promotes. |
 | `experimental` | > 70% | **Held from promotion and labeled experimental.** The job adds a warning and a line to the run summary, and the **CoS tells Nye** in the next work cycle. |
 
-The CoS still folds `nightly-data` into `main` by a normal PR (ADR-007). The files carry their status, so an experimental champion stays labeled wherever it lands.
+The CoS still folds `nightly-data` into `main` by a normal PR (ADR-007). Champion fold-ins reach `main` only that way, as a `nightly-data` → `main` PR that CI checks. Evolution files are never copied onto a branch of `main`. Copied files have no shared history with `nightly-data`, so git sees them as separate edits. On 2026-10-02 the copy promoted in #34 and #35 gave modify/delete conflicts with `nightly-data` and broke the nightly's merge of `main` (PR #38). The files carry their status, so an experimental champion stays labeled wherever it lands.
 
 ## Determinism checks (already run, 2026-09-30)
 
@@ -96,4 +96,4 @@ The CoS still folds `nightly-data` into `main` by a normal PR (ADR-007). The fil
 
 ## Known result to expect on the first night
 
-Seed 1's Gen 99 champion is `charger-5-3-1`. It wins **89.6%** vs Gen 0 (5,378 of 6,000; digest `3a4d9fd648b36362`), so it will be **`experimental`** and held. The main reason is that evolution switches on shell dodging (`dodge_horizon` > 0), which every shipped policy has off. The CoS should expect to tell Nye on night one.
+Updated 2026-10-02 for the dodging Gen 0 (#37) and the dodge-strength cap (`DODGE_CHANCE_MAX`: Charger 0.65, Kiter 0.95, Sniper 0.61, which are the shipped strengths). The first night of the new lineage starts at Gen 0, because `web/data/evolution/` has no `state.json`, and runs generations 0–99. Its Gen 99 champion should be `charger-2-5-2`, the champion pinned in `games/tank/tests/fixtures/m1-champion.json`. It wins **88.3%** vs Gen 0 (5,300 of 6,000; digest `d15709d4b3bd6953`; W/D/L vs Charger 1936/6/58, vs Kiter 1825/29/146, vs Sniper 1539/139/322), so it will be **`experimental`** and held. Its edge comes from dodging earlier and wider than the shipped Charger at about the same strength: look-ahead 44.5 ticks against 23, threshold 17.0 u against 5.3, strength 0.648 under its 0.65 cap. It also drops the weave. If the first night shows a different champion or digest, the runner's build differs from `main` and the CoS should flag it. The CoS should expect to tell Nye on night one.
