@@ -1,7 +1,8 @@
 //! Kiter (SPEC policy 2): circle-strafe at mid range and keep moving.
 
 use super::common::{
-    action, aim_and_fire, cos_sin, drive_along, nearest_wall, Jitter, Stall, StallParams,
+    action, aim_and_fire, cos_sin, drive_along, nearest_wall, DodgeParams, Jitter, Reflex, Stall,
+    StallParams,
 };
 use engine::{Action, Observation, Policy, Vec2};
 
@@ -26,6 +27,8 @@ pub struct KiterParams {
     pub steer_tol: f32,
     /// Turret alignment tolerance for firing.
     pub aim_tol: f32,
+    /// Dodge reflex: look-ahead, threshold and strength (see [`DodgeParams`]).
+    pub dodge: DodgeParams,
     /// Stall recovery.
     pub stall: StallParams,
 }
@@ -34,28 +37,35 @@ impl Default for KiterParams {
     fn default() -> Self {
         Self {
             min_dist: 250.0,
-            max_dist: 350.0,
+            max_dist: 348.0,
             bend_deg: 30.0,
             wall_margin: 60.0,
-            flip_every: 180,
-            flip_jitter: 60,
+            flip_every: 190,
+            flip_jitter: 40,
             wall_flip_cooldown: 30,
             steer_tol: 0.2,
-            aim_tol: 0.05,
+            aim_tol: 0.048,
+            dodge: DodgeParams {
+                horizon: 11.0,
+                margin: 0.66,
+                chance: 0.95,
+            },
             stall: StallParams::default(),
         }
     }
 }
 
-/// Holds 250–350 u from `enemies[0]` with its hull perpendicular to `rel` (circle
+/// Holds 250–348 u from `enemies[0]` with its hull perpendicular to `rel` (circle
 /// strafe at full throttle), bent 30° outward when too close and inward when too far.
-/// Flips strafe direction near a wall, on a stall, and every 180 ticks. Lead-aims with
-/// tolerance 0.05.
+/// Flips strafe direction near a wall, on a stall, and every 190 ± 40 ticks. Lead-aims
+/// with tolerance 0.048. Dodges enemy shells (look-ahead 11 ticks, threshold 0.66 u,
+/// strength 0.95), which overrides the strafe for that tick.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Kiter {
     /// Tunables.
     pub params: KiterParams,
     stall: Stall,
+    reflex: Reflex,
     /// `+1`: strafe counter-clockwise around the target; `-1`: clockwise.
     side: f32,
     since_flip: u32,
@@ -84,6 +94,7 @@ impl Kiter {
         Self {
             params,
             stall: Stall::default(),
+            reflex: Reflex::new(seed),
             side,
             since_flip: 0,
             since_wall_flip: u32::MAX,
@@ -143,6 +154,7 @@ impl Policy for Kiter {
         self.since_wall_flip = self.since_wall_flip.saturating_add(1);
         let (turret_turn, fire) = aim_and_fire(obs, target, p.aim_tol);
         let (stalled, new_stall) = self.stall.update(&p.stall, obs.me.vel);
+        let threat = self.reflex.update(obs, &p.dodge);
         if new_stall {
             self.flip();
         }
@@ -168,6 +180,9 @@ impl Policy for Kiter {
                 self.since_wall_flip = 0;
                 want = strafe_direction(&p, target.rel, self.side);
             }
+        }
+        if let Some(away) = threat {
+            want = away;
         }
         let (throttle, turn) = drive_along(obs.me.heading, want, p.steer_tol);
         self.stall.record(throttle);

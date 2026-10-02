@@ -119,9 +119,12 @@ function refresh() {
   if (o) {
     const why = { last_standing: "last tank standing", all_destroyed: "both destroyed", tick_limit: "time limit" }[o.reason] || o.reason;
     const who = (i) => (running.mode === "tank" ? `${behaviorName(running.tanks[i].behavior)} ${pretty(running.tanks[i].loadout)}` : running.bots[i]);
+    // Name both running builds, so the line always says which match ended.
+    const side = (i) => `${TEAM_NAMES[i]} (${who(i)})`;
+    const at = `${(o.ticks / TICK_HZ).toFixed(1)}s`;
     $("result").textContent = o.winner === null
-      ? `Draw (${why}) at ${(o.ticks / TICK_HZ).toFixed(1)}s`
-      : `${TEAM_NAMES[o.winner]} (${who(o.winner)}) wins — ${why}, ${(o.ticks / TICK_HZ).toFixed(1)}s`;
+      ? `Draw (${why}) at ${at}: ${side(0)} vs ${side(1)}`
+      : `${side(o.winner)} beats ${side(1 - o.winner)} — ${why}, ${at}`;
   }
 }
 
