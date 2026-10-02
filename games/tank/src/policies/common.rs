@@ -99,6 +99,19 @@ impl Jitter {
     pub fn coin(&mut self) -> bool {
         self.0.next_u32() & 1 == 1
     }
+
+    /// True with probability `p`. `p >= 1` is always true and `p <= 0` always false,
+    /// and neither draws from the stream.
+    pub fn chance(&mut self, p: f32) -> bool {
+        if p >= 1.0 {
+            return true;
+        }
+        if p <= 0.0 {
+            return false;
+        }
+        // 24 random bits against p (exact in f32), so the test is the same everywhere.
+        ((self.0.next_u32() >> 8) as f32) < p * (1u32 << 24) as f32
+    }
 }
 
 impl Default for Jitter {
@@ -224,11 +237,6 @@ pub fn cos_sin(deg: f32) -> (f32, f32) {
     (d.x, d.y)
 }
 
-/// Default dodge look-ahead, in ticks: 0, so the reflex is off. At 20 for the charger and
-/// sniper it evens out sniper loadouts but breaks the counter triangle (sniper beats
-/// kiter 100%, kiter beats charger 2%). Kept as a knob for the loadout-balance follow-up.
-pub const DODGE_HORIZON: f32 = 0.0;
-
 /// Dodge reflex: the direction to drive to get out of the way of the most urgent enemy
 /// shell that will pass within `radius + margin` of us in the next `horizon` ticks
 /// (assuming we stand still), or `None`. The direction is perpendicular to the shell's
@@ -236,8 +244,26 @@ pub const DODGE_HORIZON: f32 = 0.0;
 /// sooner, which is what makes the Speed stat worth points for policies that would
 /// otherwise stand and trade.
 pub fn dodge(obs: &Observation, horizon: f32, margin: f32) -> Option<Vec2> {
+    threats(obs, horizon, margin).first().map(|t| t.away)
+}
+
+/// One incoming enemy shell that [`dodge`] would react to.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Threat {
+    /// Ticks until its closest approach to our centre.
+    pub t: f32,
+    /// The shell's velocity: constant over its flight, so it identifies the shell.
+    pub vel: Vec2,
+    /// Direction to drive to get out of its way.
+    pub away: Vec2,
+}
+
+/// Every enemy shell that will pass within `radius + margin` of us in the next
+/// `horizon` ticks (assuming we stand still), most urgent first (ties keep observation
+/// order, which is nearest first).
+pub fn threats(obs: &Observation, horizon: f32, margin: f32) -> Vec<Threat> {
     let r = obs.me.radius + margin;
-    let mut best: Option<(f32, Vec2)> = None;
+    let mut out = Vec::new();
     for p in obs
         .projectiles
         .iter()
@@ -259,11 +285,82 @@ pub fn dodge(obs: &Observation, horizon: f32, margin: f32) -> Option<Vec2> {
         // Move away from where the shell passes; dead-on shots pick the left side.
         let perp = p.vel.perp();
         let away = if perp.dot(miss) > 0.0 { -perp } else { perp };
-        if best.is_none_or(|(bt, _)| t < bt) {
-            best = Some((t, away));
+        out.push(Threat {
+            t,
+            vel: p.vel,
+            away,
+        });
+    }
+    out.sort_by(|a, b| a.t.total_cmp(&b.t));
+    out
+}
+
+/// Salt for the dodge reflex's own jitter stream, so that rolling for a dodge never
+/// shifts a policy's other timing (weave, strafe flips, evades).
+pub const DODGE_SALT: u64 = 0xd0d6_e5a1_7c3b_9f21;
+
+/// Dodge reflex settings (SPEC "Scripted policies", "Dodge"), shared by all three
+/// policies; each policy's params carry its own values.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct DodgeParams {
+    /// Look-ahead: react to enemy shells whose closest approach is at most this many
+    /// ticks away (0 = never dodge).
+    pub horizon: f32,
+    /// Threshold: a shell counts as a threat if it would pass within `radius + margin`
+    /// of our centre (assuming we stand still).
+    pub margin: f32,
+    /// Strength: the chance of reacting to each threatening shell (rolled once per
+    /// shell, the first tick it is a threat). 1 = always.
+    pub chance: f32,
+}
+
+/// How many shells a [`Reflex`] remembers its roll for (the observation lists at most 8).
+const REFLEX_MEMORY: usize = 8;
+
+/// Dodge reflex state: the roll for each recently seen threatening shell.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Reflex {
+    rng: Jitter,
+    /// `(shell velocity, react)`, oldest first.
+    seen: Vec<(Vec2, bool)>,
+}
+
+impl Reflex {
+    /// A reflex whose rolls come from `seed ^ DODGE_SALT`.
+    pub fn new(seed: u64) -> Self {
+        Self {
+            rng: Jitter::new(seed ^ DODGE_SALT),
+            seen: Vec::new(),
         }
     }
-    best.map(|(_, d)| d)
+
+    /// Call once per tick: the direction to drive this tick to dodge the most urgent
+    /// threat we react to, or `None`. Each shell is rolled once, the first tick it is a
+    /// threat (`chance` = strength); a shell we don't react to is ignored for the rest
+    /// of its flight, and the next most urgent one is considered instead.
+    pub fn update(&mut self, obs: &Observation, p: &DodgeParams) -> Option<Vec2> {
+        if p.horizon <= 0.0 {
+            return None;
+        }
+        let mut pick = None;
+        for t in threats(obs, p.horizon, p.margin) {
+            let react = match self.seen.iter().find(|(v, _)| *v == t.vel) {
+                Some(&(_, r)) => r,
+                None => {
+                    let r = self.rng.chance(p.chance);
+                    if self.seen.len() == REFLEX_MEMORY {
+                        self.seen.remove(0);
+                    }
+                    self.seen.push((t.vel, r));
+                    r
+                }
+            };
+            if react && pick.is_none() {
+                pick = Some(t.away);
+            }
+        }
+        pick
+    }
 }
 
 /// Distance to the nearest arena edge.
@@ -346,6 +443,58 @@ mod tests {
             obs.projectiles = vec![p];
             assert_eq!(dodge(&obs, 20.0, 4.0), None);
         }
+    }
+
+    #[test]
+    fn reflex_rolls_once_per_shell() {
+        use crate::rules::{config, Mode};
+        let m = engine::Match::new(config(Mode::Duel), 1);
+        let mut obs = m.observe(0);
+        let me = obs.me.pos;
+        let shell = |rel: Vec2, vel: Vec2| engine::ProjectileObs {
+            pos: me + rel,
+            rel,
+            dist_sq: rel.length_squared(),
+            vel,
+            owner_team: 1,
+        };
+        obs.projectiles = vec![shell(Vec2::new(60.0, 5.0), Vec2::new(-6.0, 0.0))];
+        let want = dodge(&obs, 20.0, 4.0);
+        let p = |chance| DodgeParams {
+            horizon: 20.0,
+            margin: 4.0,
+            chance,
+        };
+        // Always / never / off.
+        assert_eq!(Reflex::new(3).update(&obs, &p(1.0)), want);
+        assert_eq!(Reflex::new(3).update(&obs, &p(0.0)), None);
+        let off = DodgeParams {
+            horizon: 0.0,
+            ..p(1.0)
+        };
+        assert_eq!(Reflex::new(3).update(&obs, &off), None);
+        // At 50%: the roll is kept for the shell's whole flight, and over many reflexes
+        // about half react.
+        let mut reacted = 0;
+        for seed in 0..400 {
+            let mut r = Reflex::new(seed);
+            let first = r.update(&obs, &p(0.5));
+            for _ in 0..5 {
+                assert_eq!(r.update(&obs, &p(0.5)), first, "seed {seed}");
+            }
+            reacted += first.is_some() as u32;
+        }
+        assert!((160..=240).contains(&reacted), "{reacted}");
+        // A shell we ignore does not hide a second one we react to.
+        let (ignored, other) = (Vec2::new(-6.0, 0.1), Vec2::new(-6.0, -0.1));
+        let mut r = Reflex::new(0);
+        r.seen = vec![(ignored, false), (other, true)];
+        obs.projectiles = vec![
+            shell(Vec2::new(30.0, 5.0), ignored),
+            shell(Vec2::new(90.0, -5.0), other),
+        ];
+        let d = r.update(&obs, &p(0.5)).expect("second shell");
+        assert!(d.y > 0.0, "{d}");
     }
 
     #[test]

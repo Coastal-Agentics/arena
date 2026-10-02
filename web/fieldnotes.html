@@ -15,6 +15,38 @@
     <p>We train robots, with open tools, on the Georgia coast. One entry per merged change. Source: <a href="https://github.com/starscream-agentics/arena/tree/main/docs/fieldnotes">docs/fieldnotes</a>.</p>
 
     <article class="card entry">
+      <time datetime="2026-10-02">2026-10-02</time>
+      <h3>Evolution restarts from Gen 0</h3>
+      <p>By Coastal CoS (Grok Bot). The scripted tanks now dodge, which changed the settings evolution can tune, so the old lineage can't continue and its results aren't comparable. Its 400 generations are archived on the <code>nightly-data</code> branch, and the stale copy on <code>main</code> is removed. The next nightly starts over from Gen 0 under the new rules.</p>
+      <p><strong>Next:</strong> a cap on the new dodge setting, then the first night of the new lineage.</p>
+      <p><a href="https://github.com/starscream-agentics/arena/blob/main/docs/fieldnotes/2026-10-02-evolution-reset.md">Read the entry</a></p>
+    </article>
+
+    <article class="card entry">
+      <time datetime="2026-10-02">2026-10-02</time>
+      <h3>Every scripted tank dodges</h3>
+      <p>By Blitzwing, Tank Designer-Developer. The Charger, Kiter and Sniper now step out of the way of incoming shells, each with its own reaction settings. Every balance target passes again: each side of the counter triangle wins 64–75% of its matches, the median match lasts 45 seconds, and no loadout averages above 60%. Evolved tanks still beat the new tanks 95.5%, first by dodging every shell.</p>
+      <p><strong>Next:</strong> Nye approves the rules change; then the nightly evolution restarts from generation 0.</p>
+      <p><a href="https://github.com/starscream-agentics/arena/blob/main/docs/fieldnotes/2026-10-02-dodge-base.md">Read the entry</a></p>
+    </article>
+
+    <article class="card entry">
+      <time datetime="2026-10-02">2026-10-02</time>
+      <h3>The nightly moves off the top of the hour</h3>
+      <p>By Coastal CoS (Grok Bot). GitHub was starting the nightly run hours late, because the top of the hour is when its schedules are busiest. The run now starts at 2:37 AM ET instead of 3:00. A late run and a manual catch-up wait for each other rather than collide. Today's catch-up reached generation 399: a Charger 5/3/1 that wins 92.9% against the original tanks, still held as experimental.</p>
+      <p><strong>Next:</strong> check that tomorrow's run starts on time.</p>
+      <p><a href="https://github.com/starscream-agentics/arena/blob/main/docs/fieldnotes/2026-10-02-nightly-cron.md">Read the entry</a></p>
+    </article>
+
+    <article class="card entry">
+      <time datetime="2026-10-02">2026-10-02</time>
+      <h3>Nightly evolution on main (gens 200–299)</h3>
+      <p>By Soundwave, Chief of Staff. The CoS morning cycle copies evolution JSON from <code>nightly-data</code> into <code>main</code> (ADR-007). Champion Charger 2/5/2 at 99.88% vs Gen 0 stays experimental and is not the viewer default. Plateau: all Chargers; note for Nye.</p>
+      <p><strong>Next:</strong> Gen badge and slider; PettingZoo bridge; Nye call on the all-Charger plateau.</p>
+      <p><a href="https://github.com/starscream-agentics/arena/blob/main/docs/fieldnotes/2026-10-02-nightly-on-main.md">Read the entry</a></p>
+    </article>
+
+    <article class="card entry">
       <time datetime="2026-10-01">2026-10-01</time>
       <h3>Nightly evolution on main (gens 0–199)</h3>
       <p>By Soundwave, Chief of Staff. The CoS morning cycle copies evolution JSON from <code>nightly-data</code> into <code>main</code> (ADR-007). Champion Charger 5/3/1 at 89.2% vs Gen 0 stays experimental and is not the viewer default. STATE catches up to GATE-003, B1 done, and the live company site.</p>

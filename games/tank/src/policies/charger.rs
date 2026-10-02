@@ -1,8 +1,8 @@
 //! Charger (SPEC policy 1): drive straight at the target and trade shots up close.
 
 use super::common::{
-    action, aim_and_fire, cos_sin, dodge, drive_along, waypoint, Jitter, Stall, StallParams,
-    DODGE_HORIZON,
+    action, aim_and_fire, cos_sin, drive_along, waypoint, DodgeParams, Jitter, Reflex, Stall,
+    StallParams,
 };
 use engine::angle::turn_toward;
 use engine::{Action, Observation, Policy, Vec2};
@@ -27,10 +27,8 @@ pub struct ChargerParams {
     pub weave_jitter: u32,
     /// Stop weaving (charge straight) once closer than this, in units.
     pub weave_until: f32,
-    /// Dodge enemy shells that would hit within this many ticks (0 = never dodge).
-    pub dodge_horizon: f32,
-    /// Extra miss distance (beyond the radius) that still counts as a threat.
-    pub dodge_margin: f32,
+    /// Dodge reflex: look-ahead, threshold and strength (see [`DodgeParams`]).
+    pub dodge: DodgeParams,
     /// Stall recovery.
     pub stall: StallParams,
 }
@@ -40,27 +38,32 @@ impl Default for ChargerParams {
         Self {
             steer_tol: 0.2,
             stop_dist: 60.0,
-            aim_tol: 0.05,
+            aim_tol: 0.044,
             route_margin: 12.0,
-            weave_deg: 20.0,
+            weave_deg: 14.0,
             weave_period: 30,
             weave_jitter: 10,
             weave_until: 150.0,
-            dodge_horizon: DODGE_HORIZON,
-            dodge_margin: 4.0,
+            dodge: DodgeParams {
+                horizon: 23.0,
+                margin: 5.3,
+                chance: 0.65,
+            },
             stall: StallParams::default(),
         }
     }
 }
 
-/// Steers at `enemies[0]` (`tol 0.2`, routing around a pillar in the way, weaving ±20°
+/// Steers at `enemies[0]` (`tol 0.2`, routing around a pillar in the way, weaving ±14°
 /// every 30 ticks until within 150 u) at full throttle until it is within 60 u, then
-/// holds; lead-aims with tolerance 0.05 and fires when aligned, ready and in sight.
+/// holds; lead-aims with tolerance 0.044 and fires when aligned, ready and in sight.
+/// Dodges enemy shells (look-ahead 23 ticks, threshold 5.3 u, strength 0.65).
 #[derive(Clone, Debug, PartialEq)]
 pub struct Charger {
     /// Tunables.
     pub params: ChargerParams,
     stall: Stall,
+    reflex: Reflex,
     rng: Jitter,
     zig: bool,
     zig_left: u32,
@@ -79,6 +82,7 @@ impl Charger {
         Self {
             params,
             stall: Stall::default(),
+            reflex: Reflex::new(seed),
             rng,
             zig,
             zig_left: 0,
@@ -106,9 +110,7 @@ impl Policy for Charger {
         };
         let (turret_turn, fire) = aim_and_fire(obs, target, p.aim_tol);
         let (stalled, _) = self.stall.update(&p.stall, obs.me.vel);
-        let threat = (p.dodge_horizon > 0.0)
-            .then(|| dodge(obs, p.dodge_horizon, p.dodge_margin))
-            .flatten();
+        let threat = self.reflex.update(obs, &p.dodge);
         let (throttle, turn) = if stalled {
             Stall::recovery()
         } else if let Some(away) = threat {
