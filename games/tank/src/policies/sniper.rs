@@ -2,7 +2,7 @@
 //! aligned, back off from rushers, peek around a pillar when blind.
 
 use super::common::{
-    action, aim_and_fire, dodge, drive_along, waypoint, Jitter, Stall, StallParams, DODGE_HORIZON,
+    action, aim_and_fire, drive_along, waypoint, DodgeParams, Jitter, Reflex, Stall, StallParams,
 };
 use crate::los;
 use engine::{Action, Observation, Policy, Rect, Vec2};
@@ -39,10 +39,8 @@ pub struct SniperParams {
     pub steer_tol: f32,
     /// Extra clearance when routing around obstacles (see [`waypoint`]).
     pub route_margin: f32,
-    /// Dodge enemy shells that would hit within this many ticks (0 = never dodge).
-    pub dodge_horizon: f32,
-    /// Extra miss distance (beyond the radius) that still counts as a threat.
-    pub dodge_margin: f32,
+    /// Dodge reflex: look-ahead, threshold and strength (see [`DodgeParams`]).
+    pub dodge: DodgeParams,
     /// Stall recovery.
     pub stall: StallParams,
 }
@@ -64,8 +62,11 @@ impl Default for SniperParams {
             peek_offset: 12.0,
             steer_tol: 0.2,
             route_margin: 12.0,
-            dodge_horizon: DODGE_HORIZON,
-            dodge_margin: 4.0,
+            dodge: DodgeParams {
+                horizon: 20.0,
+                margin: 4.0,
+                chance: 1.0,
+            },
             stall: StallParams::default(),
         }
     }
@@ -84,6 +85,7 @@ pub struct Sniper {
     /// Tunables.
     pub params: SniperParams,
     stall: Stall,
+    reflex: Reflex,
     left_half: Option<bool>,
     spot: Option<Vec2>,
     replan_in: u32,
@@ -104,6 +106,7 @@ impl Sniper {
         Self {
             params,
             stall: Stall::default(),
+            reflex: Reflex::new(seed),
             left_half: None,
             spot: None,
             replan_in: 0,
@@ -220,9 +223,7 @@ impl Policy for Sniper {
         };
 
         let (stalled, _) = self.stall.update(&p.stall, obs.me.vel);
-        let threat = (p.dodge_horizon > 0.0)
-            .then(|| dodge(obs, p.dodge_horizon, p.dodge_margin))
-            .flatten();
+        let threat = self.reflex.update(obs, &p.dodge);
         let (throttle, turn) = if stalled {
             Stall::recovery()
         } else if let Some(away) = threat {

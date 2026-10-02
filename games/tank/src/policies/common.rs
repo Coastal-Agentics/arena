@@ -99,6 +99,19 @@ impl Jitter {
     pub fn coin(&mut self) -> bool {
         self.0.next_u32() & 1 == 1
     }
+
+    /// True with probability `p`. `p >= 1` is always true and `p <= 0` always false,
+    /// and neither draws from the stream.
+    pub fn chance(&mut self, p: f32) -> bool {
+        if p >= 1.0 {
+            return true;
+        }
+        if p <= 0.0 {
+            return false;
+        }
+        // 24 random bits against p (exact in f32), so the test is the same everywhere.
+        ((self.0.next_u32() >> 8) as f32) < p * (1u32 << 24) as f32
+    }
 }
 
 impl Default for Jitter {
@@ -224,11 +237,6 @@ pub fn cos_sin(deg: f32) -> (f32, f32) {
     (d.x, d.y)
 }
 
-/// Default dodge look-ahead, in ticks: 0, so the reflex is off. At 20 for the charger and
-/// sniper it evens out sniper loadouts but breaks the counter triangle (sniper beats
-/// kiter 100%, kiter beats charger 2%). Kept as a knob for the loadout-balance follow-up.
-pub const DODGE_HORIZON: f32 = 0.0;
-
 /// Dodge reflex: the direction to drive to get out of the way of the most urgent enemy
 /// shell that will pass within `radius + margin` of us in the next `horizon` ticks
 /// (assuming we stand still), or `None`. The direction is perpendicular to the shell's
@@ -264,6 +272,65 @@ pub fn dodge(obs: &Observation, horizon: f32, margin: f32) -> Option<Vec2> {
         }
     }
     best.map(|(_, d)| d)
+}
+
+/// Salt for the dodge reflex's own jitter stream, so that rolling for a dodge never
+/// shifts a policy's other timing (weave, strafe flips, evades).
+pub const DODGE_SALT: u64 = 0xd0d6_e5a1_7c3b_9f21;
+
+/// Dodge reflex settings (SPEC "Scripted policies", "Dodge"), shared by all three
+/// policies; each policy's params carry its own values.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct DodgeParams {
+    /// Look-ahead: react to enemy shells whose closest approach is at most this many
+    /// ticks away (0 = never dodge).
+    pub horizon: f32,
+    /// Threshold: a shell counts as a threat if it would pass within `radius + margin`
+    /// of our centre (assuming we stand still).
+    pub margin: f32,
+    /// Strength: the chance of reacting to each new threat (rolled once when the threat
+    /// appears, kept while it lasts). 1 = always.
+    pub chance: f32,
+}
+
+/// Dodge reflex state: whether a threat was active last tick, and the roll for it.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Reflex {
+    rng: Jitter,
+    active: bool,
+    react: bool,
+}
+
+impl Reflex {
+    /// A reflex whose rolls come from `seed ^ DODGE_SALT`.
+    pub fn new(seed: u64) -> Self {
+        Self {
+            rng: Jitter::new(seed ^ DODGE_SALT),
+            active: false,
+            react: false,
+        }
+    }
+
+    /// Call once per tick: the direction to drive this tick to dodge, or `None` (no
+    /// threat, or the roll for the current threat said not to react).
+    pub fn update(&mut self, obs: &Observation, p: &DodgeParams) -> Option<Vec2> {
+        let threat = (p.horizon > 0.0)
+            .then(|| dodge(obs, p.horizon, p.margin))
+            .flatten();
+        match threat {
+            None => {
+                self.active = false;
+                None
+            }
+            Some(away) => {
+                if !self.active {
+                    self.active = true;
+                    self.react = self.rng.chance(p.chance);
+                }
+                self.react.then_some(away)
+            }
+        }
+    }
 }
 
 /// Distance to the nearest arena edge.

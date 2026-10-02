@@ -61,7 +61,7 @@ macro_rules! stall_genes {
     };
 }
 
-const CHARGER: [Gene<ChargerParams>; 13] = {
+const CHARGER: [Gene<ChargerParams>; 14] = {
     let [s0, s1, s2] = stall_genes!(ChargerParams);
     [
         fg!(ChargerParams, "steer_tol", steer_tol, 0.05, 0.6),
@@ -72,15 +72,16 @@ const CHARGER: [Gene<ChargerParams>; 13] = {
         ug!(ChargerParams, "weave_period", weave_period, 5, 120),
         ug!(ChargerParams, "weave_jitter", weave_jitter, 0, 60),
         fg!(ChargerParams, "weave_until", weave_until, 0.0, 400.0),
-        fg!(ChargerParams, "dodge_horizon", dodge_horizon, 0.0, 60.0),
-        fg!(ChargerParams, "dodge_margin", dodge_margin, 0.0, 20.0),
+        fg!(ChargerParams, "dodge_horizon", dodge.horizon, 0.0, 60.0),
+        fg!(ChargerParams, "dodge_margin", dodge.margin, 0.0, 20.0),
+        fg!(ChargerParams, "dodge_chance", dodge.chance, 0.0, 1.0),
         s0,
         s1,
         s2,
     ]
 };
 
-const KITER: [Gene<KiterParams>; 12] = {
+const KITER: [Gene<KiterParams>; 15] = {
     let [s0, s1, s2] = stall_genes!(KiterParams);
     [
         fg!(KiterParams, "min_dist", min_dist, 80.0, 450.0),
@@ -98,13 +99,16 @@ const KITER: [Gene<KiterParams>; 12] = {
         ),
         fg!(KiterParams, "steer_tol", steer_tol, 0.05, 0.6),
         fg!(KiterParams, "aim_tol", aim_tol, 0.005, 0.2),
+        fg!(KiterParams, "dodge_horizon", dodge.horizon, 0.0, 60.0),
+        fg!(KiterParams, "dodge_margin", dodge.margin, 0.0, 20.0),
+        fg!(KiterParams, "dodge_chance", dodge.chance, 0.0, 1.0),
         s0,
         s1,
         s2,
     ]
 };
 
-const SNIPER: [Gene<SniperParams>; 19] = {
+const SNIPER: [Gene<SniperParams>; 20] = {
     let [s0, s1, s2] = stall_genes!(SniperParams);
     [
         fg!(SniperParams, "wall_margin", wall_margin, 30.0, 150.0),
@@ -127,8 +131,9 @@ const SNIPER: [Gene<SniperParams>; 19] = {
         fg!(SniperParams, "peek_offset", peek_offset, 0.0, 40.0),
         fg!(SniperParams, "steer_tol", steer_tol, 0.05, 0.6),
         fg!(SniperParams, "route_margin", route_margin, 0.0, 40.0),
-        fg!(SniperParams, "dodge_horizon", dodge_horizon, 0.0, 60.0),
-        fg!(SniperParams, "dodge_margin", dodge_margin, 0.0, 20.0),
+        fg!(SniperParams, "dodge_horizon", dodge.horizon, 0.0, 60.0),
+        fg!(SniperParams, "dodge_margin", dodge.margin, 0.0, 20.0),
+        fg!(SniperParams, "dodge_chance", dodge.chance, 0.0, 1.0),
         s0,
         s1,
         s2,
@@ -361,9 +366,9 @@ mod tests {
 
     #[test]
     fn tables_cover_every_field_and_defaults_are_in_bounds() {
-        assert_eq!(gene_infos(Behavior::Charger).len(), 13);
-        assert_eq!(gene_infos(Behavior::Kiter).len(), 12);
-        assert_eq!(gene_infos(Behavior::Sniper).len(), 19);
+        assert_eq!(gene_infos(Behavior::Charger).len(), 14);
+        assert_eq!(gene_infos(Behavior::Kiter).len(), 15);
+        assert_eq!(gene_infos(Behavior::Sniper).len(), 20);
         for b in Behavior::ALL {
             let g = Genome::scripted(b);
             let mut r = g.clone();

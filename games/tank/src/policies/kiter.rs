@@ -1,7 +1,8 @@
 //! Kiter (SPEC policy 2): circle-strafe at mid range and keep moving.
 
 use super::common::{
-    action, aim_and_fire, cos_sin, drive_along, nearest_wall, Jitter, Stall, StallParams,
+    action, aim_and_fire, cos_sin, drive_along, nearest_wall, DodgeParams, Jitter, Reflex, Stall,
+    StallParams,
 };
 use engine::{Action, Observation, Policy, Vec2};
 
@@ -26,6 +27,8 @@ pub struct KiterParams {
     pub steer_tol: f32,
     /// Turret alignment tolerance for firing.
     pub aim_tol: f32,
+    /// Dodge reflex: look-ahead, threshold and strength (see [`DodgeParams`]).
+    pub dodge: DodgeParams,
     /// Stall recovery.
     pub stall: StallParams,
 }
@@ -42,6 +45,11 @@ impl Default for KiterParams {
             wall_flip_cooldown: 30,
             steer_tol: 0.2,
             aim_tol: 0.05,
+            dodge: DodgeParams {
+                horizon: 10.0,
+                margin: 1.1,
+                chance: 1.0,
+            },
             stall: StallParams::default(),
         }
     }
@@ -56,6 +64,7 @@ pub struct Kiter {
     /// Tunables.
     pub params: KiterParams,
     stall: Stall,
+    reflex: Reflex,
     /// `+1`: strafe counter-clockwise around the target; `-1`: clockwise.
     side: f32,
     since_flip: u32,
@@ -84,6 +93,7 @@ impl Kiter {
         Self {
             params,
             stall: Stall::default(),
+            reflex: Reflex::new(seed),
             side,
             since_flip: 0,
             since_wall_flip: u32::MAX,
@@ -143,6 +153,7 @@ impl Policy for Kiter {
         self.since_wall_flip = self.since_wall_flip.saturating_add(1);
         let (turret_turn, fire) = aim_and_fire(obs, target, p.aim_tol);
         let (stalled, new_stall) = self.stall.update(&p.stall, obs.me.vel);
+        let threat = self.reflex.update(obs, &p.dodge);
         if new_stall {
             self.flip();
         }
@@ -168,6 +179,9 @@ impl Policy for Kiter {
                 self.since_wall_flip = 0;
                 want = strafe_direction(&p, target.rel, self.side);
             }
+        }
+        if let Some(away) = threat {
+            want = away;
         }
         let (throttle, turn) = drive_along(obs.me.heading, want, p.steer_tol);
         self.stall.record(throttle);
