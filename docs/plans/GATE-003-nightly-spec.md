@@ -73,7 +73,7 @@ All files live under `web/data/evolution/` on `nightly-data`. The CLI writes the
 - **Total:** at most 5 MB (checked by the CLI and the workflow). Each nightly change is at most 200 KB (checked by the workflow).
 - **No replay files:** the viewer re-simulates from (genome, loadout, seed).
 - **Lineage:** the run seed is fixed at `--seed 1`. Nightly runs resume from `state.json`, so night *k* equals an uninterrupted run of 100·*k* generations (see determinism below).
-- **Starting a new lineage:** a new seed, or changed gene tables (which make `state.json` refuse to load, and the job fails loudly), needs a reviewed PR that chooses a new directory. Nothing is deleted from `nightly-data` without Nye: deleting or force-pushing it is a gate (ADR-007).
+- **Starting a new lineage:** a new seed, or changed gene tables (which make `state.json` refuse to load, and the job fails loudly), starts a new lineage. The new lineage reuses `web/data/evolution/`. The old lineage's files move on `nightly-data` to `web/data/evolution/archive/<name>/`, with a README giving its seed, generations and last champion, and the next night starts at Gen 0 because there is no `state.json`. The first archive is `archive/pre-dodge-2026-10-02/` (Gen 0–399, from before the dodge reflex; PR #38). Archiving is a move pushed without force. Nothing is deleted from `nightly-data` without Nye: deleting or force-pushing it is a gate (ADR-007).
 
 ## Promotion rule and the 70% hold
 
@@ -85,7 +85,7 @@ All files live under `web/data/evolution/` on `nightly-data`. The CLI writes the
 | `promotable` | 65–70% | Eligible. It becomes the viewer's default "Gen N" only through a reviewed PR (Blitzwing + CoS) with a `docs/CARD.md` provenance card. The nightly job never promotes. |
 | `experimental` | > 70% | **Held from promotion and labeled experimental.** The job adds a warning and a line to the run summary, and the **CoS tells Nye** in the next work cycle. |
 
-The CoS still folds `nightly-data` into `main` by a normal PR (ADR-007). The files carry their status, so an experimental champion stays labeled wherever it lands.
+The CoS still folds `nightly-data` into `main` by a normal PR (ADR-007). Champion fold-ins reach `main` only that way, as a `nightly-data` → `main` PR that CI checks. Evolution files are never copied onto a branch of `main`. Copied files have no shared history with `nightly-data`, so git sees them as separate edits. On 2026-10-02 the copy promoted in #34 and #35 gave modify/delete conflicts with `nightly-data` and broke the nightly's merge of `main` (PR #38). The files carry their status, so an experimental champion stays labeled wherever it lands.
 
 ## Determinism checks (already run, 2026-09-30)
 
