@@ -1,4 +1,4 @@
-# Tank Arena — SPEC (GATE-002, approved; amended 2026-09-30)
+# Tank Arena — SPEC (GATE-002, approved; amended 2026-09-30; dodge amendment 2026-10-02 pending founder approval)
 
 Units: engine units (u), ticks at 60 Hz, headings in BAU (65536 = 1 turn, 0 = +X, CCW, Y-up). The policy numbers are starting values; the tuned ones are in the policy params structs (`games/tank/src/policies/`), with results in `BALANCE.md`.
 
@@ -52,10 +52,20 @@ Keep the engine's current shapes. **Observation:** `tick`; `me` (pos, vel, headi
 
 ## Scripted policies (in `games/tank`)
 Shared: target = `enemies[0]`. Lead aim point `L = rel + vel · (dist / 6)` (dist via `f32::sqrt`, IEEE-exact). Aim with `turn_toward(turret, L, tol)`; fire when aligned, `cooldown == 0` and `los`. Stall = throttle ≠ 0 but `|vel| < 0.2` for 10 ticks → reverse 20 ticks turning +1. Each policy's numbers live in a params struct (the Phase 3 evolution genome).
-1. **Charger** — steer at target (`tol 0.2`), throttle 1 until dist < 60, then 0. Aim tol 0.10. Wins by closing fast and trading.
-2. **Kiter** — hold 250–350 u. Hull perpendicular to `rel` (circle strafe, throttle 1), bent 30° outward if dist < 250, inward if > 350. Flip strafe direction when a wall < 60, on stall, or every 180 ticks. Aim tol 0.05.
-3. **Sniper** — relocate to the point on its half, ≥ 60 from walls, maximising distance to target with LOS; there throttle 0. Aim tol 0.02. If target dist < 250, drive away perpendicular to `rel` for 60 ticks. No LOS for 120 ticks → move along nearest pillar edge until LOS.
-Intended triangle: kiter > charger > sniper > kiter. Acceptance: every pairing 55–80% over 200 mirrored seeds.
+
+**Dodge reflex (all three policies; amendment 2026-10-02, needs founder approval as a GATE-002 amendment).** Each tick, an enemy shell is a *threat* if, assuming we stand still, its closest approach to our centre comes within the **look-ahead** (ticks) and passes closer than `radius + `**threshold** (u). Each threatening shell is rolled once, the first tick it is a threat, against the **strength** (chance of reacting; seeded ChaCha8 stream `seed ^ DODGE_SALT`, so rolls never shift a policy's other timing). The tank drives (forward or reverse, whichever end is nearer) perpendicular to the most urgent shell it reacts to, away from its closest-approach point; that overrides the policy's own steering for the tick (stall recovery still comes first). Shells it chose to ignore stay ignored for their flight. Faster tanks get out of the way sooner, so Speed buys survival as well as reload.
+
+| Policy | Look-ahead (ticks) | Threshold (u) | Strength |
+|---|---|---|---|
+| Charger | 23 | 5.3 | 0.65 |
+| Kiter | 11 | 0.66 | 0.95 |
+| Sniper | 15 | 5.4 | 0.61 |
+
+Why not always dodge: at strength 1 a dodging tank is almost untouchable at range (kiter vs sniper and the kiter and sniper mirrors end in draws), and the first attempt (charger and sniper at a 20-tick look-ahead, kiter not dodging) broke the triangle (kiter beat charger 2%, sniper beat kiter up to 100%). The kiter's tiny threshold is deliberate: it reacts only at the last moment, which is what a dancer that is always moving can afford. Before/after numbers: `BALANCE.md` §0.
+1. **Charger** — steer at target (`tol 0.2`), throttle 1 until dist < 60, then 0. Aim tol 0.10. Wins by closing fast and trading. *Shipped (2026-10-02):* aim tol 0.044, weaves ±14° every 30 ± 10 ticks until within 150 u, dodges as above.
+2. **Kiter** — hold 250–350 u. Hull perpendicular to `rel` (circle strafe, throttle 1), bent 30° outward if dist < 250, inward if > 350. Flip strafe direction when a wall < 60, on stall, or every 180 ticks. Aim tol 0.05. *Shipped (2026-10-02):* band 250–348 u, timed flip every 190 ± 40 ticks, aim tol 0.048, dodges as above.
+3. **Sniper** — relocate to the point on its half, ≥ 60 from walls, maximising distance to target with LOS; there throttle 0. Aim tol 0.02. If target dist < 250, drive away perpendicular to `rel` for 60 ticks. No LOS for 120 ticks → move along nearest pillar edge until LOS. *Shipped (2026-10-02):* aim tol 0.025, evades below 238 u, dodges as above.
+Intended triangle: kiter > charger > sniper > kiter. Acceptance: every pairing 55–80% over 200 mirrored seeds. With dodging on (2026-10-02): kiter > charger 69.2%, charger > sniper 64.5%, sniper > kiter 75.0%; median match 44.6 s, draws 8.3%; strongest loadouts Charger 5-1-3 58.8%, Kiter 5-3-1 25.0%, Sniper 5-1-3 59.2% (all pass; `BALANCE.md`). Before dodging: 76.2% / 72.5% / 65.5%, median 34.4 s, draws 3.2%, strongest loadouts 65.4% / 42.7% / 61.5%.
 
 ## Customize tab (web viewer)
 The arena viewer has two tabs: **Watch** (the match) and **Customize**. Builds use per-tank `TankParams` (engine ask #5).
