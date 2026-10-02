@@ -74,7 +74,13 @@ const CHARGER: [Gene<ChargerParams>; 14] = {
         fg!(ChargerParams, "weave_until", weave_until, 0.0, 400.0),
         fg!(ChargerParams, "dodge_horizon", dodge.horizon, 0.0, 60.0),
         fg!(ChargerParams, "dodge_margin", dodge.margin, 0.0, 20.0),
-        fg!(ChargerParams, "dodge_chance", dodge.chance, 0.0, 1.0),
+        fg!(
+            ChargerParams,
+            "dodge_chance",
+            dodge.chance,
+            0.0,
+            DODGE_CHANCE_MAX[0]
+        ),
         s0,
         s1,
         s2,
@@ -101,7 +107,13 @@ const KITER: [Gene<KiterParams>; 15] = {
         fg!(KiterParams, "aim_tol", aim_tol, 0.005, 0.2),
         fg!(KiterParams, "dodge_horizon", dodge.horizon, 0.0, 60.0),
         fg!(KiterParams, "dodge_margin", dodge.margin, 0.0, 20.0),
-        fg!(KiterParams, "dodge_chance", dodge.chance, 0.0, 1.0),
+        fg!(
+            KiterParams,
+            "dodge_chance",
+            dodge.chance,
+            0.0,
+            DODGE_CHANCE_MAX[1]
+        ),
         s0,
         s1,
         s2,
@@ -133,12 +145,28 @@ const SNIPER: [Gene<SniperParams>; 20] = {
         fg!(SniperParams, "route_margin", route_margin, 0.0, 40.0),
         fg!(SniperParams, "dodge_horizon", dodge.horizon, 0.0, 60.0),
         fg!(SniperParams, "dodge_margin", dodge.margin, 0.0, 20.0),
-        fg!(SniperParams, "dodge_chance", dodge.chance, 0.0, 1.0),
+        fg!(
+            SniperParams,
+            "dodge_chance",
+            dodge.chance,
+            0.0,
+            DODGE_CHANCE_MAX[2]
+        ),
         s0,
         s1,
         s2,
     ]
 };
+
+/// Upper bound of the `dodge_chance` gene (dodge strength) per behavior, in
+/// [`Behavior::ALL`] order (Charger, Kiter, Sniper): each is that policy's shipped
+/// strength. Evolution may make a tank dodge less often than its scripted policy, never
+/// more. A bound below a shipped value would put Gen 0 out of bounds. A uniform cap would
+/// have to be at least the Kiter's 0.95, and in the 2026-10-02 sweep that capped nothing
+/// (seed 1: 98.3% vs Gen 0, uncapped 95.5%). These bounds gave the weakest champions
+/// that still clear 65% (88.3% seed 1, 71.1% seed 2). Evidence: field note
+/// `docs/fieldnotes/2026-10-02-dodge-cap.md`.
+pub const DODGE_CHANCE_MAX: [f32; 3] = [0.65, 0.95, 0.61];
 
 /// Kiter's range band keeps at least this width (`max_dist >= min_dist + KITER_BAND`).
 pub const KITER_BAND: f32 = 20.0;
@@ -381,6 +409,21 @@ mod tests {
             names.sort();
             names.dedup();
             assert_eq!(names.len(), g.genes.len(), "{b}: duplicate gene name");
+        }
+    }
+
+    #[test]
+    fn dodge_chance_is_capped_at_the_shipped_strength() {
+        for (i, b) in Behavior::ALL.into_iter().enumerate() {
+            let infos = gene_infos(b);
+            let k = infos.iter().position(|g| g.name == "dodge_chance").unwrap();
+            assert_eq!(infos[k].hi, DODGE_CHANCE_MAX[i], "{b}");
+            assert!(DODGE_CHANCE_MAX[i] < 1.0, "{b}: capped below the maximum");
+            assert_eq!(
+                Genome::scripted(b).genes[k],
+                DODGE_CHANCE_MAX[i],
+                "{b}: the cap is the shipped dodge strength"
+            );
         }
     }
 
