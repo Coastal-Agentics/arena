@@ -388,7 +388,7 @@ impl Rules for TankRules {
     const GAME: &'static str = "tank";
     /// The rules that replay formats 2 to 4 describe. Tank Arena writes no
     /// `rules_version` today (see [`TankRules::WRITES_FORMAT`]).
-    const RULES_VERSION: u32 = 1;
+    const RULES_VERSION: u64 = 1;
     /// Tank Arena keeps writing format 4, byte for byte (`docs/design/tank-refit.md`):
     /// no `game` or `rules_version` field, so every tank replay, hash and parity
     /// fixture is unchanged. Whether tank ever writes format 5 is a separate decision.

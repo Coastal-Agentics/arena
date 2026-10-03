@@ -25,7 +25,7 @@ Written by `Replay::to_json()` as compact JSON, one object:
 | --- | --- | --- | --- | --- |
 | `format` | integer | `u32` | yes | The writer's `Rules::WRITES_FORMAT`: `4` for Tank Arena, `5` for every other game (`REPLAY_FORMAT`). `2` and `3` are also read |
 | `game` | string | `Option<String>` | yes in format 5; absent before | `Rules::GAME`, e.g. `"racing"`. Not written by Tank Arena |
-| `rules_version` | integer | `Option<u32>` | yes in format 5; absent before | `Rules::RULES_VERSION`. Not written by Tank Arena |
+| `rules_version` | integer | `Option<u64>` | yes in format 5; absent before | `Rules::RULES_VERSION`. Not written by Tank Arena |
 | `engine_version` | string | `String` | yes | `engine` crate version of the writer, e.g. `"0.1.0"`. Informational: never checked |
 | `seed` | string (number accepted) | `u64` | yes | Match seed as a decimal string, e.g. `"18446744073709551615"`. See [JS-safe seeds](determinism.md#js-safe-seeds) |
 | `config` | object | `MatchConfig` | yes | Full match config, below |
@@ -255,7 +255,7 @@ A game declares its identity on its `Rules` impl; the engine writes and checks i
 impl Rules for RacingRules {
     // ... types and functions ...
     const GAME: &'static str = "racing";
-    const RULES_VERSION: u32 = 1;
+    const RULES_VERSION: u64 = 1; // the same constant as the racing catalog's RULES_VERSION
     // WRITES_FORMAT defaults to REPLAY_FORMAT (5): leave it out.
 }
 // Write: m.replay().to_json()  → format 5 with game and rules_version.

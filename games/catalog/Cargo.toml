@@ -1,0 +1,13 @@
+[package]
+name = "game-catalog"
+description = "The shared build-catalog shape and build validator every game crate fills in (Nyborg builds)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+# Already in the tree through `engine`.
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

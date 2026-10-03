@@ -1,7 +1,8 @@
 name: Pages
 
 # Deploys web/ as static files to GitHub Pages on push to main (ADR-008).
-# No build step: the wasm and its JS glue are committed under web/pkg.
+# The wasm and its JS glue are committed under web/pkg. The only build step generates the
+# gitignored web/fieldnotes/index.json from web/fieldnotes/cards/*.json (#52).
 on:
   push:
     branches: [main]
@@ -25,6 +26,15 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: actions/configure-pages@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          package-manager-cache: false
+      - name: Generate web/fieldnotes/index.json
+        run: |
+          node --version
+          node scripts/fieldnotes_index.mjs
+          test -s web/fieldnotes/index.json
       - uses: actions/upload-pages-artifact@v5
         with:
           path: web

@@ -83,6 +83,12 @@ jobs:
         with:
           node-version: "22"
           package-manager-cache: false
+      # Fieldnote cards (web/fieldnotes/cards/*.json) are validated on every PR; Pages
+      # generates web/fieldnotes/index.json from them at deploy time (it is gitignored).
+      - name: Fieldnote cards (validate + tests)
+        run: |
+          node scripts/fieldnotes_index.mjs --check
+          node --test scripts/fieldnotes_index.test.mjs
       - name: Native-vs-wasm parity (pinned replays)
         run: |
           node --version

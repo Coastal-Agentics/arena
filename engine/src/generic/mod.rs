@@ -71,7 +71,9 @@ pub trait Rules {
     /// The version of this game's rules, written as `rules_version` in format 5
     /// replays. [`Replay::from_json`] rejects a format 5 file with any other value, so
     /// bump it whenever the same config, seed and actions would play out differently.
-    const RULES_VERSION: u32;
+    /// `u64` like a game crate's catalog `RULES_VERSION` (`games/catalog`), so a game
+    /// can use one constant for both.
+    const RULES_VERSION: u64;
     /// The replay format [`Replay::from_match`] writes for this game: 4 or 5. Defaults to
     /// [`REPLAY_FORMAT`] (5): a new game writes format 5 and reads only format 5 files
     /// of its own `game` and `rules_version`. A game whose replays predate format 5 sets

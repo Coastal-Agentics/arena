@@ -66,7 +66,7 @@ pub struct Replay<R: Rules> {
     pub game: Option<String>,
     /// [`Rules::RULES_VERSION`]: required from format 5, absent before.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub rules_version: Option<u32>,
+    pub rules_version: Option<u64>,
     /// `engine` crate version of the writer (informational; not checked on load).
     pub engine_version: String,
     /// Serialized as a decimal string (JS-safe); a JSON number is also accepted.
@@ -106,9 +106,9 @@ pub enum ReplayError {
         /// [`Rules::GAME`].
         game: &'static str,
         /// [`Rules::RULES_VERSION`] of the rules loading the file.
-        expected: u32,
+        expected: u64,
         /// The file's `rules_version`.
-        got: Option<u32>,
+        got: Option<u64>,
     },
     /// The `format` field is outside [`OLDEST_READABLE_FORMAT`]..=[`REPLAY_FORMAT`];
     /// carries the value found.
@@ -216,7 +216,7 @@ struct Envelope {
     #[serde(default)]
     game: Option<String>,
     #[serde(default)]
-    rules_version: Option<u32>,
+    rules_version: Option<u64>,
 }
 
 impl Envelope {

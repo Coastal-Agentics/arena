@@ -52,7 +52,7 @@ impl Rules for Race {
     type Event = Finished;
 
     const GAME: &'static str = "race";
-    const RULES_VERSION: u32 = 3;
+    const RULES_VERSION: u64 = 3;
 
     fn init(config: &RaceConfig, rng: &mut MatchRng) -> RaceState {
         RaceState {
@@ -388,7 +388,7 @@ impl Rules for Legacy {
     type Event = Finished;
 
     const GAME: &'static str = "legacy";
-    const RULES_VERSION: u32 = 1;
+    const RULES_VERSION: u64 = 1;
     const WRITES_FORMAT: u32 = 4;
 
     fn init(config: &RaceConfig, rng: &mut MatchRng) -> RaceState {
