@@ -8,11 +8,11 @@
 //! rewrites `manifest.json` with the expected ticks, outcome, final hash and setup hash.
 //! The output is deterministic: running it twice gives byte-identical files.
 //!
-//! Only regenerate on a bump of the format Tank Arena writes (`TankRules::WRITES_FORMAT`)
-//! or a deliberate rule change, and say so in
-//! the PR (see `docs/engine/determinism.md`, "Native-vs-wasm parity"). The replays
-//! store actions, not policies, so a policy change in `games/tank` does not invalidate
-//! them; it only means a regenerated file would differ.
+//! Only regenerate on a bump of the format Tank Arena writes (`TankRules::WRITES_FORMAT`),
+//! a deliberate rule change, or a refresh after scripted-policy changes (the `arena-*`
+//! files), and say so in the PR (see `docs/engine/determinism.md`, "Native-vs-wasm
+//! parity"). The replays store actions, not policies, so a policy change in `games/tank`
+//! does not invalidate them; it only means a regenerated file would differ.
 
 use engine::{Match, MatchConfig, Policy, Replay, TankParams};
 use serde::Serialize;
@@ -111,14 +111,15 @@ const FIXTURES: &[Fixture] = &[
         file: "arena-charger-mirror.json",
         why: "Tank Arena rules v1 as WasmMatch.tank plays it: \
               seed=2&blue=charger-5-3-1&orange=charger-5-3-1. Loadouts as per-tank params, \
-              fixed spawns, the pillar arena; ends as an all_destroyed draw.",
+              fixed spawns, the pillar arena; ends last_standing (orange) at tick 816, the \
+              winner on 54 HP.",
         play: || arena_query("seed=2&blue=charger-5-3-1&orange=charger-5-3-1"),
     },
     Fixture {
         file: "arena-sniper-vs-charger.json",
         why: "Tank Arena: seed=0&blue=sniper-5-3-1&orange=charger-5-3-1. The sniper holds \
               a spot with a sight line and fires only when it sees the target, so its shots \
-              depend on the pillars; ends last_standing (orange).",
+              depend on the pillars; ends last_standing (blue, the sniper) at tick 1023.",
         play: || arena_query("seed=0&blue=sniper-5-3-1&orange=charger-5-3-1"),
     },
     Fixture {
@@ -126,7 +127,7 @@ const FIXTURES: &[Fixture] = &[
         why: "Tank Arena 2v2 corner spawns (four tanks, teammates, no friendly fire), \
               charger/kiter/sniper/charger with loadouts 5-3-1, 2-5-2, 3-1-5, 4-4-1, \
               seed 1, max_ticks cut to 360 so it ends at the tick_limit (a draw) while \
-              small. Three tanks have taken hits by then.",
+              small. Two tanks (both chargers) have taken hits by then.",
         play: || {
             let loadouts: Vec<Loadout> = ["5-3-1", "2-5-2", "3-1-5", "4-4-1"]
                 .iter()
