@@ -118,8 +118,4 @@ These are steps inside game-system.md's M3 (racing v0) and M5 (viewer).
 | **R3** (in M5) | Watch and Customize in the viewer ([viewer-multi-game.md](viewer-multi-game.md)) | A racing link replays exactly in the browser, and parity CI has racing fixtures. |
 | **R4** (after M3) | Evolution for racing (the GATE-003 GA over the baselines' params and the car setup) | A champion beats Gen 0 by at least 65% on 1,000 held-out seeds, and two runs are byte-identical. |
 
-**Needed from the engine (Shockwave):**
-- the `Finished` end reason;
-- the format 5 envelope;
-- `reward` and `Flat` (M1);
-- a decision on where segment-wall geometry goes: `engine::arena` today has only rectangles, and racing needs circle vs segment and ray vs segment. It could go in `engine::arena` or in `games/racing`.
+**Needed from the engine (Shockwave):** the `Finished` end reason, the format 5 envelope, and `reward` and `Flat` (M1). Segment walls, rays and circle-vs-segment tests go in `games/racing` first (Shockwave, game-system.md §3). They move to `engine::arena` only if another game needs them. Each car is its own team, so `Outcome.winner: Option<u8>` works unchanged for up to 4 cars.
