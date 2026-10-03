@@ -248,7 +248,7 @@ Recommendation: option 1. After Phase A, `engine-cli` and `engine-wasm` already 
 6. **Replays and games:** replays don't record which game they belong to. Accepted as a known limit; revisit (format 5) only if a second game exists.
 
 ## ADR-015 — Jev as an optional tool: outside the tick loop, logged, never a training source
-**Status:** Proposed (2026-10-03). For Nye as a gate. Docs only: no code, no dependencies, no account.
+**Status:** Accepted (Nye's gate decision, 2026-10-03; #47). Docs only: no code, no dependencies, no account.
 **Source:** Reflector's findings on TypeSafe AI's Jev (2026-10-03), checked against TypeSafe's public docs and its Master Customer Agreement (MCA, updated 2026-09-23). The contract points are research, not legal advice.
 **Context:** Jev is TypeSafe AI's hosted "System One" model, in early access since 2026-09-15 ([announcement](https://typesafe.ai/blog/introducing-system-one-models-and-jev)). You send a text or JSON state plus typed questions and get typed answers: **Choice** (one of up to 255 options), **Score** (a rubric level) or **Noul** (a 0–1 truth value), with probabilities. It is closed, hosted only and not deterministic (TypeSafe's own repeat test shows small run-to-run noise). Its claimed 70–500 ms latency (not measured by us) is 4 to 30 ticks at 60 Hz, and its published limit is 80 requests/s. It is weak at numbers, so state goes in as words ("enemy 2: close, low HP"), not coordinates.
 
