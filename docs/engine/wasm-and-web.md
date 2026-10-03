@@ -66,10 +66,10 @@ Wanderer seeding: `seed ^ 0x5eed` on team 1 (so Chaser vs Wanderer equals
 | `m.free()` | | Release the Rust object |
 | `duelConfigJson()` | `string` | `MatchConfig::duel()` as JSON, a starting point for `withConfig` |
 | `WasmMatch.tank(query)` | `WasmMatch` | A Tank Arena duel from a URL query (see below). Throws on bad input |
-| `WasmMatch.fromBuilds(game, seed, blueBuildJson, orangeBuildJson)` | `WasmMatch` | A Tank Arena duel from two builds, each checked by `validateBuild`; plays exactly like `WasmMatch.tank` with the same seed, behaviors and levels. Throws `blue: invalid build [{"code":…,"key":…}]` (or `orange: …`), and for a champion behavior (the loader resolves those) |
-| `games()` | `string` | JSON `[{"game": "tank", "rules_version": 1}]` |
+| `WasmMatch.fromBuilds(game, seed, blueBuildJson, orangeBuildJson)` | `WasmMatch` | A Tank Arena duel from two builds, each checked by `validateBuild`; plays exactly like `WasmMatch.tank` with the same seed, behaviors and levels. Throws `blue: invalid build [{"code":…,"key":…}]` (or `orange: …`), and for a champion behavior (the loader resolves those). Tank only: any other game, racing included, throws `wrong_game` |
+| `games()` | `string` | JSON `[{"game": "tank", "rules_version": 1}, {"game": "racing", "rules_version": 1}]` |
 | `catalogJson(game)` | `string` | JSON build catalog for a game (below). Throws `unknown game "…"` |
-| `defaultBuild(game)` | `string` | JSON default build (3/3/3, first scripted behavior). Throws for an unknown game |
+| `defaultBuild(game)` | `string` | JSON default build (3/3/3, first scripted behavior: tank `charger`, racing `follower`). Throws for an unknown game |
 | `validateBuild(game, buildJson)` | `string` | JSON `{"ok": true, …}` with the normalized build, or `{"ok": false, "errors": […]}`. Never throws |
 | `tankCatalogJson()` | `string` | JSON `CatalogView`: the Customize tab's tables and lists (below) |
 | `snapLoadout(attack, speed, defense)` | `string` | Snap barycentric weights (Attack, Speed and Defense corners of the Customize triangle) to the nearest valid loadout, `"A-S-D"` (`tank::Loadout::snap`) |
@@ -114,7 +114,17 @@ engine never sees a Nyborg's `look`.
 shape is checked (a non-empty string of at most 200 bytes), because the loader resolves the
 ref. Unknown top-level fields (a `look`, a `game: "tank"`) are ignored.
 
-- **`games()`**: `[{"game":"tank","rules_version":1}]`. Racing joins in M3.
+- **`games()`**: `[{"game":"tank","rules_version":1},{"game":"racing","rules_version":1}]`.
+- **Racing** (since 2026-10-03): `catalogJson("racing")` is the committed
+  `games/racing/catalog.json` (budget 9; stats `power`, `top_speed`, `grip`, levels 1–5 at
+  one point each, resolving to `acceleration`, `top_speed` and `grip`; behaviors
+  `follower`, `cutter`, `blocker`; presets Balanced, Sprinter, Speedster, Carver).
+  `defaultBuild("racing")` is 3/3/3 `follower`. `validateBuild("racing", …)` uses the same
+  error codes and order as tank, with the car's params on success:
+  `{"ok":true,"game":"racing","rules_version":1,"levels":{"power":3,"top_speed":3,"grip":3},"behavior":{"kind":"scripted","id":"follower"},"points":9,"params":{"power":240.0,"top_speed":240.0,"grip":0.25}}`.
+  There is no race viewer yet (`WasmRace`), so a race can't be started from JS.
+  `scripts/catalog_racing.test.mjs` (`node --test`) and engine-wasm's
+  `build_exports_wrap_the_racing_catalog` cover every call and error code.
 - **`catalogJson("tank")`**: `game`, `rules_version`, `budget` (9), `stats` (Attack, Speed,
   Defense, each `{key, label, min: 1, max: 5, cost_per_level: 1, values}` where `values[i]` is
   level `i + 1` resolved: `damage`; `max_speed`, `turn_rate` and `fire_cooldown` (reload
@@ -173,7 +183,7 @@ ref. Unknown top-level fields (a `look`, a `game: "tank"`) are ignored.
   The first three stop the check, since the levels mean nothing without them; the rest are
   all reported together.
 
-**Adding a game (racing, M3).** The game crate provides plain data and a few functions,
+**Adding a game** (racing did, 2026-10-03). The game crate provides plain data and a few functions,
 no traits:
 
 ```rust
@@ -351,7 +361,15 @@ comment-only changes.** Doc comments on `#[wasm_bindgen]` items are copied into 
 JSDoc. Panic locations (file:line) are compiled into the wasm, so moving code lines changes
 the bytes. PR #12 was an example: rustdoc-only edits changed both files.
 
-Size: `engine_wasm_bg.wasm` is 300,158 bytes (117,975 with `gzip -9 -n`) since the slim
+Size: `engine_wasm_bg.wasm` is 307,335 bytes (120,393 with `gzip -9 -n`) since racing's
+`GAMES` entry (2026-10-03): +7,177 bytes (+2,418 gzipped). That includes racing's committed
+catalog JSON, its `validate_build` and params, and the validator moving out of line now
+that two games share it. `game_catalog::validate`, `check_levels` and `Build::points`
+take `&dyn RuleSet`, and `validation_json` hands its game-independent part to one
+non-generic function. With generics, each game crate compiled its own copy of the
+validator and parser: 316,666 bytes, +16,508.
+
+Before that: 300,158 bytes (117,975) since the slim
 catalog and the one-codegen-unit wasm build (2026-10-03), down from 338,099 (124,611) on
 main after #56: −37,941 bytes (−11.2%), −6,636 gzipped. Measured against the same tree
 without #51 (293,288 / 111,521; 276,151 / 109,750 with one codegen unit), the catalog's own

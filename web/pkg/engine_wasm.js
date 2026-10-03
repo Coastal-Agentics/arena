@@ -159,7 +159,8 @@ export function tankCatalogJson() {
 }
 
 /**
- * The games and their rules versions, as JSON: `[{"game": "tank", "rules_version": 1}]`.
+ * The games and their rules versions, as JSON:
+ * `[{"game":"tank","rules_version":1},{"game":"racing","rules_version":1}]`.
  * @returns {string}
  */
 export function games() {
@@ -204,8 +205,8 @@ export function catalogJson(game_id) {
 }
 
 /**
- * A game's default build as JSON (tank: 3/3/3, first scripted behavior). Throws for
- * an unknown game.
+ * A game's default build as JSON (tank: 3/3/3 charger; racing: 3/3/3 follower).
+ * Throws for an unknown game.
  * @param {string} game_id
  * @returns {string}
  */

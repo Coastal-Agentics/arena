@@ -87,6 +87,10 @@ pub struct StatRule {
 /// What [`validate`], [`check_levels`] and [`Build::points`] read: implemented by the
 /// `const` [`Rules`] (what the wasm build uses) and by a full [`Catalog`] (handy in a
 /// game crate before it has a `RULES` const; both give the same results).
+///
+/// They take `&dyn RuleSet` rather than a generic so the validator, and the JSON parser
+/// under it, are compiled once in this crate and shared by every game in the wasm build
+/// (a generic was instantiated again in each game crate: +8 KB for the second game).
 pub trait RuleSet {
     /// Game id.
     fn game(&self) -> &str;
@@ -316,7 +320,7 @@ pub struct Build {
 
 impl Build {
     /// Points spent under `rules`' costs.
-    pub fn points<R: RuleSet + ?Sized>(&self, rules: &R) -> u32 {
+    pub fn points(&self, rules: &dyn RuleSet) -> u32 {
         stat_rules(rules)
             .map(|s| self.levels.get(s.key).unwrap_or(0) as u32 * s.cost_per_level as u32)
             .sum()
@@ -375,45 +379,55 @@ impl<P> Valid<P> {
 /// `serde_json`), so wasm carries no serializer per catalog type; a test checks it
 /// against the derived `Serialize` output.
 pub fn validation_json<P: Serialize>(result: &Result<Valid<P>, Vec<BuildError>>) -> String {
-    let mut s = String::with_capacity(256);
+    // Only the params are game-specific; the rest is written by one shared,
+    // non-generic function (compiled once, not again in every game crate).
     match result {
-        Ok(v) => {
-            s.push_str("{\"ok\":true,\"game\":");
-            push_str_json(&mut s, v.game);
-            s.push_str(",\"rules_version\":");
-            push_uint(&mut s, v.build.rules_version);
-            s.push_str(",\"levels\":{");
-            for (i, (k, l)) in v.build.levels.0.iter().enumerate() {
-                if i > 0 {
-                    s.push(',');
-                }
-                push_str_json(&mut s, k);
-                s.push(':');
-                push_uint(&mut s, *l as u64);
-            }
-            s.push_str("},\"behavior\":{\"kind\":");
-            match &v.build.behavior {
-                BehaviorRef::Scripted { id } => {
-                    s.push_str("\"scripted\",\"id\":");
-                    push_str_json(&mut s, id);
-                }
-                BehaviorRef::Champion { reference } => {
-                    s.push_str("\"champion\",\"ref\":");
-                    push_str_json(&mut s, reference);
-                }
-            }
-            s.push_str("},\"points\":");
-            push_uint(&mut s, v.points as u64);
-            s.push_str(",\"params\":");
-            s.push_str(&serde_json::to_string(&v.params).expect("params serialize"));
-            s.push('}');
-        }
+        Ok(v) => valid_json(
+            v.game,
+            &v.build,
+            v.points,
+            &serde_json::to_string(&v.params).expect("params serialize"),
+        ),
         Err(errors) => {
-            s.push_str("{\"ok\":false,\"errors\":");
+            let mut s = String::from("{\"ok\":false,\"errors\":");
             s.push_str(&errors_json(errors));
             s.push('}');
+            s
         }
     }
+}
+
+fn valid_json(game: &str, build: &Build, points: u32, params_json: &str) -> String {
+    let mut s = String::with_capacity(256);
+    s.push_str("{\"ok\":true,\"game\":");
+    push_str_json(&mut s, game);
+    s.push_str(",\"rules_version\":");
+    push_uint(&mut s, build.rules_version);
+    s.push_str(",\"levels\":{");
+    for (i, (k, l)) in build.levels.0.iter().enumerate() {
+        if i > 0 {
+            s.push(',');
+        }
+        push_str_json(&mut s, k);
+        s.push(':');
+        push_uint(&mut s, *l as u64);
+    }
+    s.push_str("},\"behavior\":{\"kind\":");
+    match &build.behavior {
+        BehaviorRef::Scripted { id } => {
+            s.push_str("\"scripted\",\"id\":");
+            push_str_json(&mut s, id);
+        }
+        BehaviorRef::Champion { reference } => {
+            s.push_str("\"champion\",\"ref\":");
+            push_str_json(&mut s, reference);
+        }
+    }
+    s.push_str("},\"points\":");
+    push_uint(&mut s, points as u64);
+    s.push_str(",\"params\":");
+    s.push_str(params_json);
+    s.push('}');
     s
 }
 
@@ -477,8 +491,8 @@ pub fn push_uint(s: &mut String, mut n: u64) {
 /// The one level and budget check, for levels in `catalog`'s stat order: each an
 /// integer in `min..=max` (`None`, a missing or non-integer level, is out of range),
 /// then the points spent exactly the budget.
-pub fn check_levels<R: RuleSet + ?Sized>(
-    rules: &R,
+pub fn check_levels(
+    rules: &dyn RuleSet,
     levels: &[Option<i64>],
 ) -> Result<Levels, Vec<BuildError>> {
     let mut errors = Vec::new();
@@ -516,7 +530,7 @@ pub fn check_levels<R: RuleSet + ?Sized>(
 /// fields (a Nyborg's `look`) are skipped, never kept. Scripted ids must match one of
 /// `rules.behaviors` exactly; a champion `ref` must be a non-empty string of at most
 /// 200 bytes.
-pub fn validate<R: RuleSet + ?Sized>(rules: &R, json: &str) -> Result<Build, Vec<BuildError>> {
+pub fn validate(rules: &dyn RuleSet, json: &str) -> Result<Build, Vec<BuildError>> {
     let Ok(build @ Loose::Map(_)) = serde_json::from_str::<Loose>(json) else {
         return Err(vec![BuildError::new("invalid_json", "")]);
     };
