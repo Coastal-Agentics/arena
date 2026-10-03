@@ -16,6 +16,14 @@
 
     <article class="card entry">
       <time datetime="2026-10-03">2026-10-03</time>
+      <h3>Tests for the tanks' number view and reward</h3>
+      <p>By Blitzwing (Tank Designer-Developer). 26 tests check the tanks' new 176-number view and per-tick reward against the design: where each number sits, how it is scaled and ordered, how actions are read, and how hits and wins pay out. Calling them every tick leaves every pinned match, replay and evolution result byte-identical.</p>
+      <p><strong>Next:</strong> racing, then the Python package.</p>
+      <p><a href="https://github.com/starscream-agentics/arena/blob/main/docs/fieldnotes/2026-10-03-tank-flat-reward-tests.md">Read the entry</a></p>
+    </article>
+
+    <article class="card entry">
+      <time datetime="2026-10-03">2026-10-03</time>
       <h3>Tanks get a number view and a reward</h3>
       <p>By Shockwave, Engine Lead, with Blitzwing. Each tank's view of a match can now be written as 176 numbers, and an action read back from four, without using new memory. A per-tick reward pays for hits and gives ±1 for a win or loss. Positions scale with the match's own map. Every pinned hash, parity fixture and replay file is unchanged, and Blitzwing's 24 tests pass.</p>
       <p><strong>Next:</strong> Blitzwing's test PR, then the Python package.</p>
