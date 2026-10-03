@@ -1,0 +1,5 @@
+LicenseRef-Coastal-Assets
+
+Copyright (c) 2026 Nye Warburton. All rights reserved, except as permitted in
+ASSETS-LICENSE.md in the root of this repository, which is the full text of
+this license.

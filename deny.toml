@@ -1,0 +1,21 @@
+# SPDX-FileCopyrightText: 2026 Nye Warburton
+# SPDX-License-Identifier: MIT OR Apache-2.0
+# cargo-deny policy: permissive licenses only; no unknown registries or git sources.
+# Run: cargo deny check licenses bans sources advisories
+
+[graph]
+all-features = true
+
+[licenses]
+allow = ["MIT", "Apache-2.0", "BSD-2-Clause", "Unlicense", "Unicode-3.0"]
+# Add BSD-3-Clause, ISC or Zlib here only when a dependency needs them (cargo-deny warns on unused entries).
+confidence-threshold = 0.9
+
+[bans]
+multiple-versions = "warn"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+
+[advisories]
