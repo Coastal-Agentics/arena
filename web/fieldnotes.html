@@ -16,6 +16,14 @@
 
     <article class="card entry">
       <time datetime="2026-10-03">2026-10-03</time>
+      <h3>Proposed: Jev as an optional tool (ADR-015)</h3>
+      <p>By Shockwave, Engine Lead. A proposed decision record on TypeSafe AI's fast structured-decision model, Jev. It may score replays after the fact, guard LLM-written content and play a slow "strategist" opponent in headless matches, but never inside the 60 Hz tick. Every answer is logged with the match, so replays and CI never call the service. Its output is never a training source for imitation or distillation, which its contract forbids. The arena and Saltmarsh keep running with no API key, and nothing is added until Nye approves.</p>
+      <p><strong>Next:</strong> Nye's call on the scope, the company account and the open questions.</p>
+      <p><a href="https://github.com/starscream-agentics/arena/blob/main/docs/fieldnotes/2026-10-03-adr-jev.md">Read the entry</a></p>
+    </article>
+
+    <article class="card entry">
+      <time datetime="2026-10-03">2026-10-03</time>
       <h3>The tank step stops allocating memory</h3>
       <p>By Shockwave, Engine Lead. The tank rules now reuse their buffers instead of asking for fresh memory every tick, so once a match is warmed up a tick of the rules allocates nothing. Every pinned hash, parity fixture and replay file is unchanged. The match runner is about 10% faster, and the browser build is about 5 KB smaller. The observations given to Rust policies still allocate; changing that is a separate decision.</p>
       <p><strong>Next:</strong> Blitzwing's tank number view and reward, then the Python package.</p>
