@@ -1,6 +1,9 @@
 [workspace]
 resolver = "2"
 members = ["engine", "engine-cli", "engine-wasm", "games/catalog", "games/racing", "games/tank"]
+# The Python bindings are their own workspace (own Cargo.lock and target/), so no
+# workspace build, test or lint ever compiles pyo3 (docs/engine/python.md).
+exclude = ["engine-py"]
 
 [workspace.package]
 version = "0.1.0"
