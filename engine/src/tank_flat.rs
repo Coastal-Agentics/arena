@@ -42,8 +42,20 @@
 //!   index in `Arena::obstacles`. At most 4.
 //! - Empty slots are all zeros (present = 0).
 //!
-//! **Actions:** throttle, turn, turret turn, and fire = value `> 0`. The loop still
-//! applies [`Rules::sanitize`](crate::Rules::sanitize) (clamping, NaN to 0) before recording.
+//! **Inactive agents:** a destroyed tank's observation is all zeros.
+//!
+//! **Frames:** relative positions and velocities are in the world frame (x right, y
+//! up), not rotated into the hull frame, as in the v1 table.
+//!
+//! **Actions:** throttle, turn, turret turn, and fire = value `> 0`. Input from a
+//! binding is untrusted, so [`Flat::decode_action`] clamps every value to `[-1, 1]` and
+//! maps NaN to 0 itself; the loop's [`Rules::sanitize`](crate::Rules::sanitize) still
+//! clamps again before recording.
+//!
+//! **Native vs wasm:** the encoding uses only table trig and basic f32 arithmetic, so it
+//! is the same natively and in wasm. Nothing exports it to wasm or Python yet, so no
+//! parity check runs. That check lands with the first wasm or Python consumer
+//! (game-system.md M4/M5).
 
 use crate::angle;
 use crate::generic::Flat;
@@ -144,8 +156,8 @@ impl Flat for TankRules {
     const OBS_LEN: usize = OBS_LEN;
     const ACTION_LEN: usize = ACTION_LEN;
 
-    /// Writes tank `agent`'s observation in the layout above. Works for dead tanks too
-    /// (as [`Rules::observe`](crate::Rules::observe) does). Allocation-free.
+    /// Writes tank `agent`'s observation in the layout above, or all zeros if the tank
+    /// is destroyed (inactive). Allocation-free.
     ///
     /// # Panics
     /// If `out.len()` is not [`OBS_LEN`] or `agent` is out of range.
@@ -160,6 +172,9 @@ impl Flat for TankRules {
         out.fill(0.0);
         let tanks = state.tanks();
         let me = &tanks[agent];
+        if !me.alive {
+            return;
+        }
         let size = config.arena.size;
         let pos = |p: Vec2| 2.0 * p / size - Vec2::ONE;
 
@@ -264,19 +279,20 @@ impl Flat for TankRules {
         }
     }
 
-    /// `[throttle, turn, turret_turn, fire]`, with fire = `input[3] > 0` (NaN: no fire).
-    /// The values are passed through unclamped; the match loop's
-    /// [`Rules::sanitize`](crate::Rules::sanitize) clamps them before recording.
+    /// `[throttle, turn, turret_turn, fire]`. Each value is clamped to `[-1, 1]` with
+    /// NaN mapped to 0, then fire = value `> 0` (so NaN means no fire). The match loop's
+    /// [`Rules::sanitize`](crate::Rules::sanitize) clamps again before recording.
     ///
     /// # Panics
     /// If `input.len()` is not [`ACTION_LEN`].
     fn decode_action(input: &[f32]) -> Action {
         assert_eq!(input.len(), ACTION_LEN, "action buffer length");
+        let v = |x: f32| if x.is_nan() { 0.0 } else { x.clamp(-1.0, 1.0) };
         Action {
-            throttle: input[0],
-            turn: input[1],
-            turret_turn: input[2],
-            fire: input[3] > 0.0,
+            throttle: v(input[0]),
+            turn: v(input[1]),
+            turret_turn: v(input[2]),
+            fire: v(input[3]) > 0.0,
         }
     }
 }
@@ -338,6 +354,12 @@ mod tests {
         );
         assert!(TankRules::decode_action(&[0.0, 0.0, 0.0, 1e-6]).fire);
         assert!(!TankRules::decode_action(&[0.0, 0.0, 0.0, f32::NAN]).fire);
+        // Untrusted input is clamped, NaN to 0.
+        let a = TankRules::decode_action(&[7.0, f32::NAN, f32::NEG_INFINITY, 3.0]);
+        assert_eq!(
+            (a.throttle, a.turn, a.turret_turn, a.fire),
+            (1.0, 0.0, -1.0, true)
+        );
     }
 
     #[test]
@@ -509,9 +531,13 @@ mod tests {
             let mut checked = 0;
             while !m.is_over() {
                 for agent in 0..n {
-                    let obs = m.observe(agent);
-                    assert_eq!(encode(&m, agent), from_observation(&config, &obs));
-                    checked += 1;
+                    let got = encode(&m, agent);
+                    if m.tanks()[agent].alive {
+                        assert_eq!(got, from_observation(&config, &m.observe(agent)));
+                        checked += 1;
+                    } else {
+                        assert!(got.iter().all(|&v| v == 0.0), "inactive: all zeros");
+                    }
                 }
                 let (mut h, mut d) = (hunters.iter_mut(), drifters.iter_mut());
                 let mut refs: Vec<&mut dyn crate::Policy> = (0..n)

@@ -763,7 +763,8 @@ impl Rules for TankRules {
     /// - **Shaping**, for each [`Event::Hit`] this tick: the tank that fired gets
     ///   `+0.5 × d ÷ target max HP` and the tank that was hit gets `−0.5 × d ÷ its own
     ///   max HP`. Here `d` is the hit's damage capped at the target's hp just before
-    ///   that hit (never below 0), so overkill doesn't count. Each hit is zero-sum. A
+    ///   that hit (never below 0), so overkill doesn't count: a second hit on the same
+    ///   tick on a tank already at ≤ 0 hp gets 0. Each hit is zero-sum. A
     ///   tank's damage taken sums to at most its max HP, so its negative shaping over a
     ///   match is at least −0.5; in a duel its positive shaping is at most +0.5.
     /// - **Terminal**, only on the tick a [`Event::Destroyed`] leaves exactly one team
