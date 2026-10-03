@@ -1,3 +1,4 @@
 /target
 **/*.rs.bk
 .vercel
+web/fieldnotes/index.json
