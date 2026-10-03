@@ -42,7 +42,7 @@ impl Behavior {
     pub const ALL: [Behavior; 3] = [Behavior::Follower, Behavior::Cutter, Behavior::Blocker];
 
     /// Catalog id (`follower`, `cutter`, `blocker`).
-    pub fn key(self) -> &'static str {
+    pub const fn key(self) -> &'static str {
         match self {
             Self::Follower => "follower",
             Self::Cutter => "cutter",

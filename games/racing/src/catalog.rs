@@ -2,17 +2,22 @@
 //! `tank::catalog`): what the Customizer shows (`catalogJson("racing")`) and what every
 //! race started from a build is checked against.
 //!
-//! Every number comes from [`crate::setup`]'s tables. Build JSON ([`validate_build`])
-//! and raw configs ([`check_config`]) share the one level and budget check
-//! ([`game_catalog::check_levels`] on [`catalog`]).
+//! Every number comes from [`crate::setup`]'s tables; `catalogJson` ships the committed
+//! `games/racing/catalog.json`, which a test keeps equal to [`catalog`]. Build JSON
+//! ([`validate_build`]) and raw configs ([`check_config`]) obey one level and budget
+//! rule ([`game_catalog::check_levels`] on [`RULES`]); `Setup::new` accepts exactly
+//! those levels (tested), so a config of the 19 setups needs no second check.
 //!
-//! The behaviors are the R2 scripted drivers: `follower`, `cutter`, `blocker`.
+//! The behaviors are the R2 scripted drivers ([`crate::drivers::Behavior`]):
+//! `follower`, `cutter`, `blocker`.
 
 use crate::config::{CarParams, RacingConfig};
+use crate::drivers::Behavior;
 use crate::setup::{Setup, BUDGET, GRIP, MAX_LEVEL, MIN_LEVEL, POWER, STAT_KEYS, TOP_SPEED};
 pub use crate::{GAME, RULES_VERSION};
 pub use game_catalog::{
-    BehaviorRef, Build, BuildError, Catalog, LevelValues, Levels, Num, Preset, Stat, Valid,
+    BehaviorRef, Build, BuildError, Catalog, LevelValues, Levels, Num, Preset, Rules, Stat,
+    StatRule, Valid,
 };
 
 /// What a valid racing build resolves to: the car's params.
@@ -20,8 +25,44 @@ pub type RaceParams = CarParams;
 
 /// Points one level of any stat costs.
 pub const COST_PER_LEVEL: u8 = 1;
-/// Scripted driver ids, in catalog order.
-pub const BEHAVIORS: [&str; 3] = ["follower", "cutter", "blocker"];
+/// Scripted driver ids, in catalog order ([`Behavior::ALL`]).
+pub const BEHAVIORS: [&str; 3] = [
+    Behavior::ALL[0].key(),
+    Behavior::ALL[1].key(),
+    Behavior::ALL[2].key(),
+];
+
+const fn stat_rule(key: &'static str) -> StatRule {
+    StatRule {
+        key,
+        min: MIN_LEVEL,
+        max: MAX_LEVEL,
+        cost_per_level: COST_PER_LEVEL,
+    }
+}
+
+/// What a racing build is checked against: the stat keys, levels 1–5 at one point
+/// each, exactly [`BUDGET`] points, and the scripted driver ids.
+pub const RULES: Rules = Rules {
+    game: GAME,
+    rules_version: RULES_VERSION,
+    budget: BUDGET as u32,
+    stats: &[
+        stat_rule(STAT_KEYS[0]),
+        stat_rule(STAT_KEYS[1]),
+        stat_rule(STAT_KEYS[2]),
+    ],
+    behaviors: &BEHAVIORS,
+};
+
+/// `catalogJson("racing")`: [`catalog`] as JSON, committed as
+/// `games/racing/catalog.json` so wasm carries a string instead of the code that
+/// writes it. A test keeps the file equal to `serde_json::to_string(&catalog())`;
+/// regenerate it with `cargo run -q -p racing --example catalog_json > games/racing/catalog.json`.
+pub const CATALOG_JSON: &str = include_str!("../catalog.json");
+
+/// `defaultBuild("racing")`: [`default_build`] as JSON (a test keeps them equal).
+pub const DEFAULT_BUILD_JSON: &str = r#"{"rules_version":1,"levels":{"power":3,"top_speed":3,"grip":3},"behavior":{"kind":"scripted","id":"follower"}}"#;
 const STAT_LABELS: [&str; 3] = ["Power", "Top speed", "Grip"];
 /// Presets: (id, label, setup).
 pub const PRESETS: [(&str, &str, Setup); 4] = [
@@ -116,24 +157,26 @@ pub fn catalog() -> Catalog {
     }
 }
 
-/// `validateBuild("racing", json)`: [`game_catalog::validate`] against [`catalog`],
+/// `validateBuild("racing", json)`: [`game_catalog::validate`] against [`RULES`],
 /// with the car's resolved params ([`Setup::params`]).
 pub fn validate_build(json: &str) -> Result<Valid<RaceParams>, Vec<BuildError>> {
-    let catalog = catalog();
-    let build = game_catalog::validate(&catalog, json)?;
+    let build = game_catalog::validate(&RULES, json)?;
     let params = setup(&build.levels).params();
     Ok(Valid {
         game: GAME,
-        points: build.points(&catalog),
+        points: build.points(&RULES),
         build,
         params,
     })
 }
 
-/// The setup of levels that passed [`game_catalog::check_levels`] on [`catalog`].
+/// The setup of levels that passed [`game_catalog::check_levels`] on [`RULES`].
 pub fn setup(levels: &Levels) -> Setup {
     let [p, t, g] = STAT_KEYS.map(|k| levels.get(k).unwrap_or(0));
-    Setup::new(p, t, g).expect("checked levels are a setup")
+    match Setup::new(p, t, g) {
+        Ok(s) => s,
+        Err(_) => unreachable!("checked levels are a setup"),
+    }
 }
 
 /// The setup whose params these are, if any (exact match against the 19).
@@ -142,15 +185,11 @@ pub fn setup_of(params: &CarParams) -> Option<Setup> {
 }
 
 /// For a raw [`RacingConfig`] (a future `WasmRace.withConfig`): every car must play
-/// exactly one of the 19 setups, so a config can't hand a car more than the budget.
+/// exactly one of the 19 setups (`Setup::all`, which are exactly the builds [`RULES`]
+/// allows), so a config can't hand a car more than the budget.
 pub fn check_config(config: &RacingConfig) -> Result<(), String> {
-    let catalog = catalog();
     for (i, c) in config.cars.iter().enumerate() {
-        let ok = setup_of(c).is_some_and(|s| {
-            let wanted = [s.power, s.top_speed, s.grip].map(|l| Some(l as i64));
-            game_catalog::check_levels(&catalog, &wanted).is_ok()
-        });
-        if !ok {
+        if setup_of(c).is_none() {
             return Err(format!("cars[{i}] is not a valid {BUDGET}-point setup"));
         }
     }
@@ -402,5 +441,38 @@ mod tests {
         let mut tampered = RacingConfig::ring_setups(&[Setup::BALANCED; 2]);
         tampered.cars[1].top_speed = TOP_SPEED[4]; // 3/5/3 in effect
         assert!(check_config(&tampered).unwrap_err().starts_with("cars[1]"));
+    }
+
+    #[test]
+    fn committed_json_is_current() {
+        assert_eq!(
+            CATALOG_JSON,
+            serde_json::to_string(&catalog()).unwrap(),
+            "games/racing/catalog.json is stale; regenerate it with \
+             `cargo run -q -p racing --example catalog_json > games/racing/catalog.json`"
+        );
+        assert_eq!(
+            DEFAULT_BUILD_JSON,
+            serde_json::to_string(&default_build()).unwrap()
+        );
+        assert!(catalog().matches(&RULES));
+    }
+
+    /// `Setup::new` (so `Setup::all` and every config of setups) accepts exactly the
+    /// levels [`RULES`] does.
+    #[test]
+    fn setups_are_exactly_the_valid_builds() {
+        for p in 0..=6u8 {
+            for t in 0..=6u8 {
+                for g in 0..=6u8 {
+                    let wanted = [p, t, g].map(|v| Some(v as i64));
+                    assert_eq!(
+                        Setup::new(p, t, g).is_ok(),
+                        game_catalog::check_levels(&RULES, &wanted).is_ok(),
+                        "{p}-{t}-{g}"
+                    );
+                }
+            }
+        }
     }
 }
