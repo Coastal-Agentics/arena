@@ -79,15 +79,15 @@ The full constraints are in [tank-refit.md](tank-refit.md) (Blitzwing; pending).
 
 ## 3. Racing as game #2 (summary)
 
-A new crate, `games/racing`, implements `Rules` + `Flat`. It is small on purpose:
-- one simple track (a closed centerline with a width, and ordered checkpoint gates);
-- N cars, a lap count, checkpoints that must be passed in order, and collisions with walls and other cars;
-- a few fixed-size f32 obs and actions (e.g. throttle and steer);
-- scoring by finish order, then time.
+A new crate, `games/racing`, implements `Rules` + `Flat`. 2–4 cars race 3 laps on the "Ring" track, with no weapons:
+- **Track:** a closed centreline of 9 points with a 120 u width, straight-segment walls, and one gate per point that must be crossed in order.
+- **Cars:** circle colliders with throttle, steer and grip. The physics is plain f32 maths with table headings, and the RNG is used only to shuffle the grid.
+- **Obs and actions:** `OBS_LEN = 43` (rays, next gates, opponents) and `ACTION_LEN = 2` (throttle, steer).
+- **End and score:** the new `Finished` end reason (terminated), or `tick_limit` (truncated). Placings live in the race state. Evolution scores by place. The RL reward is the progress gained per tick plus a finish bonus.
 
-It adds one `EndReason` variant (all cars finished). It also brings replay format 5. As the second Rust game, it is the ADR-014 trigger that unblocks B2–B5.
+Racing replays are format 5. As the second Rust game, racing is the ADR-014 trigger that unblocks B2–B5. **Engine answer to racing.md's geometry question:** segment walls, rays and circle-vs-segment go in `games/racing` first. They move into `engine::arena` only if a second game needs them, which keeps the engine small.
 
-The full spec is in [racing.md](racing.md) (Blitzwing; pending).
+The full spec is in [racing.md](racing.md) (Blitzwing).
 
 ## 4. Viewer and Customize tab (summary)
 
@@ -141,6 +141,6 @@ Splitting the Rust games across repos would duplicate the tick loop and the pari
 - The tank and racing reward formulas, computed in Rust from state and events. Evolution fitness is unchanged.
 - That `tank::encode_obs` (176 floats, GATE-003 §6) is tank's `Flat` impl, and that `decode_action` matches the 4-float Box (fire = value > 0).
 - That E2 keeps tank's iteration and tie order, so the bot and M1 champion pins hold.
-- The racing spec in `racing.md`: the track representation, collisions, obs and actions, and scoring.
+- Racing (`racing.md`, landed): that the geometry stays in `games/racing` for now, and that each car being its own team fits `Outcome.winner: Option<u8>`.
 - That the viewer and Customize plan in `viewer-multi-game.md` fits `web/` as it is.
 - Whether and when to move to fixed-array tank obs.
