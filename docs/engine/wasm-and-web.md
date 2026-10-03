@@ -351,18 +351,22 @@ comment-only changes.** Doc comments on `#[wasm_bindgen]` items are copied into 
 JSDoc. Panic locations (file:line) are compiled into the wasm, so moving code lines changes
 the bytes. PR #12 was an example: rustdoc-only edits changed both files.
 
-Size: `engine_wasm_bg.wasm` is 302,776 bytes (119,030 with `gzip -9 -n`) since the slim
+Size: `engine_wasm_bg.wasm` is 300,158 bytes (117,975 with `gzip -9 -n`) since the slim
 catalog and the one-codegen-unit wasm build (2026-10-03), down from 338,099 (124,611) on
-main after #56: −35,323 bytes (−10.4%), −5,581 gzipped. Two changes, measured separately:
-- **Slim catalog** (321,888 / 120,511 alone; the catalog's own cost drops from about +45.6 KB
-  to +28.5 KB): `catalogJson` and `defaultBuild` return committed strings instead of
-  serializing; validation checks a `const` `Rules`; the `validateBuild` reply and error lists
+main after #56: −37,941 bytes (−11.2%), −6,636 gzipped. Measured against the same tree
+without #51 (293,288 / 111,521; 276,151 / 109,750 with one codegen unit), the catalog's own
+cost drops from +44,811 bytes to +25,689 (+24,007 with one codegen unit), and one codegen
+unit wins back 17,137 bytes from the existing code; net, the file is 6,870 bytes (6,454
+gzipped) larger than without the catalog. Two changes, measured separately:
+- **Slim catalog** (318,977 / 119,787 alone): `catalogJson` and `defaultBuild` return
+  committed strings instead of serializing; validation checks a `const` `Rules` (any
+  `game_catalog::RuleSet`; a full `Catalog` checks the same, a test pins it); the `validateBuild` reply and error lists
   are written by hand (tested byte for byte against `serde_json`); spec and config checks lean
   on `Loadout`; no `core::fmt` or `Debug` on the catalog path. A hand-written JSON parser was
   measured and dropped: it came out 1.8 KB *larger* than the `serde_json` visitor, whose
   machinery the engine already carries.
 - **`CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1`** in `build-wasm.sh` (wasm only; native builds
-  keep 16): −19,112 bytes on top, −15.5 KB on the pre-catalog code alone. Same hashes on every
+  keep 16): −18,819 bytes on top, −17,137 on the code without the catalog. Same hashes on every
   parity fixture and in the JS export harness, and no slower in Node (median of 9 runs of 120
   matches). Measured and not taken: `lto` (no further change), `opt-level = "s"`/`"z"` for
   engine-wasm (−20 KB to −27 KB more, but the wasm sim runs 6% / 16% slower), and `wasm-opt`

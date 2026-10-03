@@ -472,6 +472,41 @@ mod tests {
     }
 
     #[test]
+    fn full_catalog_checks_like_the_rules_const() {
+        let full = catalog();
+        for a in 0..=6i64 {
+            for s in 0..=6i64 {
+                for d in [0, 1, 2, 3, 6] {
+                    let wanted = [Some(a), Some(s), Some(d), None];
+                    for n in 3..=4 {
+                        assert_eq!(
+                            game_catalog::check_levels(&full, &wanted[..n]),
+                            game_catalog::check_levels(&RULES, &wanted[..n]),
+                        );
+                    }
+                }
+            }
+        }
+        for json in [
+            DEFAULT_BUILD_JSON,
+            r#"{"rules_version":1,"levels":{"attack":5,"speed":3,"defense":1},"behavior":{"kind":"scripted","id":"kiter"}}"#,
+            r#"{"rules_version":1,"levels":{"attack":5,"speed":3,"defense":2,"luck":1},"behavior":{"kind":"scripted","id":"nope"}}"#,
+            r#"{"game":"racing","rules_version":1}"#,
+            r#"{"rules_version":2}"#,
+            "{oops",
+        ] {
+            let (f, r) = (
+                game_catalog::validate(&full, json),
+                game_catalog::validate(&RULES, json),
+            );
+            assert_eq!(f, r, "{json}");
+            if let Ok(b) = r {
+                assert_eq!(b.points(&full), b.points(&RULES));
+            }
+        }
+    }
+
+    #[test]
     fn query_specs_and_configs_share_the_check() {
         for l in Loadout::ALL {
             assert!(validate_spec(&TankSpec::new(Behavior::Kiter, l)).is_ok());

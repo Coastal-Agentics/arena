@@ -84,6 +84,76 @@ pub struct StatRule {
     pub cost_per_level: u8,
 }
 
+/// What [`validate`], [`check_levels`] and [`Build::points`] read: implemented by the
+/// `const` [`Rules`] (what the wasm build uses) and by a full [`Catalog`] (handy in a
+/// game crate before it has a `RULES` const; both give the same results).
+pub trait RuleSet {
+    /// Game id.
+    fn game(&self) -> &str;
+    /// Rules version.
+    fn rules_version(&self) -> u64;
+    /// Points every build must spend, exactly.
+    fn budget(&self) -> u32;
+    /// Number of stats.
+    fn stat_count(&self) -> usize;
+    /// Stat `i` (in catalog order); `i < stat_count()`.
+    fn stat(&self, i: usize) -> StatRule;
+    /// Scripted behavior ids.
+    fn behaviors(&self) -> &[&'static str];
+}
+
+impl RuleSet for Rules {
+    fn game(&self) -> &str {
+        self.game
+    }
+    fn rules_version(&self) -> u64 {
+        self.rules_version
+    }
+    fn budget(&self) -> u32 {
+        self.budget
+    }
+    fn stat_count(&self) -> usize {
+        self.stats.len()
+    }
+    fn stat(&self, i: usize) -> StatRule {
+        self.stats[i]
+    }
+    fn behaviors(&self) -> &[&'static str] {
+        self.behaviors
+    }
+}
+
+impl RuleSet for Catalog {
+    fn game(&self) -> &str {
+        self.game
+    }
+    fn rules_version(&self) -> u64 {
+        self.rules_version
+    }
+    fn budget(&self) -> u32 {
+        self.budget
+    }
+    fn stat_count(&self) -> usize {
+        self.stats.len()
+    }
+    fn stat(&self, i: usize) -> StatRule {
+        let s = &self.stats[i];
+        StatRule {
+            key: s.key,
+            min: s.min,
+            max: s.max,
+            cost_per_level: s.cost_per_level,
+        }
+    }
+    fn behaviors(&self) -> &[&'static str] {
+        &self.behaviors
+    }
+}
+
+fn stat_rules<R: RuleSet + ?Sized>(rules: &R) -> impl Iterator<Item = StatRule> + '_ {
+    (0..rules.stat_count()).map(|i| rules.stat(i))
+}
+
 impl Catalog {
     /// Whether this catalog states exactly `rules` (game, version, budget, stat keys,
     /// ranges and costs, behaviors), for a game crate's tests.
@@ -246,10 +316,8 @@ pub struct Build {
 
 impl Build {
     /// Points spent under `rules`' costs.
-    pub fn points(&self, rules: &Rules) -> u32 {
-        rules
-            .stats
-            .iter()
+    pub fn points<R: RuleSet + ?Sized>(&self, rules: &R) -> u32 {
+        stat_rules(rules)
             .map(|s| self.levels.get(s.key).unwrap_or(0) as u32 * s.cost_per_level as u32)
             .sum()
     }
@@ -409,11 +477,14 @@ pub fn push_uint(s: &mut String, mut n: u64) {
 /// The one level and budget check, for levels in `catalog`'s stat order: each an
 /// integer in `min..=max` (`None`, a missing or non-integer level, is out of range),
 /// then the points spent exactly the budget.
-pub fn check_levels(rules: &Rules, levels: &[Option<i64>]) -> Result<Levels, Vec<BuildError>> {
+pub fn check_levels<R: RuleSet + ?Sized>(
+    rules: &R,
+    levels: &[Option<i64>],
+) -> Result<Levels, Vec<BuildError>> {
     let mut errors = Vec::new();
-    let mut out = Vec::with_capacity(rules.stats.len());
+    let mut out = Vec::with_capacity(rules.stat_count());
     let mut spent = 0u32;
-    for (i, stat) in rules.stats.iter().enumerate() {
+    for (i, stat) in stat_rules(rules).enumerate() {
         match levels.get(i).copied().flatten() {
             Some(l) if (stat.min as i64..=stat.max as i64).contains(&l) => {
                 out.push((stat.key, l as u8));
@@ -425,8 +496,8 @@ pub fn check_levels(rules: &Rules, levels: &[Option<i64>]) -> Result<Levels, Vec
     if !errors.is_empty() {
         return Err(errors);
     }
-    if spent != rules.budget {
-        let code = if spent > rules.budget {
+    if spent != rules.budget() {
+        let code = if spent > rules.budget() {
             "over_budget"
         } else {
             "under_budget"
@@ -445,17 +516,17 @@ pub fn check_levels(rules: &Rules, levels: &[Option<i64>]) -> Result<Levels, Vec
 /// fields (a Nyborg's `look`) are skipped, never kept. Scripted ids must match one of
 /// `rules.behaviors` exactly; a champion `ref` must be a non-empty string of at most
 /// 200 bytes.
-pub fn validate(rules: &Rules, json: &str) -> Result<Build, Vec<BuildError>> {
+pub fn validate<R: RuleSet + ?Sized>(rules: &R, json: &str) -> Result<Build, Vec<BuildError>> {
     let Ok(build @ Loose::Map(_)) = serde_json::from_str::<Loose>(json) else {
         return Err(vec![BuildError::new("invalid_json", "")]);
     };
     if build
         .get("game")
-        .is_some_and(|g| g.as_str() != Some(rules.game))
+        .is_some_and(|g| g.as_str() != Some(rules.game()))
     {
         return Err(vec![BuildError::new("wrong_game", "game")]);
     }
-    if build.get("rules_version").and_then(Loose::as_i64) != Some(rules.rules_version as i64) {
+    if build.get("rules_version").and_then(Loose::as_i64) != Some(rules.rules_version() as i64) {
         return Err(vec![BuildError::new(
             "rules_version_mismatch",
             "rules_version",
@@ -466,14 +537,12 @@ pub fn validate(rules: &Rules, json: &str) -> Result<Build, Vec<BuildError>> {
     let levels = build.get("levels");
     if let Some(Loose::Map(levels)) = levels {
         for (key, _) in levels {
-            if !rules.stats.iter().any(|s| s.key == key) {
+            if !stat_rules(rules).any(|s| s.key == key) {
                 errors.push(BuildError::new("unknown_key", key));
             }
         }
     }
-    let wanted: Vec<Option<i64>> = rules
-        .stats
-        .iter()
+    let wanted: Vec<Option<i64>> = stat_rules(rules)
         .map(|s| levels.and_then(|l| l.get(s.key)).and_then(Loose::as_i64))
         .collect();
     let levels = check_levels(rules, &wanted);
@@ -485,7 +554,7 @@ pub fn validate(rules: &Rules, json: &str) -> Result<Build, Vec<BuildError>> {
         let field = |k| b.get(k).and_then(Loose::as_str);
         match field("kind")? {
             "scripted" => rules
-                .behaviors
+                .behaviors()
                 .iter()
                 .find(|&&id| Some(id) == field("id"))
                 .map(|&id| BehaviorRef::Scripted { id }),
@@ -503,7 +572,7 @@ pub fn validate(rules: &Rules, json: &str) -> Result<Build, Vec<BuildError>> {
 
     match (levels, behavior) {
         (Ok(levels), Some(behavior)) if errors.is_empty() => Ok(Build {
-            rules_version: rules.rules_version,
+            rules_version: rules.rules_version(),
             levels,
             behavior,
         }),
