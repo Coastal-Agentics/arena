@@ -730,6 +730,70 @@ fn the_seed_only_shuffles_the_grid() {
 }
 
 #[test]
+fn racing_replays_are_format_5_and_name_their_game_and_rules_version() {
+    let m = run_line(&four(), 9);
+    let json = m.replay().to_json();
+    assert!(
+        json.starts_with(r#"{"format":5,"game":"racing","rules_version":1,"#),
+        "{}",
+        &json[..60]
+    );
+    assert_eq!(<RacingRules as Rules>::GAME, racing::catalog::GAME);
+    assert_eq!(
+        <RacingRules as Rules>::RULES_VERSION,
+        racing::catalog::RULES_VERSION
+    );
+    let r = RaceReplay::from_json(&json).unwrap();
+    assert_eq!(r.to_json(), json, "round-trips byte for byte");
+    assert_eq!(
+        r.verify().unwrap().outcome().unwrap().reason,
+        EndReason::Finished
+    );
+    // Another game, or other racing rules, is named rather than misparsed.
+    assert_eq!(
+        RaceReplay::from_json(&json.replace(r#""game":"racing""#, r#""game":"tank""#)),
+        Err(ReplayError::GameMismatch {
+            expected: "racing",
+            got: Some("tank".into())
+        })
+    );
+    assert_eq!(
+        RaceReplay::from_json(&json.replace(r#""rules_version":1"#, r#""rules_version":2"#)),
+        Err(ReplayError::RulesVersionMismatch {
+            game: "racing",
+            expected: 1,
+            got: Some(2)
+        })
+    );
+    assert!(matches!(
+        engine::Replay::from_json(&json),
+        Err(ReplayError::GameMismatch {
+            expected: "tank",
+            ..
+        })
+    ));
+    // A tank format 4 file is refused by racing, and still loads and verifies as tank.
+    let tank = std::fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../engine-wasm/tests/parity/cw-seed-max.json"
+    ))
+    .unwrap();
+    assert_eq!(
+        RaceReplay::from_json(&tank),
+        Err(ReplayError::GameMismatch {
+            expected: "racing",
+            got: None
+        })
+    );
+    let t = engine::Replay::from_json(&tank).unwrap();
+    assert_eq!(t.format, 4);
+    assert_eq!(
+        format!("{:016x}", t.verify().unwrap().state_hash()),
+        "f1d983e88de5d020"
+    );
+}
+
+#[test]
 fn a_tampered_replay_fails_to_verify() {
     let m = run_line(&four(), 5);
     let mut r = m.replay();

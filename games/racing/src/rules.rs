@@ -518,6 +518,10 @@ impl Rules for RacingRules {
     type Observation = crate::obs::Observation;
     type Event = RaceEvent;
 
+    const GAME: &'static str = crate::GAME;
+    const RULES_VERSION: u64 = crate::RULES_VERSION;
+    // WRITES_FORMAT stays the engine default: format 5 (game + rules_version).
+
     /// Validates the config (panics if invalid), then places the cars: the config's
     /// fixed grid, or the first `cars` slots shuffled by Fisher–Yates with one
     /// `next_u32` per car (from the last car down to car 0; `j = r·(i+1) >> 32`).
@@ -602,10 +606,11 @@ impl Rules for RacingRules {
         }
     }
 
-    /// Racing configs need format 4 or later (format 5 once M3a lands) and must be
-    /// valid; the field named is the first invalid one.
+    /// Racing replays are format 5 (the engine already refuses older files for a
+    /// format 5 game) and their config must be valid; the field named is the first
+    /// invalid one.
     fn check_format(config: &RacingConfig, format: u32) -> Result<(), &'static str> {
-        if format < 4 {
+        if format < 5 {
             return Err("racing config");
         }
         config.validate().map_err(|e| e.field)

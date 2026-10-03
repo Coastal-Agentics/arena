@@ -1,16 +1,15 @@
 //! How a race ends, in racing's own terms, and the small adapter onto the engine's
 //! `EndReason` (racing.md "How a race ends").
 //!
-//! `EndReason::Finished` arrives with Shockwave's M3a. Until it is on `main`, a
-//! finished race reports [`FINISHED_REASON`] (`EndReason::LastStanding`, the closest
-//! existing *terminated* reason) in its `Outcome`, and racing code reads
-//! [`RaceEnd`] (from [`crate::RacingRules::race_end`]) instead of matching on the
-//! engine enum. Swapping in the real variant is a one-line change here.
+//! A finished race reports `EndReason::Finished` (M3a, #56) in its `Outcome`; the tick
+//! cap reports `EndReason::TickLimit`. Racing code reads [`RaceEnd`] (from
+//! [`crate::RacingRules::race_end`]), which also says which of the two is a
+//! truncation.
 
 use engine::generic::EndReason;
 
-/// The engine reason a finished race reports until M3a's `EndReason::Finished` lands.
-pub const FINISHED_REASON: EndReason = EndReason::LastStanding;
+/// The engine reason a finished race reports.
+pub const FINISHED_REASON: EndReason = EndReason::Finished;
 
 /// Why a race ended.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -35,7 +34,7 @@ impl RaceEnd {
     pub fn from_reason(reason: EndReason) -> Option<Self> {
         match reason {
             EndReason::TickLimit => Some(RaceEnd::TickLimit),
-            r if r == FINISHED_REASON => Some(RaceEnd::Finished),
+            EndReason::Finished => Some(RaceEnd::Finished),
             _ => None,
         }
     }
