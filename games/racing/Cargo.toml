@@ -1,0 +1,18 @@
+[package]
+name = "racing"
+description = "Racing rules for the Coastal Agentics Arena engine: the Ring track, car physics, laps, Flat view and reward"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+engine = { path = "../../engine" }
+# The shared build-catalog shape and validator (Nyborg builds).
+game-catalog = { path = "../catalog" }
+# Seeded policy jitter; no default features so wasm32-unknown-unknown builds (as in engine).
+rand_chacha = { version = "0.9", default-features = false }
+serde = { version = "1", features = ["derive"] }
+
+[dev-dependencies]
+serde_json = "1"
