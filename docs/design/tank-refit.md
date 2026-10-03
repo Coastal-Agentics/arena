@@ -12,10 +12,19 @@
 | E2: reusable scratch buffers in `TankRules` | Shockwave | Same iteration order, same tie order and the same float operations. Speed equal or better. |
 
 **Tank reward, per agent per tick:**
-- **Shaping:** for each `Event::Hit` this tick, the tank that hit gets +0.5 × damage ÷ the target's max HP, and the tank that was hit gets −0.5 × damage ÷ its own max HP. Over a duel this adds at most ±0.5, and it is zero-sum.
-- **Terminal reward:** on the tick the match ends with a `Destroyed` event, tanks still in play get +1 if their team won and −1 if it lost. A wipe-out is a draw and gets 0.
+- **Shaping:** for each `Event::Hit` this tick, the tank that hit gets +0.5 × damage ÷ the target's max HP, and the tank that was hit gets −0.5 × damage ÷ its own max HP. Each hit's damage is first **capped at the target's HP before that hit**, so overkill doesn't count, and over a duel ±0.5 is an exact bound. Shaping is zero-sum.
+- **Terminal reward:** on the tick the match ends with a `Destroyed` event, every tank that was **active at the start of that tick** gets +1 if its team won and −1 if it lost. This includes a tank destroyed on that tick. Tanks destroyed earlier already ended their episode, so they get no terminal reward. A wipe-out is a draw and gets 0.
 - **At the 7,200-tick cap:** the match is a draw (*truncated*), and the terminal reward is 0.
 - **Never recorded:** the reward is never stored in replays, and evolution keeps its match-result fitness (win 1, draw 0.25, loss 0).
+- **Reading it:** `Match::reward(agent)` is the reward for the tick just stepped. Once the match is over, `Match::step` is a no-op, so the final tick's value repeats on every read. Read it once.
+
+**Encoding details** (agreed 2026-10-03, Shockwave and Blitzwing; tested in `games/tank/tests/flat_reward.rs`):
+- **Scaling follows the match config:**
+  - Positions, relative positions, walls and obstacles scale by `config.arena.size`: pos 2·p ÷ size − 1, rel ÷ size, walls ÷ (size.x, size.x, size.y, size.y), and obstacle corners like pos.
+  - The tick scales by `config.max_ticks`.
+  - On the standard 800 × 600, 7,200-tick arena these are the GATE-003 §6 numbers.
+- **Fixed scales:** velocity ÷ 2.5 (`MAX_SPEED[4]` ÷ 60), max HP ÷ 940 (`MAX_HP[4]`), cooldown ÷ 64 (`FIRE_COOLDOWN[0]`) and shell velocity ÷ 6 (360 u/s ÷ 60). A test checks them against the level tables.
+- **Ties:** tanks go by distance, then lower id; shells by distance, then list order; obstacles by distance (from the tank's centre to the rectangle's nearest point), then index.
 
 **The rich `Observation` stays as it is,** `Vec`s and all, for the Rust policies. Moving it to fixed arrays is *not* part of the refit. The way the arrays are filled and sorted feeds every policy decision, so a small difference could move the M1 champion's hashes. If we ever do it, it is a separate PR under the same checks as below.
 
