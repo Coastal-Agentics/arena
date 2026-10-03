@@ -3,10 +3,12 @@
 //! a build is checked against (game-system.md §4; nyborg-library.md §4–5).
 //!
 //! Every number comes from [`crate::loadout`]'s tables, so the catalog can't drift from
-//! the rules. Every path that starts a match from a build or config shares one level
-//! and budget check ([`game_catalog::check_levels`] on [`catalog`]): [`validate_build`]
-//! for build JSON, [`validate_spec`] for URL-query tanks and [`check_config`] for raw
-//! configs, so an imported or edited build can't beat the budget.
+//! the rules; `catalogJson` ships the committed `games/tank/catalog.json`, which a test
+//! keeps equal to [`catalog`]. Every path that starts a match from a build or config
+//! obeys one level and budget rule ([`game_catalog::check_levels`] on [`RULES`]):
+//! [`validate_build`] for build JSON, and `Loadout` itself (which accepts exactly
+//! those levels, tested) for URL-query tanks ([`validate_spec`]) and raw configs
+//! ([`check_config`]), so an imported or edited build can't beat the budget.
 
 use crate::loadout::{
     Loadout, Preset as LoadoutPreset, BUDGET, DAMAGE, FIRE_COOLDOWN, MAX_HP, MAX_LEVEL, MAX_SPEED,
@@ -16,7 +18,8 @@ use crate::matchup::TankSpec;
 use crate::policies::Behavior;
 use engine::{MatchConfig, TankParams};
 pub use game_catalog::{
-    BehaviorRef, Build, BuildError, Catalog, LevelValues, Levels, Num, Preset, Stat, Valid,
+    BehaviorRef, Build, BuildError, Catalog, LevelValues, Levels, Num, Preset, Rules, Stat,
+    StatRule, Valid,
 };
 
 /// This game's id in `games()`, `catalogJson(game)` and a Nyborg's `builds`.
@@ -29,6 +32,42 @@ pub const COST_PER_LEVEL: u8 = 1;
 /// The stat keys, in catalog order: Attack, Speed, Defense.
 pub const STAT_KEYS: [&str; 3] = ["attack", "speed", "defense"];
 const STAT_LABELS: [&str; 3] = ["Attack", "Speed", "Defense"];
+
+const fn stat_rule(key: &'static str) -> StatRule {
+    StatRule {
+        key,
+        min: MIN_LEVEL,
+        max: MAX_LEVEL,
+        cost_per_level: COST_PER_LEVEL,
+    }
+}
+
+/// What a tank build is checked against: the stat keys, levels 1–5 at one point
+/// each, exactly [`BUDGET`] points, and the scripted behavior ids.
+pub const RULES: Rules = Rules {
+    game: GAME,
+    rules_version: RULES_VERSION,
+    budget: BUDGET as u32,
+    stats: &[
+        stat_rule(STAT_KEYS[0]),
+        stat_rule(STAT_KEYS[1]),
+        stat_rule(STAT_KEYS[2]),
+    ],
+    behaviors: &[
+        Behavior::ALL[0].key(),
+        Behavior::ALL[1].key(),
+        Behavior::ALL[2].key(),
+    ],
+};
+
+/// `catalogJson("tank")`: [`catalog`] as JSON, committed as `games/tank/catalog.json`
+/// so wasm carries a string instead of the code that writes it. A test keeps the file
+/// equal to `serde_json::to_string(&catalog())`; regenerate it with
+/// `cargo run -q -p tank --example catalog_json > games/tank/catalog.json`.
+pub const CATALOG_JSON: &str = include_str!("../catalog.json");
+
+/// `defaultBuild("tank")`: [`default_build`] as JSON (a test keeps them equal).
+pub const DEFAULT_BUILD_JSON: &str = r#"{"rules_version":1,"levels":{"attack":3,"speed":3,"defense":3},"behavior":{"kind":"scripted","id":"charger"}}"#;
 
 /// A loadout's levels by stat key.
 pub fn levels(l: Loadout) -> Levels {
@@ -97,12 +136,11 @@ pub fn catalog() -> Catalog {
 /// `validateBuild("tank", json)`: [`game_catalog::validate`] against [`catalog`], with
 /// the resolved [`TankParams`] the tank plays with ([`Loadout::params`]).
 pub fn validate_build(json: &str) -> Result<Valid<TankParams>, Vec<BuildError>> {
-    let catalog = catalog();
-    let build = game_catalog::validate(&catalog, json)?;
+    let build = game_catalog::validate(&RULES, json)?;
     let params = loadout(&build.levels).params();
     Ok(Valid {
         game: GAME,
-        points: build.points(&catalog),
+        points: build.points(&RULES),
         build,
         params,
     })
@@ -111,7 +149,10 @@ pub fn validate_build(json: &str) -> Result<Valid<TankParams>, Vec<BuildError>> 
 /// The loadout of levels that passed [`game_catalog::check_levels`] on [`catalog`].
 fn loadout(levels: &Levels) -> Loadout {
     let [a, s, d] = STAT_KEYS.map(|k| levels.get(k).unwrap_or(0));
-    Loadout::new(a, s, d).expect("checked levels are a loadout")
+    match Loadout::new(a, s, d) {
+        Ok(l) => l,
+        Err(_) => unreachable!("checked levels are a loadout"),
+    }
 }
 
 /// A valid build's tank, or why it can't play yet (a champion needs its genome, which
@@ -128,19 +169,21 @@ pub fn tank_spec(valid: &Valid<TankParams>) -> Result<TankSpec, String> {
 }
 
 /// The same level and budget check for a tank from a URL query (`kiter-5-3-1`), so a
-/// link can't start a match a build couldn't.
+/// link can't start a match a build couldn't. A [`TankSpec`] can only hold a valid
+/// loadout (`Loadout::new` accepts exactly these levels; a test checks all of
+/// 0..=6³), so this always passes and match start doesn't need to call it.
 pub fn validate_spec(spec: &TankSpec) -> Result<(), Vec<BuildError>> {
     let wanted = spec.loadout.levels().map(|l| Some(l as i64));
-    game_catalog::check_levels(&catalog(), &wanted).map(|_| ())
+    game_catalog::check_levels(&RULES, &wanted).map(|_| ())
 }
 
 /// For a raw `MatchConfig` (JS `WasmMatch.withConfig`): every tank with its own
 /// `params` must play exactly a valid build on top of the shared params
-/// ([`Loadout::apply`]) or exactly the shared params, so a config can't hand one tank
+/// ([`Loadout::apply`] of one of `Loadout::ALL`, which are exactly the builds
+/// [`RULES`] allows) or exactly the shared params, so a config can't hand one tank
 /// more than the budget. Tanks without their own params play the shared set, which
 /// they all share.
 pub fn check_config(config: &MatchConfig) -> Result<(), String> {
-    let catalog = catalog();
     for (i, spawn) in config.tanks.iter().enumerate() {
         if spawn.params.is_none() {
             continue;
@@ -148,11 +191,9 @@ pub fn check_config(config: &MatchConfig) -> Result<(), String> {
         let params = config.tank_params(i);
         // Its own copy of the shared set is the same as none.
         let is_build = params == config.params
-            || Loadout::ALL.iter().any(|l| {
-                let wanted = l.levels().map(|v| Some(v as i64));
-                game_catalog::check_levels(&catalog, &wanted).is_ok()
-                    && l.apply(&config.params) == params
-            });
+            || Loadout::ALL
+                .iter()
+                .any(|l| l.apply(&config.params) == params);
         if !is_build {
             return Err(format!(
                 "tanks[{i}].params is not a valid {BUDGET}-point build on the shared params"
@@ -264,6 +305,21 @@ mod tests {
             assert!(vb(&build(p["levels"].clone(), scripted("sniper"))).is_ok());
         }
         assert_eq!(c["default_build"], v(default_build()));
+        assert!(catalog().matches(&RULES));
+    }
+
+    #[test]
+    fn committed_json_is_current() {
+        assert_eq!(
+            CATALOG_JSON,
+            serde_json::to_string(&catalog()).unwrap(),
+            "games/tank/catalog.json is stale; regenerate it with \
+             `cargo run -q -p tank --example catalog_json > games/tank/catalog.json`"
+        );
+        assert_eq!(
+            DEFAULT_BUILD_JSON,
+            serde_json::to_string(&default_build()).unwrap()
+        );
     }
 
     #[test]
@@ -394,6 +450,60 @@ mod tests {
         b["look"] = json!({"hair_color": "#D9534F"});
         b["game"] = json!("tank");
         assert!(vb(&b).is_ok());
+    }
+
+    /// `Loadout::new` (so every `TankSpec` and `Loadout::ALL`) accepts exactly the
+    /// levels [`RULES`] does, so a spec or a config built from a loadout needs no
+    /// second check.
+    #[test]
+    fn loadouts_are_exactly_the_valid_builds() {
+        for a in 0..=6u8 {
+            for s in 0..=6u8 {
+                for d in 0..=6u8 {
+                    let wanted = [a, s, d].map(|v| Some(v as i64));
+                    assert_eq!(
+                        Loadout::new(a, s, d).is_ok(),
+                        game_catalog::check_levels(&RULES, &wanted).is_ok(),
+                        "{a}-{s}-{d}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn full_catalog_checks_like_the_rules_const() {
+        let full = catalog();
+        for a in 0..=6i64 {
+            for s in 0..=6i64 {
+                for d in [0, 1, 2, 3, 6] {
+                    let wanted = [Some(a), Some(s), Some(d), None];
+                    for n in 3..=4 {
+                        assert_eq!(
+                            game_catalog::check_levels(&full, &wanted[..n]),
+                            game_catalog::check_levels(&RULES, &wanted[..n]),
+                        );
+                    }
+                }
+            }
+        }
+        for json in [
+            DEFAULT_BUILD_JSON,
+            r#"{"rules_version":1,"levels":{"attack":5,"speed":3,"defense":1},"behavior":{"kind":"scripted","id":"kiter"}}"#,
+            r#"{"rules_version":1,"levels":{"attack":5,"speed":3,"defense":2,"luck":1},"behavior":{"kind":"scripted","id":"nope"}}"#,
+            r#"{"game":"racing","rules_version":1}"#,
+            r#"{"rules_version":2}"#,
+            "{oops",
+        ] {
+            let (f, r) = (
+                game_catalog::validate(&full, json),
+                game_catalog::validate(&RULES, json),
+            );
+            assert_eq!(f, r, "{json}");
+            if let Ok(b) = r {
+                assert_eq!(b.points(&full), b.points(&RULES));
+            }
+        }
     }
 
     #[test]

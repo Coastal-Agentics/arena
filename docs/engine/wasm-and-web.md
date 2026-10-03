@@ -173,28 +173,38 @@ ref. Unknown top-level fields (a `look`, a `game: "tank"`) are ignored.
   The first three stop the check, since the levels mean nothing without them; the rest are
   all reported together.
 
-**Adding a game (racing, M3).** The game crate provides plain data and two functions, no
-traits:
+**Adding a game (racing, M3).** The game crate provides plain data and a few functions,
+no traits:
 
 ```rust
 pub const GAME: &str = "racing";
 pub const RULES_VERSION: u64 = 1;
+/// Stat keys, ranges, costs, budget and behavior ids: what builds are checked against.
+pub const RULES: game_catalog::Rules = /* ... */;
 /// From the game's own level tables (stats power/top_speed/grip; behaviors
-/// follower/cutter/blocker), so no number is written twice.
+/// follower/cutter/blocker), so no number is written twice. Not called in wasm.
 pub fn catalog() -> game_catalog::Catalog;
-/// game_catalog::validate(&catalog(), json)?, then the game's resolved params.
+/// catalog() and its default build as JSON, committed (games/racing/catalog.json) so wasm
+/// carries strings, not a JSON writer; a test keeps them equal and checks
+/// catalog().matches(&RULES).
+pub const CATALOG_JSON: &str = include_str!("../catalog.json");
+pub const DEFAULT_BUILD_JSON: &str = r#"{...}"#;
+/// game_catalog::validate(&RULES, json)?, then the game's resolved params.
 pub fn validate_build(json: &str) -> Result<game_catalog::Valid<RaceParams>, Vec<game_catalog::BuildError>>;
 ```
 
-`engine-wasm` then gets one entry in its `GAMES` list (id, `catalog`, `validate_build`)
-plus the crate dependency; `games()`, `catalogJson`, `defaultBuild` and `validateBuild` need
-no other change. Starting a race from builds (`WasmRace.fromBuilds`) comes with `WasmRace`.
+`engine-wasm` then gets one entry in its `GAMES` list (id, rules version, the two JSON
+strings, `validate_build`) plus the crate dependency; `games()`, `catalogJson`,
+`defaultBuild` and `validateBuild` need no other change. Tank's catalog is regenerated with
+`cargo run -q -p tank --example catalog_json > games/tank/catalog.json` (a test fails while it
+is stale). Starting a race from builds (`WasmRace.fromBuilds`) comes with `WasmRace`.
 
-**Enforcement.** Every JS path that starts a match goes through the same check in
-`game_catalog::check_levels` on the tank catalog: `fromBuilds` validates each build
-(`tank::catalog::validate_build`), `WasmMatch.tank` checks each tank of the query
-(`validate_spec`), and `withConfig` rejects per-tank params that aren't a valid build
-(`check_config`). An imported or edited profile can't beat
+**Enforcement.** Every JS path that starts a match obeys the same rule,
+`game_catalog::check_levels` on `tank::catalog::RULES`: `fromBuilds` validates each build
+with it (`tank::catalog::validate_build`); `WasmMatch.tank` and `withConfig` go through
+`tank::Loadout`, which accepts exactly those levels (a test checks every level from 0 to 6
+on each stat), and `withConfig` rejects per-tank params that aren't one of those loadouts
+applied to the shared params (`check_config`). An imported or edited profile can't beat
 the budget. Replays aren't builds: `checkReplayJson` still re-simulates whatever config a
 replay file records.
 
@@ -341,8 +351,28 @@ comment-only changes.** Doc comments on `#[wasm_bindgen]` items are copied into 
 JSDoc. Panic locations (file:line) are compiled into the wasm, so moving code lines changes
 the bytes. PR #12 was an example: rustdoc-only edits changed both files.
 
-Size: `engine_wasm_bg.wasm` is 332,441 bytes (122,414 with `gzip -9 -n`) with the build
-catalog (2026-10-03), up from 286,828 (109,245) after the tank `Flat` view: +45,613 bytes
+Size: `engine_wasm_bg.wasm` is 300,158 bytes (117,975 with `gzip -9 -n`) since the slim
+catalog and the one-codegen-unit wasm build (2026-10-03), down from 338,099 (124,611) on
+main after #56: −37,941 bytes (−11.2%), −6,636 gzipped. Measured against the same tree
+without #51 (293,288 / 111,521; 276,151 / 109,750 with one codegen unit), the catalog's own
+cost drops from +44,811 bytes to +25,689 (+24,007 with one codegen unit), and one codegen
+unit wins back 17,137 bytes from the existing code; net, the file is 6,870 bytes (6,454
+gzipped) larger than without the catalog. Two changes, measured separately:
+- **Slim catalog** (318,977 / 119,787 alone): `catalogJson` and `defaultBuild` return
+  committed strings instead of serializing; validation checks a `const` `Rules` (any
+  `game_catalog::RuleSet`; a full `Catalog` checks the same, a test pins it); the `validateBuild` reply and error lists
+  are written by hand (tested byte for byte against `serde_json`); spec and config checks lean
+  on `Loadout`; no `core::fmt` or `Debug` on the catalog path. A hand-written JSON parser was
+  measured and dropped: it came out 1.8 KB *larger* than the `serde_json` visitor, whose
+  machinery the engine already carries.
+- **`CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1`** in `build-wasm.sh` (wasm only; native builds
+  keep 16): −18,819 bytes on top, −17,137 on the code without the catalog. Same hashes on every
+  parity fixture and in the JS export harness, and no slower in Node (median of 9 runs of 120
+  matches). Measured and not taken: `lto` (no further change), `opt-level = "s"`/`"z"` for
+  engine-wasm (−20 KB to −27 KB more, but the wasm sim runs 6% / 16% slower), and `wasm-opt`
+  (binaryen 120: −9% raw but +1% gzipped, and a new CI tool).
+
+Before that: 332,441 bytes (122,414) with the build catalog (#51), up from 286,828 (109,245) after the tank `Flat` view: +45,613 bytes
 (+15.9%), +13,169 gzipped (+12.1%). By `twiggy diff`, it is mostly `serde_json`
 serialization of the catalog and validation structs, the validator and the small build
 parser (`game_catalog::Loose`), plus the wasm wrappers and `fromBuilds`. A first draft with
