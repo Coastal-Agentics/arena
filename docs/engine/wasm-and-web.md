@@ -99,9 +99,10 @@ const m = WasmMatch.withConfig(JSON.stringify(cfg), "42", "Chaser", "Wanderer");
 ### Builds: the per-game catalog
 
 A **build** is the per-game part of a Nyborg ([nyborg-library.md](../design/nyborg-library.md)):
-levels plus a behavior, with no resolved numbers. Four exports wrap `tank::catalog`
-(`games/tank/src/catalog.rs`), which generates everything from the `tank::loadout` tables.
-The engine never sees a Nyborg's `look`.
+levels plus a behavior, with no resolved numbers. The shape and the validator are shared
+by every game, in the small `game-catalog` crate (`games/catalog`, outside `engine/`); each
+game crate fills it in from its own tables (`tank::catalog`, from `tank::loadout`). The
+engine never sees a Nyborg's `look`.
 
 ```json
 {"rules_version": 1,
@@ -172,10 +173,28 @@ ref. Unknown top-level fields (a `look`, a `game: "tank"`) are ignored.
   The first three stop the check, since the levels mean nothing without them; the rest are
   all reported together.
 
+**Adding a game (racing, M3).** The game crate provides plain data and two functions, no
+traits:
+
+```rust
+pub const GAME: &str = "racing";
+pub const RULES_VERSION: u64 = 1;
+/// From the game's own level tables (stats power/top_speed/grip; behaviors
+/// follower/cutter/blocker), so no number is written twice.
+pub fn catalog() -> game_catalog::Catalog;
+/// game_catalog::validate(&catalog(), json)?, then the game's resolved params.
+pub fn validate_build(json: &str) -> Result<game_catalog::Valid<RaceParams>, Vec<game_catalog::BuildError>>;
+```
+
+`engine-wasm` then gets one entry in its `GAMES` list (id, `catalog`, `validate_build`)
+plus the crate dependency; `games()`, `catalogJson`, `defaultBuild` and `validateBuild` need
+no other change. Starting a race from builds (`WasmRace.fromBuilds`) comes with `WasmRace`.
+
 **Enforcement.** Every JS path that starts a match goes through the same check in
-`tank::catalog`: `fromBuilds` validates each build, `WasmMatch.tank` checks each tank of the
-query (`validate_spec`, the same level and budget rule), and `withConfig` rejects per-tank
-params that aren't a valid build (`check_config`). An imported or edited profile can't beat
+`game_catalog::check_levels` on the tank catalog: `fromBuilds` validates each build
+(`tank::catalog::validate_build`), `WasmMatch.tank` checks each tank of the query
+(`validate_spec`), and `withConfig` rejects per-tank params that aren't a valid build
+(`check_config`). An imported or edited profile can't beat
 the budget. Replays aren't builds: `checkReplayJson` still re-simulates whatever config a
 replay file records.
 
@@ -322,14 +341,14 @@ comment-only changes.** Doc comments on `#[wasm_bindgen]` items are copied into 
 JSDoc. Panic locations (file:line) are compiled into the wasm, so moving code lines changes
 the bytes. PR #12 was an example: rustdoc-only edits changed both files.
 
-Size: `engine_wasm_bg.wasm` is 323,765 bytes (119,115 with `gzip -9 -n`) with the build
-catalog (2026-10-03), up from 286,828 (109,245) after the tank `Flat` view: +36,937 bytes
-(+12.9%), +9,870 gzipped (+9.0%). By `twiggy diff` of the name-section builds, about 15.5 KB
-is `serde_json` serialization of the catalog and validation structs, 11.6 KB the catalog and
-validator logic, 4.1 KB the wasm wrappers and `fromBuilds`, 2.6 KB the build parser and 2.6
-KB data. The first draft built the JSON with `serde_json::Value` and grew the file by 79,191
-bytes; typed `Serialize` structs and a small purpose-built parser (`tank::catalog::Loose`)
-halved that. Before that, 284,864 bytes (108,790) since
+Size: `engine_wasm_bg.wasm` is 332,441 bytes (122,414 with `gzip -9 -n`) with the build
+catalog (2026-10-03), up from 286,828 (109,245) after the tank `Flat` view: +45,613 bytes
+(+15.9%), +13,169 gzipped (+12.1%). By `twiggy diff`, it is mostly `serde_json`
+serialization of the catalog and validation structs, the validator and the small build
+parser (`game_catalog::Loose`), plus the wasm wrappers and `fromBuilds`. A first draft with
+`serde_json::Value` grew the file by 79,191 bytes; a tank-only typed version by 36,937; the
+shared game-agnostic shape (stats and values as lists, so racing needs no new types) costs
+the remaining 8.7 KB. Before that, 284,864 bytes (108,790) since
 `build-wasm.sh` strips the `name` and `producers` sections (2026-09-30), down from 356,307
 (117,316): −71,443 bytes (−20.1%), −8,526 gzipped. (`gzip -n` leaves the file name out of the
 header. The older gzipped figures in this paragraph were measured with `gzip -9 -c <file>`,

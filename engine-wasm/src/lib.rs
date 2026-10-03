@@ -14,9 +14,10 @@
 //! native-vs-wasm parity check (`scripts/check-parity.mjs`, `tests/parity.rs`).
 //!
 //! **Builds** (the per-game part of a Nyborg): `games()`, `catalogJson(game)`,
-//! `defaultBuild(game)` and `validateBuild(game, buildJson)` are thin wrappers over
-//! [`tank::catalog`]. Every way to start a match from a build or config goes through
-//! the same check there: [`Viewer::from_builds`] (JS `WasmMatch.fromBuilds`) validates
+//! `defaultBuild(game)` and `validateBuild(game, buildJson)` dispatch on the game id
+//! through `GAMES`, one entry per game crate in the shared [`game_catalog`] shape
+//! ([`tank::catalog`] today). Every way to start a match from a build or config goes
+//! through the same check: [`Viewer::from_builds`] (JS `WasmMatch.fromBuilds`) validates
 //! each build, [`Viewer::tank`] checks each tank of the query, and
 //! [`Viewer::with_config`] rejects per-tank params that aren't a valid build.
 //!
@@ -29,7 +30,7 @@
 
 use engine::{Action, EndReason, Heading, Match, MatchConfig, Policy, Vec2};
 use serde::Serialize;
-use tank::catalog::{self, BuildBehavior};
+use tank::catalog;
 use tank::{loadout, Behavior, Chaser, Loadout, MatchSpec, Preset, TankSpec, Wanderer};
 use wasm_bindgen::prelude::*;
 
@@ -153,7 +154,7 @@ pub struct StateView {
 }
 
 /// `[{"code", "key"}, ...]` for an error message.
-fn errors_json(errors: &[catalog::BuildError]) -> String {
+fn errors_json(errors: &[game_catalog::BuildError]) -> String {
     to_json(&errors)
 }
 
@@ -245,14 +246,13 @@ impl Viewer {
     pub fn from_builds(game: &str, seed: &str, blue: &str, orange: &str) -> Result<Self, String> {
         let seed = parse_seed(seed)?;
         let tank = |side: &str, json: &str| -> Result<TankSpec, String> {
-            let build = catalog::validate_build(game, json)
-                .map_err(|e| format!("{side}: invalid build {}", errors_json(&e)))?;
-            match build.behavior {
-                BuildBehavior::Scripted(b) => Ok(TankSpec::new(b, build.loadout)),
-                BuildBehavior::Champion(_) => Err(format!(
-                    "{side}: a champion behavior needs its genome; the loader resolves it"
-                )),
-            }
+            let valid = if game == catalog::GAME {
+                catalog::validate_build(json)
+            } else {
+                Err(vec![game_catalog::BuildError::new("wrong_game", "game")])
+            };
+            let valid = valid.map_err(|e| format!("{side}: invalid build {}", errors_json(&e)))?;
+            catalog::tank_spec(&valid).map_err(|e| format!("{side}: {e}"))
         };
         Self::from_spec(MatchSpec {
             seed,
@@ -532,44 +532,72 @@ pub fn tank_catalog_json() -> String {
     serde_json::to_string(&catalog()).expect("catalog serializes")
 }
 
-fn known_game(game: &str) -> Result<(), JsError> {
-    if game == catalog::GAME {
-        Ok(())
-    } else {
-        Err(JsError::new(&format!("unknown game {game:?}")))
-    }
+/// A game with a build catalog: its id, its `catalog()` and its `validate_build`
+/// rendered as `validateBuild`'s JSON. Both functions live in the game's crate, in the
+/// shared [`game_catalog`] shape.
+struct Game {
+    id: &'static str,
+    catalog: fn() -> game_catalog::Catalog,
+    validate_json: fn(&str) -> String,
+}
+
+/// Every game with a build catalog, in `games()` order. A new game (racing, M3) is one
+/// entry here plus its crate dependency.
+const GAMES: &[Game] = &[Game {
+    id: tank::catalog::GAME,
+    catalog: tank::catalog::catalog,
+    validate_json: |json| game_catalog::validation_json(&tank::catalog::validate_build(json)),
+}];
+
+fn game(id: &str) -> Result<&'static Game, JsError> {
+    GAMES
+        .iter()
+        .find(|g| g.id == id)
+        .ok_or_else(|| JsError::new(&format!("unknown game {id:?}")))
 }
 
 /// The games and their rules versions, as JSON: `[{"game": "tank", "rules_version": 1}]`.
 #[wasm_bindgen]
 pub fn games() -> String {
-    to_json(&catalog::games())
+    #[derive(Serialize)]
+    struct GameInfo {
+        game: &'static str,
+        rules_version: u64,
+    }
+    let list: Vec<GameInfo> = GAMES
+        .iter()
+        .map(|g| GameInfo {
+            game: g.id,
+            rules_version: (g.catalog)().rules_version,
+        })
+        .collect();
+    to_json(&list)
 }
 
 /// A game's build catalog as JSON (budget, stats with per-level values, scripted
-/// behaviors, presets, default build); see [`tank::catalog::catalog`]. Throws for an
-/// unknown game.
+/// behaviors, presets, default build); see [`game_catalog::Catalog`] and
+/// [`tank::catalog::catalog`]. Throws for an unknown game.
 #[wasm_bindgen(js_name = catalogJson)]
-pub fn catalog_json(game: &str) -> Result<String, JsError> {
-    known_game(game)?;
-    Ok(to_json(&catalog::catalog()))
+pub fn catalog_json(game_id: &str) -> Result<String, JsError> {
+    Ok(to_json(&(game(game_id)?.catalog)()))
 }
 
-/// A game's default build as JSON (3/3/3, first scripted behavior). Throws for an
-/// unknown game.
+/// A game's default build as JSON (tank: 3/3/3, first scripted behavior). Throws for
+/// an unknown game.
 #[wasm_bindgen(js_name = defaultBuild)]
-pub fn default_build(game: &str) -> Result<String, JsError> {
-    known_game(game)?;
-    Ok(to_json(&catalog::default_build()))
+pub fn default_build(game_id: &str) -> Result<String, JsError> {
+    Ok(to_json(&(game(game_id)?.catalog)().default_build))
 }
 
 /// Check a build: returns `{"ok": true, levels, behavior, points, params, ...}` or
-/// `{"ok": false, "errors": [{"code", "key"}, ...]}` as JSON. Never throws.
+/// `{"ok": false, "errors": [{"code", "key"}, ...]}` as JSON (`wrong_game` for an
+/// unknown game). Never throws.
 #[wasm_bindgen(js_name = validateBuild)]
-pub fn validate_build(game: &str, build_json: &str) -> String {
-    to_json(&catalog::validation(&catalog::validate_build(
-        game, build_json,
-    )))
+pub fn validate_build(game_id: &str, build_json: &str) -> String {
+    match GAMES.iter().find(|g| g.id == game_id) {
+        Some(g) => (g.validate_json)(build_json),
+        None => game_catalog::unknown_game_json(),
+    }
 }
 
 /// Snap barycentric triangle weights (Attack, Speed, Defense corners) to a loadout,
@@ -843,7 +871,7 @@ mod tests {
     #[test]
     fn build_exports_wrap_the_tank_catalog() {
         assert_eq!(games(), r#"[{"game":"tank","rules_version":1}]"#);
-        let default = to_json(&catalog::default_build());
+        let default = default_build("tank").unwrap();
         assert_eq!(
             default,
             r#"{"rules_version":1,"levels":{"attack":3,"speed":3,"defense":3},"behavior":{"kind":"scripted","id":"charger"}}"#

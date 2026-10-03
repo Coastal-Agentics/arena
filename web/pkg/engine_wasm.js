@@ -177,16 +177,16 @@ export function games() {
 
 /**
  * A game's build catalog as JSON (budget, stats with per-level values, scripted
- * behaviors, presets, default build); see [`tank::catalog::catalog`]. Throws for an
- * unknown game.
- * @param {string} game
+ * behaviors, presets, default build); see [`game_catalog::Catalog`] and
+ * [`tank::catalog::catalog`]. Throws for an unknown game.
+ * @param {string} game_id
  * @returns {string}
  */
-export function catalogJson(game) {
+export function catalogJson(game_id) {
     let deferred3_0;
     let deferred3_1;
     try {
-        const ptr0 = passStringToWasm0(game, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const ptr0 = passStringToWasm0(game_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
         const ret = wasm.catalogJson(ptr0, len0);
         var ptr2 = ret[0];
@@ -204,16 +204,16 @@ export function catalogJson(game) {
 }
 
 /**
- * A game's default build as JSON (3/3/3, first scripted behavior). Throws for an
- * unknown game.
- * @param {string} game
+ * A game's default build as JSON (tank: 3/3/3, first scripted behavior). Throws for
+ * an unknown game.
+ * @param {string} game_id
  * @returns {string}
  */
-export function defaultBuild(game) {
+export function defaultBuild(game_id) {
     let deferred3_0;
     let deferred3_1;
     try {
-        const ptr0 = passStringToWasm0(game, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const ptr0 = passStringToWasm0(game_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
         const ret = wasm.defaultBuild(ptr0, len0);
         var ptr2 = ret[0];
@@ -232,16 +232,17 @@ export function defaultBuild(game) {
 
 /**
  * Check a build: returns `{"ok": true, levels, behavior, points, params, ...}` or
- * `{"ok": false, "errors": [{"code", "key"}, ...]}` as JSON. Never throws.
- * @param {string} game
+ * `{"ok": false, "errors": [{"code", "key"}, ...]}` as JSON (`wrong_game` for an
+ * unknown game). Never throws.
+ * @param {string} game_id
  * @param {string} build_json
  * @returns {string}
  */
-export function validateBuild(game, build_json) {
+export function validateBuild(game_id, build_json) {
     let deferred3_0;
     let deferred3_1;
     try {
-        const ptr0 = passStringToWasm0(game, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const ptr0 = passStringToWasm0(game_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
         const ptr1 = passStringToWasm0(build_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len1 = WASM_VECTOR_LEN;

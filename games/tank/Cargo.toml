@@ -12,5 +12,9 @@ engine = { path = "../../engine" }
 rand_chacha = { version = "0.9", default-features = false }
 # Evolution files (GATE-003 M1); already an engine dependency.
 serde_json = "1"
-# Typed catalog and validation JSON (lean in wasm); already an engine dependency.
-serde = { version = "1", features = ["derive"] }
+# The shared build-catalog shape and validator (Nyborg builds).
+game-catalog = { path = "../catalog" }
+
+[dev-dependencies]
+# Catalog tests serialize through serde_json; already in the tree.
+serde = "1"
