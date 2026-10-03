@@ -17,61 +17,6 @@ function getStringFromWasm0(ptr, len) {
     ptr = ptr >>> 0;
     return cachedTextDecoder.decode(getUint8ArrayMemory0().subarray(ptr, ptr + len));
 }
-/**
- * `MatchConfig::duel()` as JSON: the default config, a starting point for
- * [`WasmMatch::with_config`].
- * @returns {string}
- */
-export function duelConfigJson() {
-    let deferred1_0;
-    let deferred1_1;
-    try {
-        const ret = wasm.duelConfigJson();
-        deferred1_0 = ret[0];
-        deferred1_1 = ret[1];
-        return getStringFromWasm0(ret[0], ret[1]);
-    } finally {
-        wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
-    }
-}
-
-/**
- * The Customize tab's tables and lists as JSON (see `CatalogView`).
- * @returns {string}
- */
-export function tankCatalogJson() {
-    let deferred1_0;
-    let deferred1_1;
-    try {
-        const ret = wasm.tankCatalogJson();
-        deferred1_0 = ret[0];
-        deferred1_1 = ret[1];
-        return getStringFromWasm0(ret[0], ret[1]);
-    } finally {
-        wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
-    }
-}
-
-/**
- * Snap barycentric triangle weights (Attack, Speed, Defense corners) to a loadout,
- * returned as `A-S-D` (`tank::Loadout::snap`).
- * @param {number} attack
- * @param {number} speed
- * @param {number} defense
- * @returns {string}
- */
-export function snapLoadout(attack, speed, defense) {
-    let deferred1_0;
-    let deferred1_1;
-    try {
-        const ret = wasm.snapLoadout(attack, speed, defense);
-        deferred1_0 = ret[0];
-        deferred1_1 = ret[1];
-        return getStringFromWasm0(ret[0], ret[1]);
-    } finally {
-        wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
-    }
-}
 
 let WASM_VECTOR_LEN = 0;
 
@@ -135,32 +80,6 @@ function takeFromExternrefTable0(idx) {
     return value;
 }
 /**
- * Canonical form of a Tank Arena URL query; throws on invalid input.
- * @param {string} query
- * @returns {string}
- */
-export function canonicalTankQuery(query) {
-    let deferred3_0;
-    let deferred3_1;
-    try {
-        const ptr0 = passStringToWasm0(query, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        const len0 = WASM_VECTOR_LEN;
-        const ret = wasm.canonicalTankQuery(ptr0, len0);
-        var ptr2 = ret[0];
-        var len2 = ret[1];
-        if (ret[3]) {
-            ptr2 = 0; len2 = 0;
-            throw takeFromExternrefTable0(ret[2]);
-        }
-        deferred3_0 = ptr2;
-        deferred3_1 = len2;
-        return getStringFromWasm0(ptr2, len2);
-    } finally {
-        wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
-    }
-}
-
-/**
  * Re-simulate a replay file's JSON and return a JSON [`ReplayCheck`]. Throws if the
  * JSON doesn't load as a replay.
  * @param {string} json
@@ -201,6 +120,185 @@ export function engineVersion() {
         return getStringFromWasm0(ret[0], ret[1]);
     } finally {
         wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+    }
+}
+
+/**
+ * `MatchConfig::duel()` as JSON: the default config, a starting point for
+ * [`WasmMatch::with_config`].
+ * @returns {string}
+ */
+export function duelConfigJson() {
+    let deferred1_0;
+    let deferred1_1;
+    try {
+        const ret = wasm.duelConfigJson();
+        deferred1_0 = ret[0];
+        deferred1_1 = ret[1];
+        return getStringFromWasm0(ret[0], ret[1]);
+    } finally {
+        wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+    }
+}
+
+/**
+ * The Customize tab's tables and lists as JSON (see `CatalogView`).
+ * @returns {string}
+ */
+export function tankCatalogJson() {
+    let deferred1_0;
+    let deferred1_1;
+    try {
+        const ret = wasm.tankCatalogJson();
+        deferred1_0 = ret[0];
+        deferred1_1 = ret[1];
+        return getStringFromWasm0(ret[0], ret[1]);
+    } finally {
+        wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+    }
+}
+
+/**
+ * The games and their rules versions, as JSON: `[{"game": "tank", "rules_version": 1}]`.
+ * @returns {string}
+ */
+export function games() {
+    let deferred1_0;
+    let deferred1_1;
+    try {
+        const ret = wasm.games();
+        deferred1_0 = ret[0];
+        deferred1_1 = ret[1];
+        return getStringFromWasm0(ret[0], ret[1]);
+    } finally {
+        wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+    }
+}
+
+/**
+ * A game's build catalog as JSON (budget, stats with per-level values, scripted
+ * behaviors, presets, default build); see [`game_catalog::Catalog`] and
+ * [`tank::catalog::catalog`]. Throws for an unknown game.
+ * @param {string} game_id
+ * @returns {string}
+ */
+export function catalogJson(game_id) {
+    let deferred3_0;
+    let deferred3_1;
+    try {
+        const ptr0 = passStringToWasm0(game_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.catalogJson(ptr0, len0);
+        var ptr2 = ret[0];
+        var len2 = ret[1];
+        if (ret[3]) {
+            ptr2 = 0; len2 = 0;
+            throw takeFromExternrefTable0(ret[2]);
+        }
+        deferred3_0 = ptr2;
+        deferred3_1 = len2;
+        return getStringFromWasm0(ptr2, len2);
+    } finally {
+        wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
+    }
+}
+
+/**
+ * A game's default build as JSON (tank: 3/3/3, first scripted behavior). Throws for
+ * an unknown game.
+ * @param {string} game_id
+ * @returns {string}
+ */
+export function defaultBuild(game_id) {
+    let deferred3_0;
+    let deferred3_1;
+    try {
+        const ptr0 = passStringToWasm0(game_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.defaultBuild(ptr0, len0);
+        var ptr2 = ret[0];
+        var len2 = ret[1];
+        if (ret[3]) {
+            ptr2 = 0; len2 = 0;
+            throw takeFromExternrefTable0(ret[2]);
+        }
+        deferred3_0 = ptr2;
+        deferred3_1 = len2;
+        return getStringFromWasm0(ptr2, len2);
+    } finally {
+        wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
+    }
+}
+
+/**
+ * Check a build: returns `{"ok": true, levels, behavior, points, params, ...}` or
+ * `{"ok": false, "errors": [{"code", "key"}, ...]}` as JSON (`wrong_game` for an
+ * unknown game). Never throws.
+ * @param {string} game_id
+ * @param {string} build_json
+ * @returns {string}
+ */
+export function validateBuild(game_id, build_json) {
+    let deferred3_0;
+    let deferred3_1;
+    try {
+        const ptr0 = passStringToWasm0(game_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passStringToWasm0(build_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        const ret = wasm.validateBuild(ptr0, len0, ptr1, len1);
+        deferred3_0 = ret[0];
+        deferred3_1 = ret[1];
+        return getStringFromWasm0(ret[0], ret[1]);
+    } finally {
+        wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
+    }
+}
+
+/**
+ * Snap barycentric triangle weights (Attack, Speed, Defense corners) to a loadout,
+ * returned as `A-S-D` (`tank::Loadout::snap`).
+ * @param {number} attack
+ * @param {number} speed
+ * @param {number} defense
+ * @returns {string}
+ */
+export function snapLoadout(attack, speed, defense) {
+    let deferred1_0;
+    let deferred1_1;
+    try {
+        const ret = wasm.snapLoadout(attack, speed, defense);
+        deferred1_0 = ret[0];
+        deferred1_1 = ret[1];
+        return getStringFromWasm0(ret[0], ret[1]);
+    } finally {
+        wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+    }
+}
+
+/**
+ * Canonical form of a Tank Arena URL query; throws on invalid input.
+ * @param {string} query
+ * @returns {string}
+ */
+export function canonicalTankQuery(query) {
+    let deferred3_0;
+    let deferred3_1;
+    try {
+        const ptr0 = passStringToWasm0(query, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.canonicalTankQuery(ptr0, len0);
+        var ptr2 = ret[0];
+        var len2 = ret[1];
+        if (ret[3]) {
+            ptr2 = 0; len2 = 0;
+            throw takeFromExternrefTable0(ret[2]);
+        }
+        deferred3_0 = ptr2;
+        deferred3_1 = len2;
+        return getStringFromWasm0(ptr2, len2);
+    } finally {
+        wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
     }
 }
 
@@ -279,6 +377,31 @@ export class WasmMatch {
         } finally {
             wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
         }
+    }
+    /**
+     * A Tank Arena duel from two build JSONs (`{rules_version, levels, behavior}`) for
+     * `game` (`"tank"`). Each is checked with the same validator as `validateBuild`;
+     * an invalid build, or a champion behavior (the loader resolves those), throws.
+     * @param {string} game
+     * @param {string} seed
+     * @param {string} blue
+     * @param {string} orange
+     * @returns {WasmMatch}
+     */
+    static fromBuilds(game, seed, blue, orange) {
+        const ptr0 = passStringToWasm0(game, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passStringToWasm0(seed, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        const ptr2 = passStringToWasm0(blue, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len2 = WASM_VECTOR_LEN;
+        const ptr3 = passStringToWasm0(orange, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len3 = WASM_VECTOR_LEN;
+        const ret = wasm.wasmmatch_fromBuilds(ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return WasmMatch.__wrap(ret[0]);
     }
     /**
      * Like the constructor, but with a custom config: `config_json` is a

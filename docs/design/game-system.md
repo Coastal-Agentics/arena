@@ -104,6 +104,7 @@ The full spec and milestones R1–R4 are in [racing.md](racing.md) (Blitzwing).
 
 - **Shell.** One viewer page with a game picker. `arena.js` becomes a shell (tabs, loop, URL), and each game gets a module: `web/games/tank.js` is moved, not rewritten, and `web/games/racing.js` is new.
 - **One wasm package.** `WasmMatch` stays as it is. Racing gets `WasmRace` with the same method names. Customize builds from a per-game schema, `catalogJson(game)`.
+  - *Progress:* the build catalog exists for tank: `games()`, `catalogJson(game)`, `defaultBuild(game)`, `validateBuild(game, buildJson)` and `WasmMatch.fromBuilds`, generated from the `games/tank` level tables (`tank::catalog`) in the shared shape of the small `game-catalog` crate (`games/catalog`, not `engine/`). Every JS path that starts a match goes through its validator. Racing adds its own `catalog()` and `validate_build` in M3 plus one `GAMES` entry in engine-wasm. See [wasm-and-web.md](../engine/wasm-and-web.md#builds-the-per-game-catalog).
 - **URLs.** A URL with no `game` means tank, so every existing link stays byte-identical. Replays pick the game from format 5's `game`.
 - **Shared Gen badge and slider.** It reads `web/data/<game>/evolution/`.
 - **Data path.** Moving tank's data to `web/data/tank/` changes the nightly's output path, so the CoS schedules it. Until then the shell maps tank to today's path.
