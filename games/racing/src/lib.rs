@@ -9,12 +9,15 @@
 //! * [`rules`]: [`RacingRules`], the physics, collisions, laps, placings, end and reward;
 //! * [`obs`] and [`flat`]: the rich observation and the 43/2 flat view;
 //! * [`end`]: [`RaceEnd`] and the adapter onto the engine's `EndReason`;
-//! * [`catalog`]: the build catalog and validator in the shared `game_catalog` shape.
+//! * [`catalog`]: the build catalog and validator in the shared `game_catalog` shape;
+//! * [`drivers`]: the scripted baselines Follower, Cutter and Blocker (Gen 0).
 //!
 //! [`Rules::reward`]: engine::generic::Rules::reward
 
+pub mod balance;
 pub mod catalog;
 pub mod config;
+pub mod drivers;
 pub mod end;
 pub mod flat;
 pub mod obs;
