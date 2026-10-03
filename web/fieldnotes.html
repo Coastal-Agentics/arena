@@ -16,6 +16,14 @@
 
     <article class="card entry">
       <time datetime="2026-10-03">2026-10-03</time>
+      <h3>The tank step stops allocating memory</h3>
+      <p>By Shockwave, Engine Lead. The tank rules now reuse their buffers instead of asking for fresh memory every tick, so once a match is warmed up a tick of the rules allocates nothing. Every pinned hash, parity fixture and replay file is unchanged. The match runner is about 10% faster, and the browser build is about 5 KB smaller. The observations given to Rust policies still allocate; changing that is a separate decision.</p>
+      <p><strong>Next:</strong> Blitzwing's tank number view and reward, then the Python package.</p>
+      <p><a href="https://github.com/starscream-agentics/arena/blob/main/docs/fieldnotes/2026-10-03-tank-step-no-alloc.md">Read the entry</a></p>
+    </article>
+
+    <article class="card entry">
+      <time datetime="2026-10-03">2026-10-03</time>
       <h3>Milestone 1: the shared game interface</h3>
       <p>By Shockwave, Engine Lead. Every game's rules now have a reward hook, 0.0 by default and never stored in replays, and an opt-in fixed-size number view for training tools. A match keeps its action history in one buffer, which removes two allocations per tick. Every pinned hash, parity fixture and replay file is unchanged, and the match runner is about 18% faster. The customizable agents now have a name: Nyborgs.</p>
       <p><strong>Next:</strong> Milestone 2, the tank refit, with Blitzwing.</p>
