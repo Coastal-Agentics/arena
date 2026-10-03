@@ -155,11 +155,7 @@ pub struct StateView {
 
 /// `[{"code", "key"}, ...]` for an error message.
 fn errors_json(errors: &[game_catalog::BuildError]) -> String {
-    to_json(&errors)
-}
-
-fn to_json(v: &impl serde::Serialize) -> String {
-    serde_json::to_string(v).expect("catalog JSON serializes")
+    game_catalog::errors_json(errors)
 }
 
 fn parse_seed(seed: &str) -> Result<u64, String> {
@@ -262,10 +258,8 @@ impl Viewer {
     }
 
     fn from_spec(spec: MatchSpec) -> Result<Self, String> {
-        for (side, t) in [("blue", &spec.blue), ("orange", &spec.orange)] {
-            catalog::validate_spec(t)
-                .map_err(|e| format!("{side}: invalid build {}", errors_json(&e)))?;
-        }
+        // A `TankSpec`'s loadout is valid by construction: `Loadout::new` accepts
+        // exactly the builds `tank::catalog::validate_spec` does (tested there).
         let (m, [a, b]) = spec.start();
         let view = |t: &tank::TankSpec| TankSetupView {
             behavior: t.behavior.key(),
@@ -532,12 +526,14 @@ pub fn tank_catalog_json() -> String {
     serde_json::to_string(&catalog()).expect("catalog serializes")
 }
 
-/// A game with a build catalog: its id, its `catalog()` and its `validate_build`
-/// rendered as `validateBuild`'s JSON. Both functions live in the game's crate, in the
-/// shared [`game_catalog`] shape.
+/// A game with a build catalog, from its crate's `catalog` module: the rules version,
+/// the catalog and default build as committed JSON strings (so wasm carries no
+/// catalog writer), and `validate_build` rendered as `validateBuild`'s JSON.
 struct Game {
     id: &'static str,
-    catalog: fn() -> game_catalog::Catalog,
+    rules_version: u64,
+    catalog_json: &'static str,
+    default_build_json: &'static str,
     validate_json: fn(&str) -> String,
 }
 
@@ -545,7 +541,9 @@ struct Game {
 /// entry here plus its crate dependency.
 const GAMES: &[Game] = &[Game {
     id: tank::catalog::GAME,
-    catalog: tank::catalog::catalog,
+    rules_version: tank::catalog::RULES_VERSION,
+    catalog_json: tank::catalog::CATALOG_JSON,
+    default_build_json: tank::catalog::DEFAULT_BUILD_JSON,
     validate_json: |json| game_catalog::validation_json(&tank::catalog::validate_build(json)),
 }];
 
@@ -559,19 +557,19 @@ fn game(id: &str) -> Result<&'static Game, JsError> {
 /// The games and their rules versions, as JSON: `[{"game": "tank", "rules_version": 1}]`.
 #[wasm_bindgen]
 pub fn games() -> String {
-    #[derive(Serialize)]
-    struct GameInfo {
-        game: &'static str,
-        rules_version: u64,
+    let mut s = String::from("[");
+    for (i, g) in GAMES.iter().enumerate() {
+        if i > 0 {
+            s.push(',');
+        }
+        s.push_str(r#"{"game":"#);
+        game_catalog::push_str_json(&mut s, g.id);
+        s.push_str(r#","rules_version":"#);
+        game_catalog::push_uint(&mut s, g.rules_version);
+        s.push('}');
     }
-    let list: Vec<GameInfo> = GAMES
-        .iter()
-        .map(|g| GameInfo {
-            game: g.id,
-            rules_version: (g.catalog)().rules_version,
-        })
-        .collect();
-    to_json(&list)
+    s.push(']');
+    s
 }
 
 /// A game's build catalog as JSON (budget, stats with per-level values, scripted
@@ -579,14 +577,14 @@ pub fn games() -> String {
 /// [`tank::catalog::catalog`]. Throws for an unknown game.
 #[wasm_bindgen(js_name = catalogJson)]
 pub fn catalog_json(game_id: &str) -> Result<String, JsError> {
-    Ok(to_json(&(game(game_id)?.catalog)()))
+    Ok(game(game_id)?.catalog_json.to_string())
 }
 
 /// A game's default build as JSON (tank: 3/3/3, first scripted behavior). Throws for
 /// an unknown game.
 #[wasm_bindgen(js_name = defaultBuild)]
 pub fn default_build(game_id: &str) -> Result<String, JsError> {
-    Ok(to_json(&(game(game_id)?.catalog)().default_build))
+    Ok(game(game_id)?.default_build_json.to_string())
 }
 
 /// Check a build: returns `{"ok": true, levels, behavior, points, params, ...}` or

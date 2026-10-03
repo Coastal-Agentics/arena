@@ -33,7 +33,7 @@ impl Behavior {
     pub const ALL: [Behavior; 3] = [Behavior::Charger, Behavior::Kiter, Behavior::Sniper];
 
     /// Lower-case URL name (`charger`, `kiter`, `sniper`).
-    pub fn key(self) -> &'static str {
+    pub const fn key(self) -> &'static str {
         match self {
             Self::Charger => "charger",
             Self::Kiter => "kiter",
