@@ -35,6 +35,7 @@ pub mod json_u64;
 pub mod policy;
 pub mod replay;
 pub mod sim;
+pub mod tank_flat;
 #[cfg(test)]
 mod testing;
 

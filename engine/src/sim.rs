@@ -366,6 +366,9 @@ impl Match {
 /// is shared. Actions for dead tanks are ignored. The end check ([`Rules::outcome`])
 /// runs after every step, in this order: no tank alive (`all_destroyed`), one team left
 /// with some tank of another team existing (`last_standing`), tick limit (`tick_limit`).
+///
+/// For training tools, [`Rules::reward`] is the GATE-003 tank reward (documented on the
+/// method) and [`crate::tank_flat`] is the fixed-size [`generic::Flat`] view (176/4).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct TankRules;
 
@@ -750,6 +753,86 @@ impl Rules for TankRules {
             }
         }
         Ok(())
+    }
+
+    /// The GATE-003 §6 tank reward for tank `agent` on the tick just stepped
+    /// (`docs/design/tank-refit.md`, with Blitzwing's clarifications of 2026-10-03).
+    /// Computed from the post-step state and this tick's events; never recorded, and
+    /// evolution keeps its match-result fitness.
+    ///
+    /// - **Shaping**, for each [`Event::Hit`] this tick: the tank that fired gets
+    ///   `+0.5 × d ÷ target max HP` and the tank that was hit gets `−0.5 × d ÷ its own
+    ///   max HP`. Here `d` is the hit's damage capped at the target's hp just before
+    ///   that hit (never below 0), so overkill doesn't count: a second hit on the same
+    ///   tick on a tank already at ≤ 0 hp gets 0. Each hit is zero-sum. A
+    ///   tank's damage taken sums to at most its max HP, so its negative shaping over a
+    ///   match is at least −0.5; in a duel its positive shaping is at most +0.5.
+    /// - **Terminal**, only on the tick a [`Event::Destroyed`] leaves exactly one team
+    ///   alive while another team exists (the `last_standing` end): +1 if the tank's
+    ///   team won, −1 if it lost. It goes to the tanks active at the start of that tick:
+    ///   tanks still alive and tanks destroyed on it. Tanks destroyed earlier get no
+    ///   terminal reward.
+    /// - **Draws give 0:** `all_destroyed` (no winner), the tick limit, and every tick
+    ///   on which the match doesn't end.
+    ///
+    /// Allocation-free. Read it once per tick: after the match is over,
+    /// [`generic::Match::step`] does nothing and the last tick's events stay in place.
+    fn reward(_config: &MatchConfig, state: &TankState, events: &[Event], agent: usize) -> f32 {
+        let tanks = &state.tanks;
+        let mut reward = 0.0;
+
+        // Shaping. A target's hp before hit k = its hp now + the damage of hits k.. on it.
+        for (k, e) in events.iter().enumerate() {
+            let Event::Hit {
+                target,
+                owner,
+                damage,
+            } = *e
+            else {
+                continue;
+            };
+            if agent != target && agent != owner {
+                continue;
+            }
+            let later: i32 = events[k..]
+                .iter()
+                .map(|e| match *e {
+                    Event::Hit {
+                        target: t,
+                        damage: d,
+                        ..
+                    } if t == target => d,
+                    _ => 0,
+                })
+                .sum();
+            let hp_before = tanks[target].hp + later;
+            let counted = damage.min(hp_before).max(0) as f32;
+            let share = 0.5 * counted / state.params[target].max_hp as f32;
+            if agent == owner {
+                reward += share;
+            }
+            if agent == target {
+                reward -= share;
+            }
+        }
+
+        // Terminal: the last_standing end, on the tick of a Destroyed event.
+        let destroyed = |id: usize| {
+            events
+                .iter()
+                .any(|e| matches!(*e, Event::Destroyed { tank } if tank == id))
+        };
+        if events.iter().any(|e| matches!(e, Event::Destroyed { .. }))
+            && (tanks[agent].alive || destroyed(agent))
+        {
+            let mut alive = tanks.iter().filter(|t| t.alive).map(|t| t.team);
+            if let Some(team) = alive.next() {
+                if alive.all(|other| other == team) && tanks.iter().any(|t| t.team != team) {
+                    reward += if tanks[agent].team == team { 1.0 } else { -1.0 };
+                }
+            }
+        }
+        reward
     }
 }
 
@@ -1408,6 +1491,94 @@ mod tests {
     }
 
     type BoxedPolicy = Box<dyn FnMut(&Observation) -> Action>;
+
+    fn hit(target: usize, owner: usize, damage: i32) -> Event {
+        Event::Hit {
+            target,
+            owner,
+            damage,
+        }
+    }
+
+    #[test]
+    fn reward_shaping_on_hand_built_events() {
+        let m = Match::new(MatchConfig::duel(), 5);
+        let rewards = |state: &TankState, events: &[Event]| {
+            [0, 1].map(|a| TankRules::reward(m.config(), state, events, a))
+        };
+        // A 20-damage hit on a full 100-hp tank: ±0.5 × 20 / 100, and nothing else.
+        let mut s = m.state().clone();
+        s.tanks[1].hp = 80;
+        assert_eq!(rewards(&s, &[hit(1, 0, 20)]), [0.1, -0.1]);
+        assert_eq!(rewards(&s, &[Event::Fired { tank: 0 }]), [0.0, 0.0]);
+        // Overkill is capped at the hp before each hit: 30 left, two 20-damage hits on
+        // the same tick count 20 + 10.
+        s.tanks[1].hp = -10;
+        let (r, count) =
+            crate::testing::allocations_in(|| rewards(&s, &[hit(1, 0, 20), hit(1, 0, 20)]));
+        assert_eq!(count, 0);
+        assert_eq!(r, [0.15, -0.15]);
+    }
+
+    #[test]
+    fn reward_terminal_goes_to_tanks_active_at_the_start_of_the_tick() {
+        // 2v2: tank 3 (red) died earlier; tank 1 (red) dies now, so blue wins.
+        let mut config = MatchConfig::duel();
+        config.tanks = (0..4)
+            .map(|i| TankSpawn {
+                team: (i % 2) as u8,
+                ..Default::default()
+            })
+            .collect();
+        let m = Match::new(config, 2);
+        let mut s = m.state().clone();
+        for id in [1, 3] {
+            s.tanks[id].alive = false;
+            s.tanks[id].hp = 0;
+        }
+        let events = [hit(1, 2, 20), Event::Destroyed { tank: 1 }];
+        let r: Vec<f32> = (0..4)
+            .map(|a| TankRules::reward(m.config(), &s, &events, a))
+            .collect();
+        // Shaping: tank 1 had 20 hp left, so the hit counts in full (0.5 × 20 / 100).
+        assert_eq!(r, [1.0, -1.0 - 0.1, 1.0 + 0.1, 0.0]);
+        // A wipe-out on the same tick is a draw: shaping only.
+        let mut wiped = s.clone();
+        wiped.tanks[0].alive = false;
+        wiped.tanks[2].alive = false;
+        let events = [
+            Event::Destroyed { tank: 0 },
+            Event::Destroyed { tank: 1 },
+            Event::Destroyed { tank: 2 },
+        ];
+        for a in 0..4 {
+            assert_eq!(TankRules::reward(m.config(), &wiped, &events, a), 0.0);
+        }
+    }
+
+    #[test]
+    fn reward_over_a_real_duel_is_zero_sum_with_the_winners_sign() {
+        let mut m = Match::new(MatchConfig::duel(), 11);
+        let (mut a, mut b) = (crate::testing::hunter(), crate::testing::drifter(11));
+        let mut totals = [0.0f32; 2];
+        while !m.is_over() {
+            m.step_policies(&mut [&mut a, &mut b]);
+            let r = [m.reward(0), m.reward(1)];
+            if !m.is_over() {
+                assert_eq!(r[0], -r[1], "shaping is zero-sum");
+            }
+            totals[0] += r[0];
+            totals[1] += r[1];
+        }
+        let o = m.outcome().unwrap();
+        match o.winner {
+            Some(w) => {
+                assert_eq!(o.reason, EndReason::LastStanding);
+                assert!(totals[w as usize] > 0.5 && totals[1 - w as usize] < -0.5);
+            }
+            None => assert!(totals[0].abs() <= 0.5),
+        }
+    }
 
     /// Plays a whole match through `TankRules` directly, counting the heap allocations
     /// of `step` and `outcome` only (observations and policies are outside the count).
