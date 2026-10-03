@@ -1,4 +1,4 @@
-# Replay format (version 4)
+# Replay format (version 5; Tank Arena writes 4)
 
 Source: `engine/src/generic/replay.rs` (the generic `Replay<R>`, `ReplayPlayer<R>`,
 `setup_hash`, `ReplayError`), `engine/src/replay.rs` (the tank aliases `engine::Replay` and
@@ -9,10 +9,13 @@ Source: `engine/src/generic/replay.rs` (the generic `Replay<R>`, `ReplayPlayer<R
 A replay is **config + seed + every tick's actions**. It stores no positions or frames:
 playing a replay means re-simulating it, so a replay is both viewer input and a determinism
 check. Writing and reading use `serde_json` on the `Replay` struct; there is no separate
-schema. Format 4 (current) lets the config carry per-tank params (`tanks[].params`) and
+schema. Format 5 (current) is the envelope for more than one game: it adds `game` and
+`rules_version` ([format 5](#format-5-the-game-envelope)). Tank Arena still writes format 4,
+byte for byte, which lets the config carry per-tank params (`tanks[].params`) and
 stationary accuracy (`projectile_spread_still`). Format 3 added `setup_hash`, which lets
 `verify` catch edits to the seed or config. Format 2 and 3 files still load
-([versioning](#versioning)).
+([versioning](#versioning)). The rest of this page describes Tank Arena's format 4 file
+unless it says otherwise.
 
 ## Top level
 
@@ -20,16 +23,18 @@ Written by `Replay::to_json()` as compact JSON, one object:
 
 | Field | JSON type | Rust type | Required on read | Meaning |
 | --- | --- | --- | --- | --- |
-| `format` | integer | `u32` | yes | `REPLAY_FORMAT`, currently `4`. `2` and `3` are also read |
+| `format` | integer | `u32` | yes | The writer's `Rules::WRITES_FORMAT`: `4` for Tank Arena, `5` for every other game (`REPLAY_FORMAT`). `2` and `3` are also read |
+| `game` | string | `Option<String>` | yes in format 5; absent before | `Rules::GAME`, e.g. `"racing"`. Not written by Tank Arena |
+| `rules_version` | integer | `Option<u64>` | yes in format 5; absent before | `Rules::RULES_VERSION`. Not written by Tank Arena |
 | `engine_version` | string | `String` | yes | `engine` crate version of the writer, e.g. `"0.1.0"`. Informational: never checked |
 | `seed` | string (number accepted) | `u64` | yes | Match seed as a decimal string, e.g. `"18446744073709551615"`. See [JS-safe seeds](determinism.md#js-safe-seeds) |
 | `config` | object | `MatchConfig` | yes | Full match config, below |
 | `actions` | array of arrays | `Vec<Vec<Action>>` | yes | One entry per simulated tick; each entry is indexed by tank id |
 | `outcome` | object or `null` | `Option<Outcome>` | no (missing = `null`) | Outcome when recorded; `null` if recorded mid-match |
 | `final_hash` | string | `String` | yes | `Match::state_hash()` after the last recorded tick, 16 lowercase hex digits |
-| `setup_hash` | string | `Option<String>` | yes in formats 3 and 4; absent in format 2 | `replay::setup_hash(seed, &config)`, 16 lowercase hex digits. See [setup hash](#setup-hash) |
+| `setup_hash` | string | `Option<String>` | yes in formats 3 to 5; absent in format 2 | `replay::setup_hash(seed, &config)`, 16 lowercase hex digits. See [setup hash](#setup-hash) |
 
-Fields are written in this order. A seed 7 duel ends like this:
+Fields are written in this order (`game` and `rules_version` only in format 5). A seed 7 duel ends like this:
 `…,"outcome":{"winner":1,"ticks":276,"reason":"last_standing"},"final_hash":"51234f61b02b5784","setup_hash":"0b24ce74f45e9a27"}`.
 
 Unknown fields are ignored on read (no `deny_unknown_fields`).
@@ -124,7 +129,9 @@ All `params` fields except `projectile_spread_still` are required, in `params` a
 ```
 
 `winner`: team id or `null` for a draw. `ticks`: tick the match ended on. `reason`:
-`"last_standing"`, `"all_destroyed"` or `"tick_limit"` (snake_case `EndReason`).
+`"last_standing"`, `"all_destroyed"`, `"tick_limit"` or `"finished"` (snake_case `EndReason`).
+`"finished"` means a game's own completion rule was met (racing: every active car has
+finished, or the window after the winner closed); Tank Arena never writes it.
 
 ## Setup hash
 
@@ -158,7 +165,7 @@ It still covers only the dynamic state ([state hash](determinism.md#state-hash))
 | --- | --- |
 | `Replay::from_match(&m)` / `m.replay()` | Snapshot a match, finished or not |
 | `Replay::to_json()` | Compact JSON string |
-| `Replay::from_json(s)` | Parse, then check in this order: `ReplayError::Json(msg)` on bad JSON or a missing or ill-typed field; `ReplayError::Format(n)` unless `format` is 2, 3 or 4; `ReplayError::MissingSetupHash` for format 3 or 4 without `setup_hash`; `ReplayError::FieldNotInFormat { format, field }` for a format 2 or 3 file that uses a format 4 field (the rules' `check_format`; for tanks, `TankRules::check_format`). Doesn't simulate |
+| `Replay::from_json(s)` | Read `format`, `game` and `rules_version` first, then parse the rest. Checks in this order: `ReplayError::Format(n)` unless `format` is 2 to 5; for format 5, `ReplayError::GameMismatch { expected, got }` unless `game` is the rules' `GAME`, then `ReplayError::RulesVersionMismatch { game, expected, got }` unless `rules_version` is the rules' `RULES_VERSION`; before format 5, `FieldNotInFormat` if `game` or `rules_version` is present, and `GameMismatch { got: None }` if the rules write format 5 (an older file is a Tank Arena file); `ReplayError::Json(msg)` on bad JSON or a missing or ill-typed field; `ReplayError::MissingSetupHash` for format 3 or later without `setup_hash`; `ReplayError::FieldNotInFormat { format, field }` for a format 2 or 3 file that uses a format 4 field (the rules' `check_format`; for tanks, `TankRules::check_format`). Doesn't simulate |
 | `Replay::play()` | `Match::new(config, seed)`, then `step` each recorded tick; returns the match. No checks |
 | `Replay::verify()` | 1. if `setup_hash` is present, recompute it from `seed` and `config` (`ReplayError::SetupMismatch`); 2. `play()`; 3. compare the outcome (`ReplayError::OutcomeMismatch`); 4. compare `final_hash` (`ReplayError::HashMismatch`). Hashes are exact string compares. Returns the re-simulated `Match` on success |
 | `ReplayPlayer::new(r)`, `.step()`, `.state()`, `.is_finished()` | Tick-by-tick playback for a viewer; `step()` returns `false` once every recorded tick is applied |
@@ -190,12 +197,23 @@ viewer doesn't load replays yet.
 
 `REPLAY_FORMAT` is "bumped whenever the replay format or sim semantics change incompatibly":
 a replay only means something to a sim that steps the same way. `from_json` accepts
-`OLDEST_READABLE_FORMAT` (2) through `REPLAY_FORMAT` (4). `engine_version` isn't consulted.
+`OLDEST_READABLE_FORMAT` (2) through `REPLAY_FORMAT` (5). `engine_version` isn't consulted.
 Every accepted format keeps its `format` when read and written back; `to_json()` never
 upgrades a file. To upgrade any older replay, verify it and re-record:
-`Replay::from_json(s)?.verify()?.replay()` is a format 4 replay of the same match.
+`Replay::from_json(s)?.verify()?.replay()` is a replay of the same match in the format the
+rules write (Tank Arena: 4).
 
-- **v4** (current, 2026-09-30, Tank Arena spec engine ask #5): the config may carry
+- **v5** (current, 2026-10-03, M3 in game-system.md): adds `game` and `rules_version`, both
+  required and checked on load. Written by every game except Tank Arena. A game's
+  `rules_version` stands in for the sim-semantics part of a format bump: when a game's rules
+  change how a match plays, it bumps its own `rules_version` and the engine format stays 5.
+  Tank Arena keeps writing v4 (`TankRules::WRITES_FORMAT = 4`; tank-refit.md), so its files,
+  `final_hash` and `setup_hash` are unchanged; it also reads a v5 file that says
+  `"game":"tank","rules_version":1`. Tests: `format_5_checks_game_and_rules_version`,
+  `a_pre_format_5_game_keeps_its_format_and_reads_both`, `tank_writes_format_4_and_never_finishes`,
+  and `committed_format_4_fixtures_load_verify_and_round_trip` (the 7 committed parity
+  fixtures load, verify and write back byte for byte).
+- **v4** (2026-09-30, Tank Arena spec engine ask #5): the config may carry
   `tanks[].params` and `projectile_spread_still` (in `params` or a spawn's `params`). A config
   without them **plays exactly as in v2 and v3**, serializes to the same bytes and has the same
   setup hash. So a replay written today for such a config differs from its v3 twin only in
@@ -212,7 +230,7 @@ upgrades a file. To upgrade any older replay, verify it and re-record:
   **Still read:** a v2 file loads with `format: 2` and `setup_hash: None`, verifies on
   outcome and `final_hash` only, and `to_json()` writes it back as v2 (no `setup_hash`). The
   format 4 fields are rejected as for v3. Test: `format_2_replays_still_load_and_upgrade`.
-- **v1, and anything above 4**: rejected with `ReplayError::Format(n)`.
+- **v1, and anything above 5**: rejected with `ReplayError::Format(n)`.
 
 No replays are committed in this repo or on `nightly-data` (checked 2026-09-30), so nothing
 needed converting. The 20 v3 replays `engine-cli --matches 20 --seed 0 --replay-dir` wrote
@@ -220,3 +238,33 @@ from `main` before this change all load and verify with it.
 
 Size: the seed 7 duel (276 ticks, 2 tanks) is 33,657 bytes in v4 and v3 (v2 was 33,625;
 `setup_hash` adds 32), about 120 bytes per tick. A spawn's `params` with the default values adds 207 bytes (more with `projectile_spread_still`).
+
+## Format 5: the game envelope
+
+Every game other than Tank Arena writes format 5. The envelope is the same as above plus two
+fields after `format`; `config` and `actions` are the game's own types (`Rules::Config`,
+`Rules::Action`), and `setup_hash` covers the game's whole config:
+
+```json
+{"format":5,"game":"racing","rules_version":1,"engine_version":"0.1.0","seed":"7","config":{…},"actions":[[…]],"outcome":{"winner":…,"ticks":…,"reason":"finished"},"final_hash":"…","setup_hash":"…"}
+```
+
+A game declares its identity on its `Rules` impl; the engine writes and checks it:
+
+```rust
+impl Rules for RacingRules {
+    // ... types and functions ...
+    const GAME: &'static str = "racing";
+    const RULES_VERSION: u64 = 1; // the same constant as the racing catalog's RULES_VERSION
+    // WRITES_FORMAT defaults to REPLAY_FORMAT (5): leave it out.
+}
+// Write: m.replay().to_json()  → format 5 with game and rules_version.
+// Read:  generic::Replay::<RacingRules>::from_json(s)?.verify()?
+```
+
+Loading checks `game` and `rules_version` before parsing the config, so a racing file
+loaded as Tank Arena (or the other way round) fails with `GameMismatch`, not a config parse
+error. A racing file from older racing rules fails with `RulesVersionMismatch`. A format 2
+to 4 file has no `game` and is a Tank Arena file: only rules that write a format older than
+5 (`TankRules`) read it.
+
