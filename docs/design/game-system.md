@@ -16,7 +16,7 @@ Every game is multi-agent with N agents. Here is what `Rules` (on `main`) alread
 | Actions | `Rules::Action` (`Copy`, `Default`) + `sanitize` | Tank: 3 × f32 + bool, fixed-size | none |
 | Observations | `Rules::Observation` for Rust policies | Tank's holds `Vec`s (enemies, allies, projectiles, obstacles) | Add an opt-in `Flat` view for bindings (below) |
 | Rewards | `Rules::reward` | Missing. Evolution scores match results | Add a method that returns 0.0 by default (below) |
-| Episode end | `Outcome` (match) + `is_active` (agent) | `EndReason`: `last_standing`, `all_destroyed`, `tick_limit` | **truncated** = `tick_limit`; **terminated** = any other reason, or the agent went inactive. Racing adds one `EndReason` variant |
+| Episode end | `Outcome` (match) + `is_active` (agent) | `EndReason`: `last_standing`, `all_destroyed`, `tick_limit` | **truncated** = `tick_limit`. **terminated** = any other reason, or the agent went inactive. Racing adds `Finished`: every active car has finished, or 600 ticks (10 s) have passed since the winner crossed the line, whichever comes first |
 | Seeding, determinism | `MatchRng`, lent to `init` and `step` only | Same seed + config + per-tick actions → same final hash (`Replay::verify`; parity CI checks it native vs wasm) | none |
 | Replays | One envelope, `Replay<R>`: format, config, seed, actions, `final_hash`, `setup_hash` | Format 4; no `game` field (ADR-014 known limit) | Format 5 lands **with racing**: `game` (absent = tank) and a per-game `rules_version` |
 
@@ -68,41 +68,68 @@ Tank's `Observation` still allocates after E2. Changing it to fixed arrays is an
 
 ## 2. Tank as game #1 (no behavior change)
 
-Tank keeps its rules, policies and numbers. The refit only adds to it:
-- E2 (scratch buffers);
-- `Flat` through `tank::encode_obs` (the 176-float layout already planned in GATE-003 §6);
-- a tank `reward`.
+The refit only *adds* three things:
+- `tank::encode_obs`/`decode_action` (176 and 4 floats, the GATE-003 §6 layout);
+- a tank `reward`: the GATE-003 shaping plus ±1 at the end, computed from state and events;
+- E2 (the scratch buffers).
 
-**The refit changes no replay bytes.** The format stays 4, and the parity fixtures and their hashes stay byte-identical. The bot and M1 champion hash pins don't move. The parity CI (native vs wasm on the pinned replays) proves it on every PR.
+The rich `Observation` stays as it is. **No replay bytes change:** the format stays 4. Every pin in tank-refit.md's table stays identical, and each refit PR shows a before/after table:
+- the bot pins and the seeds 0–199 digest;
+- the 7 parity fixtures;
+- the M1 champion `charger-2-5-2`;
+- `BALANCE.md`;
+- old URLs.
 
-The full constraints are in [tank-refit.md](tank-refit.md) (Blitzwing; pending).
+Parity CI proves the native and wasm side on every PR.
+
+The full constraints and milestones T1–T3 are in [tank-refit.md](tank-refit.md) (Blitzwing).
 
 ## 3. Racing as game #2 (summary)
 
-A new crate, `games/racing`, implements `Rules` + `Flat`. 2–4 cars race 3 laps on the "Ring" track, with no weapons:
-- **Track:** a closed centreline of 9 points with a 120 u width, straight-segment walls, and one gate per point that must be crossed in order.
-- **Cars:** circle colliders with throttle, steer and grip. The physics is plain f32 maths with table headings, and the RNG is used only to shuffle the grid.
+A new crate, `games/racing` (game id `racing`), implements `Rules` + `Flat`. 2–4 cars race 3 laps on the "Ring" track, with no weapons:
+- **Track:** a closed centreline of 9 points with a 120 u width, straight-segment walls, and gates crossed in order.
+- **Cars:** circle colliders with throttle, steer and grip. The physics is plain f32 maths with table headings, and the RNG is used only to shuffle the grid. The setup has 3 stats on the tanks' 9-point budget.
 - **Obs and actions:** `OBS_LEN = 43` (rays, next gates, opponents) and `ACTION_LEN = 2` (throttle, steer).
-- **End and score:** the new `Finished` end reason (terminated), or `tick_limit` (truncated). Placings live in the race state. Evolution scores by place. The RL reward is the progress gained per tick plus a finish bonus.
+- **End:** `Finished` (terminated, as in §1). Placings live in the race state.
+- **Score:** evolution scores by place, with a 65% done-test vs Gen 0. The RL reward is the progress gained per tick plus a finish bonus.
 
-Racing replays are format 5. As the second Rust game, racing is the ADR-014 trigger that unblocks B2–B5. **Engine answer to racing.md's geometry question:** segment walls, rays and circle-vs-segment go in `games/racing` first. They move into `engine::arena` only if a second game needs them, which keeps the engine small.
+**All racing numbers are untested starting values,** to be tuned in a racing `BALANCE.md`. Racing replays are format 5, and racing is the ADR-014 trigger that unblocks B2–B5. Segment geometry (walls, rays, circle-vs-segment) stays in `games/racing` and moves into `engine::arena` only if another game needs it.
 
-The full spec is in [racing.md](racing.md) (Blitzwing).
+The full spec and milestones R1–R4 are in [racing.md](racing.md) (Blitzwing).
 
 ## 4. Viewer and Customize tab (summary)
 
-`engine-wasm`'s `WasmMatch` and the viewer are tank-shaped today. Each game gets a thin wasm wrapper and a renderer behind one viewer shell that picks the game from the replay's `game` field (format 5) or the URL. The Customize tab becomes per game. Parity CI gains racing fixtures.
+- **Shell.** One viewer page with a game picker. `arena.js` becomes a shell (tabs, loop, URL), and each game gets a module: `web/games/tank.js` is moved, not rewritten, and `web/games/racing.js` is new.
+- **One wasm package.** `WasmMatch` stays as it is. Racing gets `WasmRace` with the same method names. Customize builds from a per-game schema, `catalogJson(game)`.
+- **URLs.** A URL with no `game` means tank, so every existing link stays byte-identical. Replays pick the game from format 5's `game`.
+- **Shared Gen badge and slider.** It reads `web/data/<game>/evolution/`.
+- **Data path.** Moving tank's data to `web/data/tank/` changes the nightly's output path, so the CoS schedules it. Until then the shell maps tank to today's path.
 
-The details are in [viewer-multi-game.md](viewer-multi-game.md) (Blitzwing; pending).
+The details and milestones V1–V4 are in [viewer-multi-game.md](viewer-multi-game.md) (Blitzwing).
 
 ## 5. Other training setups (slot kept open)
 
 Any setup that can be a `Rules` + `Flat` impl gets its own `games/<name>` crate and inherits replays, parity and bindings. Candidates, one line each:
+- **Herding:** dogs steer a scripted flock into a pen. Co-op, no damage.
 - **Marsh Push:** a top-down pusher shoves a T-block into a goal (the PushT task).
 - **Tide Map:** explore rooms and build an occupancy map, then navigate to a goal.
 - **Marsh Tag:** 2–4 agents play pursuit or capture-the-flag on map levels.
 - **Obstacle course:** reach a goal through fixed obstacles; time and collisions are scored.
-- **Cooperative carry:** two agents move one object to a goal together.
+
+**Adding a new game, the checklist:**
+1. A SPEC.
+2. `Rules` plus the `Flat` encoding, with an index table.
+3. A `reward`.
+4. At least 2 scripted baselines as Gen 0.
+5. A fitness, plus a 65% done-test on held-out seeds.
+6. Determinism and parity tests.
+7. A game id and a `rules_version`.
+8. A wasm wrapper.
+9. A renderer.
+10. A Customize schema.
+11. Balance targets and exploit tests.
+12. A `BALANCE.md`.
+13. A field note and a card.
 
 ## 6. Where it lives
 
@@ -123,24 +150,27 @@ Splitting the Rust games across repos would duplicate the tick loop and the pari
 | # | What | Owner | Accepted when | ADR-014 |
 |---|---|---|---|---|
 | **M1** (small) | `Rules::reward` (default 0.0), the `Flat` trait, and E1 (flat history buffer) | Shockwave | All hash pins, parity fixtures and replay bytes unchanged; speed equal or better; wasm size reported | Within B1; unlocks nothing |
-| M2 | Tank refit: E2 (scratch buffers), `tank::encode_obs`, tank reward | Shockwave (E2), Blitzwing (obs, reward) | No replay bytes change; parity green; speed equal or better | Within B1 |
-| M3 | Racing v0: `games/racing`, headless, with tests, replay format 5, new `EndReason` variant | Blitzwing (rules), Shockwave (engine bits) | Racing replays verify native and wasm; tank format 4 files still load and verify | **The trigger: unblocks B2–B5** |
+| M2 | Tank refit: E2 (Shockwave), plus T1 obs and T2 reward (Blitzwing) | Shockwave, Blitzwing | tank-refit.md's before/after table identical; no replay bytes change | Within B1 |
+| M3 | Racing v0: R1 (rules, format 5, `Finished`) and R2 (baselines, `Flat`, reward, BALANCE.md). Engine side: the `Finished` variant and the format 5 envelope | Blitzwing (rules), Shockwave (engine) | racing.md's acceptance; tank format 4 files still load and verify | **The trigger: unblocks B2–B5** |
 | M4 | Bindings: `engine-py/` → `saltmarsh-arena`, generic over `Rules + Flat`, for tank and racing (GATE-003 M3, extended) | Shockwave | GATE-003 M3's tests pass for both games; Saltmarsh `[gaming]` can use the wheel locally | none |
-| M5 | Viewer multi-game, and B2–B5 if Nye approves (tank rules move into `games/tank`) | Blitzwing, Shockwave | Hash pins unchanged; parity green | B2–B5 |
-| Later | Fixed-array tank obs (Blitzwing's call); the third setup from §5 | — | — | — |
+| M5 | Viewer for two games: V2 (= R3), with `WasmRace` (Shockwave), and V3, with `catalogJson(game)` (Shockwave). Then B2–B5 (T3) if Nye approves | Blitzwing, Shockwave | Racing links replay exactly in the browser; racing parity fixtures in CI; tank unchanged | B2–B5 |
+| Later | R4 (racing evolution, after M3); fixed-array tank obs (Blitzwing's call); the third setup from §5 | — | — | — |
+
+**Independent of this order:**
+- **V4,** the shared Gen badge and slider, is Blitzwing's next task (the GATE-003 M2 UI).
+- **V1,** the tank-only viewer shell refactor with no visible change, can land any time before M5.
+- **The tank data move** to `web/data/tank/` touches the nightly job, so it is for the CoS to schedule.
 
 ## Open questions for Nye
-1. **Order:** racing (M3) before the tank Python bridge (M4), or the bridge first? GATE-003 M3 is approved and listed as next in STATE.
-2. **Wheel:** build one wheel in arena, named `saltmarsh-arena`, replacing GATE-003's working name `engine-py`? Publishing it to PyPI stays a separate gate.
-3. **License:** arena is MIT and Saltmarsh is Apache-2.0. Should the arena crates and wheel become MIT OR Apache-2.0 before the wheel ships? That needs the consent of everyone who holds copyright in them.
-4. **B2–B5:** once racing exists, move the tank rules into `games/tank` (M5), or keep them deferred?
-5. **Outcome:** should `Outcome` later become a per-game associated type (an ADR-014 B-step)? Not proposed now.
-6. **Cost:** Saltmarsh `eval` requires a per-step cost. Should game envs report one (e.g. racing collisions) or a declared 0.0?
+1. **Racing gate and scope:** does racing get its own gate (like GATE-002 for tanks)? For v0, is one track enough, should it mirror the tanks' 9-point budget, and is shuffling the grid by seed OK?
+2. **Order:** racing (M3) before the tank Python bridge (M4), or the bridge first? GATE-003 M3 is approved and listed as next in STATE.
+3. **Wheel and license:** build one wheel here, named `saltmarsh-arena` (GATE-003's working name is `engine-py`)? And should arena's crates become MIT OR Apache-2.0 before it ships? That needs every copyright holder's consent, and publishing stays a separate gate.
+4. **ADR-014 after racing:** approve B2–B5 (M5), or keep them deferred? Should `Outcome` later become a per-game associated type (a B-step, not proposed now)?
+5. **Cost:** Saltmarsh `eval` requires a per-step cost. Should game envs report one (e.g. racing collisions) or a declared 0.0?
 
 ## Game side, for Blitzwing to confirm
-- The tank and racing reward formulas, computed in Rust from state and events. Evolution fitness is unchanged.
-- That `tank::encode_obs` (176 floats, GATE-003 §6) is tank's `Flat` impl, and that `decode_action` matches the 4-float Box (fire = value > 0).
-- That E2 keeps tank's iteration and tie order, so the bot and M1 champion pins hold.
-- Racing (`racing.md`, landed): that the geometry stays in `games/racing` for now, and that each car being its own team fits `Outcome.winner: Option<u8>`.
-- That the viewer and Customize plan in `viewer-multi-game.md` fits `web/` as it is.
-- Whether and when to move to fixed-array tank obs.
+- **racing.md, end rule wording.** §1 says the race ends when every **active** car has finished, or 600 ticks (10 s) after the winner crosses the line, whichever comes first; `TickLimit` stays truncation. racing.md says "every car".
+- **racing.md, a case it doesn't cover:** the 3,600-tick cap arriving after a winner has finished but before the 10 s window closes. racing.md's `TickLimit` says "nobody finished" and `winner: None`.
+- **viewer-multi-game.md:** its table puts V1 "in M5". This doc lets V1 land earlier.
+- **Tank and racing rewards** as written in tank-refit.md and racing.md, computed in Rust and never recorded. Evolution fitness is unchanged.
+- **When to move to fixed-array tank obs,** if ever.
