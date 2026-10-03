@@ -1,6 +1,6 @@
 # Coastal Agentics — Arena
 
-**We train robots, with open tools, on the Georgia coast.** Coastal Agentics is a consultancy and open source maintainer in Savannah, Georgia: we train agents in simulation and move them onto physical robots. Our tools and methods are open, reward functions are published, and every dataset records who made it.
+**We train robots, with open tools, on the Georgia coast.** Coastal Agentics is an open source robotics company in Savannah, Georgia: we train agents in simulation and move them onto physical robots. Our tools and methods are open, reward functions are published, and every dataset records who made it.
 
 Founded October 1, 2026 (formerly Starscream Agentics).
 
