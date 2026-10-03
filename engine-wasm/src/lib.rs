@@ -869,6 +869,12 @@ mod tests {
     #[test]
     fn build_exports_wrap_the_tank_catalog() {
         assert_eq!(games(), r#"[{"game":"tank","rules_version":1}]"#);
+        // The catalog and the replay envelope name the game and its rules the same way.
+        use engine::Rules;
+        assert_eq!(
+            (tank::catalog::GAME, tank::catalog::RULES_VERSION),
+            (engine::TankRules::GAME, engine::TankRules::RULES_VERSION)
+        );
         let default = default_build("tank").unwrap();
         assert_eq!(
             default,

@@ -4,11 +4,12 @@
 //! cargo run -p engine-wasm --example parity_fixtures
 //! ```
 //!
-//! Plays each match below natively, writes its replay (current `REPLAY_FORMAT`) and
+//! Plays each match below natively, writes its replay (Tank Arena's format, 4) and
 //! rewrites `manifest.json` with the expected ticks, outcome, final hash and setup hash.
 //! The output is deterministic: running it twice gives byte-identical files.
 //!
-//! Only regenerate on a `REPLAY_FORMAT` bump or a deliberate rule change, and say so in
+//! Only regenerate on a bump of the format Tank Arena writes (`TankRules::WRITES_FORMAT`)
+//! or a deliberate rule change, and say so in
 //! the PR (see `docs/engine/determinism.md`, "Native-vs-wasm parity"). The replays
 //! store actions, not policies, so a policy change in `games/tank` does not invalidate
 //! them; it only means a regenerated file would differ.

@@ -160,6 +160,8 @@ Splitting the Rust games across repos would duplicate the tick loop and the pari
 | M5 | Viewer for two games: V2 (= R3), with `WasmRace` (Shockwave), and V3, with `catalogJson(game)` (Shockwave). Then B2–B5 (T3) if Nye approves | Blitzwing, Shockwave | Racing links replay exactly in the browser; racing parity fixtures in CI; tank unchanged | B2–B5 |
 | Later | R4 (racing evolution, after M3); fixed-array tank obs (Blitzwing's call); the third setup from §5 | — | — | — |
 
+*Progress:* M3a, the engine side of M3, adds `EndReason::Finished` and replay format 5 (`Rules::GAME`, `Rules::RULES_VERSION`, `Rules::WRITES_FORMAT`; Tank Arena keeps writing format 4). No tank replay byte or hash changed. See [replay format](../engine/replay-format.md#format-5-the-game-envelope).
+
 **Independent of this order:**
 - **V4,** the shared Gen badge and slider, is Blitzwing's next task (the GATE-003 M2 UI).
 - **V1,** the tank-only viewer shell refactor with no visible change, can land any time before M5.
