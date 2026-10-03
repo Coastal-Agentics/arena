@@ -13,6 +13,14 @@
 //! Separately, [`check_replay`] (JS `checkReplayJson`) re-simulates a replay file for the
 //! native-vs-wasm parity check (`scripts/check-parity.mjs`, `tests/parity.rs`).
 //!
+//! **Builds** (the per-game part of a Nyborg): `games()`, `catalogJson(game)`,
+//! `defaultBuild(game)` and `validateBuild(game, buildJson)` dispatch on the game id
+//! through `GAMES`, one entry per game crate in the shared [`game_catalog`] shape
+//! ([`tank::catalog`] today). Every way to start a match from a build or config goes
+//! through the same check: [`Viewer::from_builds`] (JS `WasmMatch.fromBuilds`) validates
+//! each build, [`Viewer::tank`] checks each tank of the query, and
+//! [`Viewer::with_config`] rejects per-tank params that aren't a valid build.
+//!
 //! The sim logic lives in [`Viewer`] (plain Rust, unit-tested natively); the
 //! `#[wasm_bindgen]` [`WasmMatch`] wrapper only converts errors to JS.
 //!
@@ -22,7 +30,8 @@
 
 use engine::{Action, EndReason, Heading, Match, MatchConfig, Policy, Vec2};
 use serde::Serialize;
-use tank::{loadout, Behavior, Chaser, Loadout, MatchSpec, Preset, Wanderer};
+use tank::catalog;
+use tank::{loadout, Behavior, Chaser, Loadout, MatchSpec, Preset, TankSpec, Wanderer};
 use wasm_bindgen::prelude::*;
 
 /// Built-in bots the viewer can pit against each other.
@@ -144,6 +153,21 @@ pub struct StateView {
     pub outcome: Option<OutcomeView>,
 }
 
+/// `[{"code", "key"}, ...]` for an error message.
+fn errors_json(errors: &[game_catalog::BuildError]) -> String {
+    to_json(&errors)
+}
+
+fn to_json(v: &impl serde::Serialize) -> String {
+    serde_json::to_string(v).expect("catalog JSON serializes")
+}
+
+fn parse_seed(seed: &str) -> Result<u64, String> {
+    seed.trim()
+        .parse()
+        .map_err(|e| format!("seed must be a decimal u64: {e}"))
+}
+
 fn radians(h: Heading) -> f32 {
     h as f32 * (std::f32::consts::TAU / 65536.0)
 }
@@ -188,17 +212,17 @@ impl Viewer {
     }
 
     /// Like [`Viewer::new`], but with any config (arena, spawns, per-tank params, tick
-    /// limit). `team0` drives tank 0 and `team1` tank 1; further tanks idle.
+    /// limit). `team0` drives tank 0 and `team1` tank 1; further tanks idle. A tank's
+    /// own `params` must be a valid build on the shared params
+    /// ([`tank::catalog::check_config`]).
     pub fn with_config(
         config: MatchConfig,
         seed: &str,
         team0: &str,
         team1: &str,
     ) -> Result<Self, String> {
-        let seed: u64 = seed
-            .trim()
-            .parse()
-            .map_err(|e| format!("seed must be a decimal u64: {e}"))?;
+        let seed = parse_seed(seed)?;
+        catalog::check_config(&config)?;
         let bots = vec![
             BotKind::parse(team0)?.build(seed, 0),
             BotKind::parse(team1)?.build(seed, 1),
@@ -213,7 +237,35 @@ impl Viewer {
     /// A Tank Arena duel from a URL query (see [`tank::MatchSpec::from_query`]):
     /// fixed spawns, per-tank loadouts, the charger/kiter/sniper policies.
     pub fn tank(query: &str) -> Result<Self, String> {
-        let spec = MatchSpec::from_query(query)?;
+        Self::from_spec(MatchSpec::from_query(query)?)
+    }
+
+    /// A Tank Arena duel from two builds (`blue` is tank 0): each is validated with
+    /// [`tank::catalog::validate_build`] and must have a scripted behavior.
+    /// Plays exactly like [`Viewer::tank`] with the same seed, behaviors and levels.
+    pub fn from_builds(game: &str, seed: &str, blue: &str, orange: &str) -> Result<Self, String> {
+        let seed = parse_seed(seed)?;
+        let tank = |side: &str, json: &str| -> Result<TankSpec, String> {
+            let valid = if game == catalog::GAME {
+                catalog::validate_build(json)
+            } else {
+                Err(vec![game_catalog::BuildError::new("wrong_game", "game")])
+            };
+            let valid = valid.map_err(|e| format!("{side}: invalid build {}", errors_json(&e)))?;
+            catalog::tank_spec(&valid).map_err(|e| format!("{side}: {e}"))
+        };
+        Self::from_spec(MatchSpec {
+            seed,
+            blue: tank("blue", blue)?,
+            orange: tank("orange", orange)?,
+        })
+    }
+
+    fn from_spec(spec: MatchSpec) -> Result<Self, String> {
+        for (side, t) in [("blue", &spec.blue), ("orange", &spec.orange)] {
+            catalog::validate_spec(t)
+                .map_err(|e| format!("{side}: invalid build {}", errors_json(&e)))?;
+        }
         let (m, [a, b]) = spec.start();
         let view = |t: &tank::TankSpec| TankSetupView {
             behavior: t.behavior.key(),
@@ -363,6 +415,21 @@ impl WasmMatch {
             .map_err(|e| JsError::new(&e))
     }
 
+    /// A Tank Arena duel from two build JSONs (`{rules_version, levels, behavior}`) for
+    /// `game` (`"tank"`). Each is checked with the same validator as `validateBuild`;
+    /// an invalid build, or a champion behavior (the loader resolves those), throws.
+    #[wasm_bindgen(js_name = fromBuilds)]
+    pub fn from_builds(
+        game: &str,
+        seed: &str,
+        blue: &str,
+        orange: &str,
+    ) -> Result<WasmMatch, JsError> {
+        Viewer::from_builds(game, seed, blue, orange)
+            .map(WasmMatch)
+            .map_err(|e| JsError::new(&e))
+    }
+
     /// Tank Arena setup as JSON (see `SetupView`), or `"null"` for built-in bots.
     #[wasm_bindgen(js_name = setupJson)]
     pub fn setup_json(&self) -> String {
@@ -463,6 +530,74 @@ pub fn catalog() -> CatalogView {
 #[wasm_bindgen(js_name = tankCatalogJson)]
 pub fn tank_catalog_json() -> String {
     serde_json::to_string(&catalog()).expect("catalog serializes")
+}
+
+/// A game with a build catalog: its id, its `catalog()` and its `validate_build`
+/// rendered as `validateBuild`'s JSON. Both functions live in the game's crate, in the
+/// shared [`game_catalog`] shape.
+struct Game {
+    id: &'static str,
+    catalog: fn() -> game_catalog::Catalog,
+    validate_json: fn(&str) -> String,
+}
+
+/// Every game with a build catalog, in `games()` order. A new game (racing, M3) is one
+/// entry here plus its crate dependency.
+const GAMES: &[Game] = &[Game {
+    id: tank::catalog::GAME,
+    catalog: tank::catalog::catalog,
+    validate_json: |json| game_catalog::validation_json(&tank::catalog::validate_build(json)),
+}];
+
+fn game(id: &str) -> Result<&'static Game, JsError> {
+    GAMES
+        .iter()
+        .find(|g| g.id == id)
+        .ok_or_else(|| JsError::new(&format!("unknown game {id:?}")))
+}
+
+/// The games and their rules versions, as JSON: `[{"game": "tank", "rules_version": 1}]`.
+#[wasm_bindgen]
+pub fn games() -> String {
+    #[derive(Serialize)]
+    struct GameInfo {
+        game: &'static str,
+        rules_version: u64,
+    }
+    let list: Vec<GameInfo> = GAMES
+        .iter()
+        .map(|g| GameInfo {
+            game: g.id,
+            rules_version: (g.catalog)().rules_version,
+        })
+        .collect();
+    to_json(&list)
+}
+
+/// A game's build catalog as JSON (budget, stats with per-level values, scripted
+/// behaviors, presets, default build); see [`game_catalog::Catalog`] and
+/// [`tank::catalog::catalog`]. Throws for an unknown game.
+#[wasm_bindgen(js_name = catalogJson)]
+pub fn catalog_json(game_id: &str) -> Result<String, JsError> {
+    Ok(to_json(&(game(game_id)?.catalog)()))
+}
+
+/// A game's default build as JSON (tank: 3/3/3, first scripted behavior). Throws for
+/// an unknown game.
+#[wasm_bindgen(js_name = defaultBuild)]
+pub fn default_build(game_id: &str) -> Result<String, JsError> {
+    Ok(to_json(&(game(game_id)?.catalog)().default_build))
+}
+
+/// Check a build: returns `{"ok": true, levels, behavior, points, params, ...}` or
+/// `{"ok": false, "errors": [{"code", "key"}, ...]}` as JSON (`wrong_game` for an
+/// unknown game). Never throws.
+#[wasm_bindgen(js_name = validateBuild)]
+pub fn validate_build(game_id: &str, build_json: &str) -> String {
+    match GAMES.iter().find(|g| g.id == game_id) {
+        Some(g) => (g.validate_json)(build_json),
+        None => game_catalog::unknown_game_json(),
+    }
 }
 
 /// Snap barycentric triangle weights (Attack, Speed, Defense corners) to a loadout,
@@ -602,16 +737,20 @@ mod tests {
         while !a.step(50) {}
         while !b.step(50) {}
         assert_eq!(a.inner().state_hash(), b.inner().state_hash());
-        // Per-tank params: each TankView reports its own max_hp.
+        // Per-tank params must be a valid build on the shared params; each TankView
+        // reports its own max_hp.
         let mut c = MatchConfig::duel();
-        c.tanks[1].params = Some(engine::TankParams {
-            max_hp: 140,
-            ..Default::default()
-        });
-        let v = Viewer::with_config(c, "42", "Chaser", "Wanderer").unwrap();
+        c.tanks[1].params = Some(Loadout::new(2, 2, 5).unwrap().apply(&c.params));
+        let v = Viewer::with_config(c.clone(), "42", "Chaser", "Wanderer").unwrap();
         let s = v.state();
-        assert_eq!((s.tanks[0].max_hp, s.tanks[1].max_hp), (100, 140));
-        assert_eq!(s.tanks[1].hp, 140);
+        assert_eq!((s.tanks[0].max_hp, s.tanks[1].max_hp), (100, 940));
+        assert_eq!(s.tanks[1].hp, 940);
+        // A tampered config (more HP than any build gives) can't start.
+        c.tanks[1].params.as_mut().unwrap().max_hp = 2000;
+        let err = Viewer::with_config(c, "42", "Chaser", "Wanderer")
+            .err()
+            .unwrap();
+        assert!(err.starts_with("tanks[1].params"), "{err}");
         assert!(Viewer::with_config(MatchConfig::duel(), "x", "Chaser", "Wanderer").is_err());
     }
 
@@ -676,6 +815,77 @@ mod tests {
             MatchSpec::from_query(&c.default_query).unwrap(),
             MatchSpec::default()
         );
+    }
+
+    #[test]
+    fn builds_start_the_same_match_as_the_query() {
+        let b = |l: &str, id: &str| {
+            let [a, s, d]: [u8; 3] = l
+                .split('-')
+                .map(|x| x.parse().unwrap())
+                .collect::<Vec<_>>()
+                .try_into()
+                .unwrap();
+            format!(
+                r#"{{"rules_version":1,"levels":{{"attack":{a},"speed":{s},"defense":{d}}},"behavior":{{"kind":"scripted","id":"{id}"}}}}"#
+            )
+        };
+        for (seed, blue, orange) in [
+            ("42", ("5-3-1", "kiter"), ("4-1-4", "charger")),
+            ("7", ("2-5-2", "sniper"), ("3-3-3", "kiter")),
+        ] {
+            let q = format!(
+                "seed={seed}&blue={}-{}&orange={}-{}",
+                blue.1, blue.0, orange.1, orange.0
+            );
+            let mut a = Viewer::tank(&q).unwrap();
+            let mut f =
+                Viewer::from_builds("tank", seed, &b(blue.0, blue.1), &b(orange.0, orange.1))
+                    .unwrap();
+            assert_eq!(a.setup(), f.setup());
+            while !a.step(97) {}
+            while !f.step(97) {}
+            assert_eq!(a.inner().state_hash(), f.inner().state_hash(), "{q}");
+            assert_eq!(f.inner().replay().to_json(), a.inner().replay().to_json());
+        }
+        let ok = b("3-3-3", "kiter");
+        let err = Viewer::from_builds("tank", "1", &b("5-3-2", "kiter"), &ok)
+            .err()
+            .unwrap();
+        assert_eq!(
+            err,
+            r#"blue: invalid build [{"code":"over_budget","key":"levels"}]"#
+        );
+        assert!(Viewer::from_builds("racing", "1", &ok, &ok)
+            .err()
+            .unwrap()
+            .contains("wrong_game"));
+        assert!(Viewer::from_builds("tank", "x", &ok, &ok).is_err());
+        let champ = r#"{"rules_version":1,"levels":{"attack":3,"speed":3,"defense":3},"behavior":{"kind":"champion","ref":"tank/nightly/gen-99"}}"#;
+        assert!(Viewer::from_builds("tank", "1", &ok, champ)
+            .err()
+            .unwrap()
+            .starts_with("orange: a champion"));
+    }
+
+    #[test]
+    fn build_exports_wrap_the_tank_catalog() {
+        assert_eq!(games(), r#"[{"game":"tank","rules_version":1}]"#);
+        let default = default_build("tank").unwrap();
+        assert_eq!(
+            default,
+            r#"{"rules_version":1,"levels":{"attack":3,"speed":3,"defense":3},"behavior":{"kind":"scripted","id":"charger"}}"#
+        );
+        let ok = validate_build("tank", &default);
+        assert!(ok.starts_with(r#"{"ok":true,"game":"tank","rules_version":1,"levels":{"attack":3,"speed":3,"defense":3},"behavior":{"kind":"scripted","id":"charger"},"points":9,"params":{"#), "{ok}");
+        assert_eq!(
+            validate_build(
+                "tank",
+                r#"{"rules_version":1,"levels":{"attack":5,"speed":3,"defense":2},"behavior":{"kind":"scripted","id":"kiter"}}"#
+            ),
+            r#"{"ok":false,"errors":[{"code":"over_budget","key":"levels"}]}"#
+        );
+        assert!(validate_build("tank", "nope").contains("invalid_json"));
     }
 
     #[test]

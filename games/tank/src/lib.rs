@@ -12,6 +12,8 @@
 //!   other points;
 //! * [`policies`]: the charger, kiter and sniper scripted policies with their params;
 //! * [`matchup`]: a shareable duel (seed, behaviors, loadouts) and its URL query form.
+//! * [`catalog`]: the build catalog (`catalogJson("tank")`) and the build validator every
+//!   match started from a build goes through.
 //! * [`evolve`]: the GATE-003 M1 genetic algorithm over those params and the loadout
 //!   (`docs/plans/GATE-003-learning-tanks.md`; CLI: `examples/evolve.rs`).
 //!
@@ -20,6 +22,7 @@
 //! second Rust game appears (see ADR-009 and ADR-014).
 
 pub mod bots;
+pub mod catalog;
 pub mod evolve;
 pub mod loadout;
 pub mod los;
