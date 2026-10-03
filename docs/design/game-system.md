@@ -61,6 +61,7 @@ N agents give a PettingZoo `ParallelEnv`. A Gymnasium env is the same match with
 **"No per-tick allocation" is a target, not met today.**
 - `Match::step` collects a fresh action `Vec` and pushes one `Vec` per tick into the history, and `step_policies` allocates too (`match_loop.rs`).
 - `TankRules` allocates in `step` (`old`, `moves`, `spawned`, `keep`), in `observe`, and in `outcome` (`sim.rs`).
+- *Progress:* E1 shipped in M1 (#45). E2 (M2) makes `TankRules::step` and `outcome` allocation-free. `observe` still allocates, as noted below.
 
 Two hash-neutral engine steps fix the step loop, each with a before/after speed check (`engine-cli --matches 200 --seed 0`, release build, median of 5 runs):
 - **E1:** a flat history buffer in `Match` (one `Vec<Action>` with stride N, reserved once) plus a reusable action scratch. The replay JSON shape is unchanged. `Match::history()` changes shape, but only engine code calls it today.
