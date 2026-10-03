@@ -221,8 +221,10 @@ fn inactive_agents_are_not_asked() {
         let f = finished[i].expect("finishes");
         assert!(f < 100);
         assert_eq!(asked, f, "agent {i}");
-        assert!(m.history()[f as usize..]
+        assert!(m
+            .history()
             .iter()
+            .skip(f as usize)
             .all(|t| t[i] == Move::default()));
     }
 }
@@ -310,4 +312,70 @@ fn policy_trait_objects_for_other_rules() {
     let (a, b) = boxed.split_at_mut(1);
     let o = m.run(&mut [&mut *a[0], &mut *b[0]]);
     assert_eq!(o.reason, EndReason::LastStanding);
+}
+
+/// The flat view for the test game: [pos, tick, done] per agent; one action value.
+impl Flat for Race {
+    const OBS_LEN: usize = 3;
+    const ACTION_LEN: usize = 1;
+    fn encode_obs(_: &RaceConfig, state: &RaceState, agent: usize, tick: u32, out: &mut [f32]) {
+        out[0] = state.pos[agent] as f32;
+        out[1] = tick as f32;
+        out[2] = state.done[agent] as u8 as f32;
+    }
+    fn decode_action(input: &[f32]) -> Move {
+        Move {
+            step: input[0] as i32,
+        }
+    }
+}
+
+#[test]
+fn flat_view_encodes_into_the_callers_buffer() {
+    let mut m = Match::<Race>::new(config(), 2);
+    let mut buf = [f32::NAN; Race::OBS_LEN];
+    m.encode_obs(1, &mut buf);
+    assert_eq!(buf, [m.state().pos[1] as f32, 0.0, 0.0]);
+    // Decoded actions go through the same sanitize as any other action.
+    let acts: Vec<Move> = [[7.0], [1.0], [-5.0]]
+        .iter()
+        .map(|a| Race::decode_action(a))
+        .collect();
+    m.step(&acts);
+    assert_eq!(
+        m.history()[0],
+        [Move { step: 3 }, Move { step: 1 }, Move { step: -1 }]
+    );
+    m.encode_obs(1, &mut buf);
+    assert_eq!(buf[1], 1.0, "tick after one step");
+}
+
+#[test]
+#[should_panic(expected = "observation buffer length")]
+fn flat_view_checks_the_buffer_length() {
+    let m = Match::<Race>::new(config(), 2);
+    m.encode_obs(0, &mut [0.0; 2]);
+}
+
+#[test]
+fn reward_defaults_to_zero_and_is_not_recorded() {
+    let m = run(config(), 1);
+    for agent in 0..3 {
+        assert_eq!(m.reward(agent), 0.0);
+    }
+    assert!(!m.replay().to_json().contains("reward"));
+}
+
+#[test]
+fn history_is_one_flat_buffer() {
+    let m = run(config(), 1);
+    let h = m.history();
+    assert_eq!((h.len(), h.agents()), (m.tick() as usize, 3));
+    assert_eq!(h.as_flat().len(), h.len() * 3);
+    assert_eq!(h.iter().len(), h.len());
+    assert_eq!(h.get(h.len()), None);
+    for (t, tick) in h.iter().enumerate() {
+        assert_eq!(tick, &h.as_flat()[t * 3..t * 3 + 3]);
+        assert_eq!(tick, &m.replay().actions[t][..]);
+    }
 }

@@ -36,11 +36,24 @@ match loop, and everything tank-specific happens inside the `Rules` functions it
 
 1. clear the previous step's events;
 2. build one action per agent (`Rules::agents`): `actions[i]` or the default, passed through
-   `Rules::sanitize`;
-3. `Rules::step(config, state, actions, rng, events)`, the only place besides `Rules::init`
-   that gets the match RNG;
-4. push the sanitized actions onto the history, `tick += 1`;
+   `Rules::sanitize`, and append them to the history;
+3. `Rules::step(config, state, actions, rng, events)` on exactly those recorded actions, the
+   only place besides `Rules::init` that gets the match RNG;
+4. `tick += 1`;
 5. store `Rules::outcome(config, state, tick)`.
+
+The history is one flat `Vec<Action>`, `Rules::agents` entries per tick (the count is read
+once in `Match::new` and must not change), so recording a tick allocates nothing beyond the
+buffer's amortized doubling; `step_policies` reuses one action scratch buffer.
+`Match::history()` returns a `History` view: one slice per tick (`h[t]`, `h.iter()`), or the
+whole buffer (`h.as_flat()`). Replays store the same actions as one list per tick, as before.
+
+Two optional pieces sit next to the loop but are never called by it (game-system.md M1):
+`Rules::reward(config, state, events, agent)`, 0.0 unless a game defines it and never
+recorded (`Match::reward(agent)` reads it for the tick just stepped); and the opt-in `Flat`
+trait, a fixed-size `f32` view for bindings (`OBS_LEN`, `ACTION_LEN`, `encode_obs` into a
+caller-owned slice, `decode_action`; `Match::encode_obs(agent, out)`). Tank implements
+neither yet (M2).
 
 ## Inside one step (Tank Arena)
 
@@ -87,8 +100,8 @@ radius `r` is the shared `MatchConfig::params.radius`.
    - otherwise remove it if `ttl <= 1`, else `ttl -= 1` and keep it.
 5. **Finish the tick.** Append this tick's new shots to the projectile list. Every living
    tank with `hp <= 0` becomes dead (`vel = 0`, `Event::Destroyed`). That ends
-   `TankRules::step`; the generic loop then pushes the recorded actions onto the history,
-   does `tick += 1`, and checks the end conditions with `TankRules::outcome`
+   `TankRules::step` (the generic loop recorded its actions in the history before calling
+   it), then the loop does `tick += 1`, and checks the end conditions with `TankRules::outcome`
    ([world](world.md#how-a-match-ends)).
 
 Consequences worth knowing:

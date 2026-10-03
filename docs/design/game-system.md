@@ -6,6 +6,8 @@
 
 **In one paragraph:** every game is a `Rules` impl in its own `games/<name>` crate in this repo, run by the same deterministic engine loop, replayed in the same envelope, and checked by the same native-vs-wasm parity CI. Two small, opt-in additions let training tools use any game: a defaulted per-agent `reward`, and a fixed-size `f32` view for bindings. One Python wheel built here (`saltmarsh-arena`) exposes each game as a PettingZoo/Gymnasium env, and Saltmarsh's `gaming` part wraps it. Tank refits first with no replay byte changes. Racing is game #2 and the ADR-014 trigger for B2–B5.
 
+**Naming:** the customizable agents are **Nyborgs**: one Nyborg can play in several arenas (tank, racing), and over time both Nyborgs and maps become customizable.
+
 ## 1. Shared interface: build on `Rules`, not a new trait
 
 Every game is multi-agent with N agents. Here is what `Rules` (on `main`) already covers and what changes:
