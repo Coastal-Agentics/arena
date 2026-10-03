@@ -4,6 +4,7 @@
 //! In its own test binary because it installs a counting global allocator.
 
 use engine::generic::Flat;
+use engine::tank_flat::OBS_LEN;
 use engine::{Action, Match, MatchConfig, Policy, TankRules};
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::cell::Cell;
@@ -53,7 +54,7 @@ fn counter_sees_allocations() {
 
 #[test]
 fn encode_obs_and_decode_action_do_not_allocate() {
-    let mut buf = [0.0f32; 176];
+    let mut buf = [0.0f32; OBS_LEN];
     // A duel mid-match, with shells in flight.
     let (mut m, mut a, mut b) = (
         Match::new(MatchConfig::duel(), 42),
@@ -75,7 +76,7 @@ fn encode_obs_and_decode_action_do_not_allocate() {
             assert_eq!(n, 0, "encode_obs allocated at tick {tick}, agent {agent}");
         }
         let n = allocs_during(|| {
-            std::hint::black_box(<TankRules as Flat>::decode_action(&[0.5, -0.5, 1.0, 1.0]));
+            std::hint::black_box(TankRules::decode_action(&[0.5, -0.5, 1.0, 1.0]));
         });
         assert_eq!(n, 0, "decode_action allocated");
         if m.is_over() || d.is_over() {

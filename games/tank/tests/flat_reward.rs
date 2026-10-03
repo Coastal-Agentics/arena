@@ -2,7 +2,7 @@
 //! through `Match<TankRules>` (`docs/design/tank-refit.md`, layout in
 //! `docs/plans/GATE-003-learning-tanks.md` §6).
 //!
-//! The impls live in `engine/` (`TankRules` is an engine type; Shockwave's PR). These
+//! The impls live in `engine/` (`engine::tank_flat` and `TankRules::reward`, #48). These
 //! tests pin the contract as written there, plus the clarifications agreed on
 //! 2026-10-03 (recorded in tank-refit.md):
 //! - **Scaling:** positions, relative positions, walls and obstacles scale by
@@ -31,6 +31,11 @@
 
 use engine::angle::{self, Heading};
 use engine::generic::Flat;
+use engine::tank_flat::{
+    ACTION_LEN, ALLIES, COOLDOWN_SCALE, ENEMIES, MAX_HP_SCALE, OBSTACLES, OBSTACLE_SLOT,
+    OBSTACLE_SLOTS, OBS_LEN, PROJECTILES, PROJECTILE_SLOT, PROJECTILE_SLOTS, PROJECTILE_VEL_SCALE,
+    SELF, TANK_SLOT, TANK_SLOTS, TANK_VEL_SCALE, TICK, WALLS,
+};
 use engine::{
     Action, Arena, EndReason, Event, Match, MatchConfig, Observation, Policy, Rect, Replay, Rules,
     TankParams, TankRules, TankSpawn, Vec2, TICK_HZ,
@@ -42,34 +47,14 @@ use tank::loadout::{FIRE_COOLDOWN, MAX_HP, MAX_SPEED};
 use tank::matchup::{BLUE_SALT, ORANGE_SALT};
 use tank::{rules, Chaser, Loadout, MatchSpec, Wanderer};
 
-// ---------------------------------------------------------------- layout constants
-
-const OBS: usize = 176;
-const ACT: usize = 4;
-/// Block offsets from the GATE-003 §6 table: self 11, enemies 4 × 12, allies 4 × 12,
-/// shells 8 × 6, walls 4, tick 1, obstacles 4 × 4.
-const SELF: usize = 0;
-const ENEMIES: usize = 11;
-const ALLIES: usize = ENEMIES + 4 * TANK_SLOT;
-const SHELLS: usize = ALLIES + 4 * TANK_SLOT;
-const WALLS: usize = SHELLS + 8 * SHELL_SLOT;
-const TICK: usize = WALLS + 4;
-const OBSTACLES: usize = TICK + 1;
-const TANK_SLOT: usize = 12;
-const SHELL_SLOT: usize = 6;
-const OBSTACLE_SLOT: usize = 4;
-
-/// Fixed scales (GATE-003 §6), checked against the tables in
-/// `scaling_constants_match_the_level_tables`.
-const VEL_SCALE: f32 = 2.5;
-const HP_SCALE: f32 = 940.0;
-const COOLDOWN_SCALE: f32 = 64.0;
-const SHELL_VEL_SCALE: f32 = 6.0;
+// Layout and scales come from the engine (`engine::tank_flat`); the literal GATE-003 §6
+// values are pinned once, in `lengths_and_offsets_are_the_gate_003_table` and
+// `engine_scales_match_the_level_tables`.
 
 const EPS: f32 = 1e-6;
 
-fn obs(m: &Match, agent: usize) -> [f32; OBS] {
-    let mut out = [f32::NAN; OBS];
+fn obs(m: &Match, agent: usize) -> [f32; OBS_LEN] {
+    let mut out = [f32::NAN; OBS_LEN];
     m.encode_obs(agent, &mut out);
     out
 }
@@ -93,41 +78,41 @@ fn clampf(v: f32) -> f32 {
 /// sorts and truncates) with the §6 scaling, as agreed. Obstacles are sorted here, by
 /// the squared distance from the tank's centre to the rectangle's nearest point, then
 /// by index.
-fn reference(o: &Observation, c: &MatchConfig) -> [f32; OBS] {
+fn reference(o: &Observation, c: &MatchConfig) -> [f32; OBS_LEN] {
     let size = c.arena.size;
     let max_ticks = c.max_ticks as f32;
-    let mut v = [0.0f32; OBS];
+    let mut v = [0.0f32; OBS_LEN];
     let me = &o.me;
     let s = [
         2.0 * me.pos.x / size.x - 1.0,
         2.0 * me.pos.y / size.y - 1.0,
-        me.vel.x / VEL_SCALE,
-        me.vel.y / VEL_SCALE,
+        me.vel.x / TANK_VEL_SCALE,
+        me.vel.y / TANK_VEL_SCALE,
         angle::cos(me.heading),
         angle::sin(me.heading),
         angle::cos(me.turret),
         angle::sin(me.turret),
         me.hp as f32 / me.max_hp as f32,
-        me.max_hp as f32 / HP_SCALE,
+        me.max_hp as f32 / MAX_HP_SCALE,
         me.cooldown as f32 / COOLDOWN_SCALE,
     ];
     for (k, x) in s.into_iter().enumerate() {
         v[SELF + k] = clampf(x);
     }
     for (base, list) in [(ENEMIES, &o.enemies), (ALLIES, &o.allies)] {
-        for (k, t) in list.iter().take(4).enumerate() {
+        for (k, t) in list.iter().take(TANK_SLOTS).enumerate() {
             let slot = [
                 1.0,
                 t.rel.x / size.x,
                 t.rel.y / size.y,
-                t.vel.x / VEL_SCALE,
-                t.vel.y / VEL_SCALE,
+                t.vel.x / TANK_VEL_SCALE,
+                t.vel.y / TANK_VEL_SCALE,
                 angle::cos(t.heading),
                 angle::sin(t.heading),
                 angle::cos(t.turret),
                 angle::sin(t.turret),
                 t.hp as f32 / t.max_hp as f32,
-                t.max_hp as f32 / HP_SCALE,
+                t.max_hp as f32 / MAX_HP_SCALE,
                 if t.los { 1.0 } else { 0.0 },
             ];
             for (j, x) in slot.into_iter().enumerate() {
@@ -135,17 +120,17 @@ fn reference(o: &Observation, c: &MatchConfig) -> [f32; OBS] {
             }
         }
     }
-    for (k, p) in o.projectiles.iter().take(8).enumerate() {
+    for (k, p) in o.projectiles.iter().take(PROJECTILE_SLOTS).enumerate() {
         let slot = [
             1.0,
             p.rel.x / size.x,
             p.rel.y / size.y,
-            p.vel.x / SHELL_VEL_SCALE,
-            p.vel.y / SHELL_VEL_SCALE,
+            p.vel.x / PROJECTILE_VEL_SCALE,
+            p.vel.y / PROJECTILE_VEL_SCALE,
             if p.owner_team != me.team { 1.0 } else { 0.0 },
         ];
         for (j, x) in slot.into_iter().enumerate() {
-            v[SHELLS + SHELL_SLOT * k + j] = clampf(x);
+            v[PROJECTILES + PROJECTILE_SLOT * k + j] = clampf(x);
         }
     }
     let w = [
@@ -182,21 +167,24 @@ fn nearest_obstacles(p: Vec2, obstacles: &[Rect]) -> Vec<Rect> {
         .map(|(i, r)| ((p.clamp(r.min, r.max) - p).length_squared(), i))
         .collect();
     idx.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)));
-    idx.into_iter().take(4).map(|(_, i)| obstacles[i]).collect()
+    idx.into_iter()
+        .take(OBSTACLE_SLOTS)
+        .map(|(_, i)| obstacles[i])
+        .collect()
 }
 
 /// Index ranges inside the observation that are 0/1 flags.
 fn flag_indices() -> Vec<usize> {
     let mut f = Vec::new();
     for base in [ENEMIES, ALLIES] {
-        for k in 0..4 {
+        for k in 0..TANK_SLOTS {
             f.push(base + TANK_SLOT * k);
             f.push(base + TANK_SLOT * k + 11);
         }
     }
-    for k in 0..8 {
-        f.push(SHELLS + SHELL_SLOT * k);
-        f.push(SHELLS + SHELL_SLOT * k + 5);
+    for k in 0..PROJECTILE_SLOTS {
+        f.push(PROJECTILES + PROJECTILE_SLOT * k);
+        f.push(PROJECTILES + PROJECTILE_SLOT * k + 5);
     }
     f
 }
@@ -286,32 +274,71 @@ fn for_each_match(mut f: impl FnMut(&str, &mut Match, &mut dyn FnMut(&mut Match)
 // ================================================================ 1. layout and table
 
 #[test]
-fn lengths_are_176_and_4() {
-    assert_eq!(<TankRules as Flat>::OBS_LEN, OBS);
-    assert_eq!(<TankRules as Flat>::ACTION_LEN, ACT);
-    assert_eq!(OBSTACLES + 4 * OBSTACLE_SLOT, OBS, "block offsets add up");
+fn lengths_and_offsets_are_the_gate_003_table() {
+    assert_eq!((TankRules::OBS_LEN, TankRules::ACTION_LEN), (176, 4));
+    assert_eq!((OBS_LEN, ACTION_LEN), (176, 4));
     assert_eq!(
-        (ENEMIES, ALLIES, SHELLS, WALLS, TICK, OBSTACLES),
-        (11, 59, 107, 155, 159, 160)
+        (SELF, ENEMIES, ALLIES, PROJECTILES, WALLS, TICK, OBSTACLES),
+        (0, 11, 59, 107, 155, 159, 160)
     );
+    assert_eq!(
+        (TANK_SLOTS, TANK_SLOT),
+        (4, 12),
+        "4 enemy and 4 ally slots × 12"
+    );
+    assert_eq!(
+        (PROJECTILE_SLOTS, PROJECTILE_SLOT),
+        (8, 6),
+        "8 shell slots × 6"
+    );
+    assert_eq!(
+        (OBSTACLE_SLOTS, OBSTACLE_SLOT),
+        (4, 4),
+        "4 obstacle slots × 4"
+    );
+    assert_eq!(OBSTACLES + OBSTACLE_SLOTS * OBSTACLE_SLOT, OBS_LEN);
 }
 
 #[test]
-fn scaling_constants_match_the_level_tables() {
+#[should_panic(expected = "observation buffer length")]
+fn encode_obs_panics_on_a_wrong_length_buffer() {
+    let m = Match::new(MatchConfig::duel(), 42);
+    let mut short = [0.0f32; OBS_LEN - 1];
+    m.encode_obs(0, &mut short);
+}
+
+#[test]
+#[should_panic(expected = "action buffer length")]
+fn decode_action_panics_on_a_wrong_length_input() {
+    TankRules::decode_action(&[0.0; ACTION_LEN + 1]);
+}
+
+#[test]
+fn engine_scales_match_the_level_tables() {
+    // The GATE-003 §6 values.
+    assert_eq!(
+        (
+            TANK_VEL_SCALE,
+            MAX_HP_SCALE,
+            COOLDOWN_SCALE,
+            PROJECTILE_VEL_SCALE
+        ),
+        (2.5, 940.0, 64.0, 6.0)
+    );
     let tick_hz = TICK_HZ as f64;
     let top_speed = MAX_SPEED.iter().copied().fold(f32::MIN, f32::max) as f64;
     assert_eq!(
         top_speed / tick_hz,
-        VEL_SCALE as f64,
+        TANK_VEL_SCALE as f64,
         "velocity ÷ 2.5 = MAX_SPEED[4] / 60"
     );
-    assert_eq!(MAX_SPEED[4] as f64 / tick_hz, VEL_SCALE as f64);
+    assert_eq!(MAX_SPEED[4] as f64 / tick_hz, TANK_VEL_SCALE as f64);
     assert_eq!(
         *MAX_HP.iter().max().unwrap() as f32,
-        HP_SCALE,
+        MAX_HP_SCALE,
         "max_hp ÷ 940 = MAX_HP[4]"
     );
-    assert_eq!(MAX_HP[4] as f32, HP_SCALE);
+    assert_eq!(MAX_HP[4] as f32, MAX_HP_SCALE);
     assert_eq!(
         *FIRE_COOLDOWN.iter().max().unwrap() as f32,
         COOLDOWN_SCALE,
@@ -323,12 +350,15 @@ fn scaling_constants_match_the_level_tables() {
     let mut all: Vec<TankParams> = Loadout::ALL.iter().map(|l| l.params()).collect();
     all.push(TankParams::default());
     for p in all {
-        assert!(p.max_speed as f64 / tick_hz <= VEL_SCALE as f64, "{p:?}");
-        assert!(p.max_hp as f32 <= HP_SCALE, "{p:?}");
+        assert!(
+            p.max_speed as f64 / tick_hz <= TANK_VEL_SCALE as f64,
+            "{p:?}"
+        );
+        assert!(p.max_hp as f32 <= MAX_HP_SCALE, "{p:?}");
         assert!(p.fire_cooldown as f32 <= COOLDOWN_SCALE, "{p:?}");
         assert_eq!(
             p.projectile_speed as f64 / tick_hz,
-            SHELL_VEL_SCALE as f64,
+            PROJECTILE_VEL_SCALE as f64,
             "shell velocity ÷ 6 = 360 u/s ÷ 60"
         );
     }
@@ -372,23 +402,27 @@ fn self_block_walls_and_tick_on_a_constructed_state() {
         angle::cos(h),
         angle::sin(h),
         1.0,
-        650.0 / 940.0,
+        650.0 / MAX_HP_SCALE,
         0.0,
     ];
     close_slice(&o[SELF..SELF + 11], &want_self, "self @0");
     close_slice(&o[WALLS..WALLS + 4], &[0.25, 0.75, 0.25, 0.75], "walls @0");
     close(o[TICK], 0.0, "tick @0");
     close_slice(
-        &o[OBSTACLES..OBS],
-        &[0.0; 16],
+        &o[OBSTACLES..OBS_LEN],
+        &[0.0; OBSTACLE_SLOTS * OBSTACLE_SLOT],
         "no obstacles: all slots empty",
     );
     close_slice(
-        &o[ALLIES..SHELLS],
-        &[0.0; 48],
+        &o[ALLIES..PROJECTILES],
+        &[0.0; TANK_SLOTS * TANK_SLOT],
         "no allies: empty slots are zeros",
     );
-    close_slice(&o[SHELLS..WALLS], &[0.0; 48], "no shells yet");
+    close_slice(
+        &o[PROJECTILES..WALLS],
+        &[0.0; PROJECTILE_SLOTS * PROJECTILE_SLOT],
+        "no shells yet",
+    );
 
     // Drive forward at full throttle, turn the turret, fire.
     let go = Action {
@@ -405,15 +439,15 @@ fn self_block_walls_and_tick_on_a_constructed_state() {
     let want_self = [
         2.0 * t.pos.x / 800.0 - 1.0,
         2.0 * t.pos.y / 600.0 - 1.0,
-        t.vel.x / 2.5,
-        t.vel.y / 2.5,
+        t.vel.x / TANK_VEL_SCALE,
+        t.vel.y / TANK_VEL_SCALE,
         angle::cos(h),
         angle::sin(h),
         angle::cos(t.turret),
         angle::sin(t.turret),
         1.0,
-        650.0 / 940.0,
-        45.0 / 64.0,
+        650.0 / MAX_HP_SCALE,
+        45.0 / COOLDOWN_SCALE,
     ];
     close_slice(&o[SELF..SELF + 11], &want_self, "self @1");
     // 120 u/s = 2 u/tick, so |vel| / 2.5 = 0.8.
@@ -430,11 +464,11 @@ fn self_block_walls_and_tick_on_a_constructed_state() {
         ],
         "walls @1",
     );
-    close(o[TICK], 1.0 / 7200.0, "tick @1");
+    close(o[TICK], 1.0 / m.config().max_ticks as f32, "tick @1");
     // Its own shell: present, own team (is-enemy 0), velocity ÷ 6 is the unit direction.
     let p = m.projectiles()[0].clone();
     close_slice(
-        &o[SHELLS..SHELLS + 6],
+        &o[PROJECTILES..PROJECTILES + 6],
         &[
             1.0,
             (p.pos.x - t.pos.x) / 800.0,
@@ -446,7 +480,11 @@ fn self_block_walls_and_tick_on_a_constructed_state() {
         "own shell",
     );
     // The enemy sees the same shell as an enemy shell.
-    assert_eq!(obs(&m, 1)[SHELLS + 5], 1.0, "is-enemy from the other side");
+    assert_eq!(
+        obs(&m, 1)[PROJECTILES + 5],
+        1.0,
+        "is-enemy from the other side"
+    );
 }
 
 #[test]
@@ -501,7 +539,7 @@ fn tank_slots_sort_ties_overflow_padding_and_los() {
             angle::cos(h),
             angle::sin(h),
             1.0,
-            max_hp / 940.0,
+            max_hp / MAX_HP_SCALE,
             los,
         ]
     };
@@ -537,10 +575,10 @@ fn tank_slots_sort_ties_overflow_padding_and_los() {
         &slot((-70.0, 70.0), hd(7), 650.0, 1.0),
         "ally slot 1 = id 7",
     );
-    close_slice(a(2), &[0.0; 12], "ally slot 2 empty");
-    close_slice(a(3), &[0.0; 12], "ally slot 3 empty");
+    close_slice(a(2), &[0.0; TANK_SLOT], "ally slot 2 empty");
+    close_slice(a(3), &[0.0; TANK_SLOT], "ally slot 3 empty");
     // The 5th enemy (id 5, rel x −250) is nowhere in the vector.
-    for k in 0..4 {
+    for k in 0..TANK_SLOTS {
         assert!(
             (e(k)[1] - (-250.0 / 800.0)).abs() > 1e-3,
             "overflow enemy leaked into slot {k}"
@@ -563,7 +601,7 @@ fn tank_slots_sort_ties_overflow_padding_and_los() {
         ob((680.0, 280.0), (700.0, 320.0)),
     ]
     .concat();
-    close_slice(&o[OBSTACLES..OBS], &want, "obstacles: 0, 4, 2, 3");
+    close_slice(&o[OBSTACLES..OBS_LEN], &want, "obstacles: 0, 4, 2, 3");
 }
 
 #[test]
@@ -598,12 +636,13 @@ fn shell_slots_order_ties_overflow_and_owner_flag() {
             1.0,
             (p.pos.x - me.x) / 800.0,
             (p.pos.y - me.y) / 600.0,
-            p.vel.x / 6.0,
-            p.vel.y / 6.0,
+            p.vel.x / PROJECTILE_VEL_SCALE,
+            p.vel.y / PROJECTILE_VEL_SCALE,
             enemy,
         ]
     };
-    let s = |k: usize| &o[SHELLS + SHELL_SLOT * k..SHELLS + SHELL_SLOT * (k + 1)];
+    let s =
+        |k: usize| &o[PROJECTILES + PROJECTILE_SLOT * k..PROJECTILES + PROJECTILE_SLOT * (k + 1)];
     // Shells 0 and 1 are exactly equidistant: list order (tank 1's shell first) breaks the tie.
     let p = m.projectiles();
     assert_eq!(
@@ -624,8 +663,12 @@ fn shell_slots_order_ties_overflow_and_owner_flag() {
     );
     assert!(s(0)[2] > 0.0 && s(1)[2] < 0.0, "above, then below");
     close(s(0)[3], 1.0, "6 u/tick ÷ 6");
-    for k in 3..8 {
-        close_slice(s(k), &[0.0; 6], &format!("shell slot {k} empty"));
+    for k in 3..PROJECTILE_SLOTS {
+        close_slice(
+            s(k),
+            &[0.0; PROJECTILE_SLOT],
+            &format!("shell slot {k} empty"),
+        );
     }
 
     // Overflow: 3 more volleys make 12 shells; only the 8 nearest are encoded.
@@ -635,9 +678,13 @@ fn shell_slots_order_ties_overflow_and_owner_flag() {
     assert!(m.projectiles().len() > 8);
     let o = obs(&m, 0);
     let want = reference(&m.observe(0), m.config());
-    close_slice(&o[SHELLS..WALLS], &want[SHELLS..WALLS], "8 nearest shells");
+    close_slice(
+        &o[PROJECTILES..WALLS],
+        &want[PROJECTILES..WALLS],
+        "8 nearest shells",
+    );
     assert!(
-        (0..8).all(|k| o[SHELLS + SHELL_SLOT * k] == 1.0),
+        (0..PROJECTILE_SLOTS).all(|k| o[PROJECTILES + PROJECTILE_SLOT * k] == 1.0),
         "all 8 slots present"
     );
 }
@@ -710,14 +757,24 @@ fn duel_pillars_leave_two_empty_obstacle_slots() {
     let m = Match::new(MatchConfig::duel(), 42);
     for agent in 0..2 {
         let o = obs(&m, agent);
-        assert!(o[OBSTACLES..OBSTACLES + 8].iter().any(|&v| v != 0.0));
-        close_slice(&o[OBSTACLES + 8..OBS], &[0.0; 8], "slots 2 and 3 empty");
+        assert!(o[OBSTACLES..OBSTACLES + 2 * OBSTACLE_SLOT]
+            .iter()
+            .any(|&v| v != 0.0));
+        close_slice(
+            &o[OBSTACLES + 2 * OBSTACLE_SLOT..OBS_LEN],
+            &[0.0; 2 * OBSTACLE_SLOT],
+            "slots 2 and 3 empty",
+        );
         close_slice(
             &o[ENEMIES + TANK_SLOT..ALLIES],
-            &[0.0; 36],
+            &[0.0; 3 * TANK_SLOT],
             "enemy slots 1–3 empty",
         );
-        close_slice(&o[ALLIES..SHELLS], &[0.0; 48], "no allies in a duel");
+        close_slice(
+            &o[ALLIES..PROJECTILES],
+            &[0.0; TANK_SLOTS * TANK_SLOT],
+            "no allies in a duel",
+        );
         assert_eq!(o[ENEMIES], 1.0);
     }
 }
@@ -729,9 +786,9 @@ fn encode_obs_writes_every_index_and_ignores_old_buffer_contents() {
         m.step_policies(&mut [&mut a as &mut dyn Policy, &mut b]);
     }
     for agent in 0..2 {
-        let mut x = [f32::NAN; OBS];
-        let mut y = [7.0f32; OBS];
-        let mut z = [0.0f32; OBS];
+        let mut x = [f32::NAN; OBS_LEN];
+        let mut y = [7.0f32; OBS_LEN];
+        let mut z = [0.0f32; OBS_LEN];
         m.encode_obs(agent, &mut x);
         m.encode_obs(agent, &mut y);
         m.encode_obs(agent, &mut z);
@@ -739,8 +796,8 @@ fn encode_obs_writes_every_index_and_ignores_old_buffer_contents() {
         assert_eq!(x.map(f32::to_bits), y.map(f32::to_bits));
         assert_eq!(x.map(f32::to_bits), z.map(f32::to_bits));
         // Same as calling the trait function directly.
-        let mut w = [0.0f32; OBS];
-        <TankRules as Flat>::encode_obs(m.config(), m.state(), agent, m.tick(), &mut w);
+        let mut w = [0.0f32; OBS_LEN];
+        TankRules::encode_obs(m.config(), m.state(), agent, m.tick(), &mut w);
         assert_eq!(x.map(f32::to_bits), w.map(f32::to_bits));
     }
 }
@@ -769,7 +826,7 @@ fn every_value_is_finite_in_range_and_matches_the_table_over_many_matches() {
                 if !m.tanks()[agent].alive {
                     close_slice(
                         &o,
-                        &[0.0; OBS],
+                        &[0.0; OBS_LEN],
                         &format!("{label}: destroyed agent {agent}"),
                     );
                 } else {
@@ -790,8 +847,8 @@ fn every_value_is_finite_in_range_and_matches_the_table_over_many_matches() {
 
 // ================================================================ 3. decode
 
-fn decode(v: [f32; ACT]) -> Action {
-    <TankRules as Flat>::decode_action(&v)
+fn decode(v: [f32; ACTION_LEN]) -> Action {
+    TankRules::decode_action(&v)
 }
 
 #[test]
@@ -1199,7 +1256,7 @@ fn after_the_end_step_is_a_no_op_and_reward_and_obs_repeat() {
 // ================================================================ 5. hashes unchanged
 
 /// Every per-tick call a binding makes: encode_obs and reward for every agent.
-fn poke(m: &Match, buf: &mut [f32; OBS]) -> f32 {
+fn poke(m: &Match, buf: &mut [f32; OBS_LEN]) -> f32 {
     let mut acc = 0.0f32;
     for agent in 0..m.tanks().len() {
         m.encode_obs(agent, buf);
@@ -1211,7 +1268,7 @@ fn poke(m: &Match, buf: &mut [f32; OBS]) -> f32 {
 
 fn chaser_wanderer_instrumented(seed: u64) -> Match {
     let (mut m, mut a, mut b) = chaser_wanderer(seed);
-    let mut buf = [0.0; OBS];
+    let mut buf = [0.0; OBS_LEN];
     let mut sink = 0.0f32;
     drive(
         &mut m,
@@ -1274,7 +1331,7 @@ fn parity_fixtures_are_unchanged_with_obs_and_reward_each_tick() {
         let r = Replay::from_json(&text).unwrap();
         assert_eq!(r.format, 4, "{name}");
         let mut m = Match::new(r.config.clone(), r.seed);
-        let mut buf = [0.0; OBS];
+        let mut buf = [0.0; OBS_LEN];
         let mut sink = 0.0f32;
         let mut t = 0usize;
         drive(
@@ -1314,7 +1371,7 @@ fn duel_instrumented(blue: &Genome, orange: &Genome, seed: u64) -> evolve::Duel 
     let mut m = Match::new(setup.config, seed);
     let mut a = blue.build(seed ^ BLUE_SALT);
     let mut b = orange.build(seed ^ ORANGE_SALT);
-    let mut buf = [0.0; OBS];
+    let mut buf = [0.0; OBS_LEN];
     let mut sink = 0.0f32;
     drive(
         &mut m,
