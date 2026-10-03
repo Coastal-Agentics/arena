@@ -10,8 +10,9 @@ reading that function; the rustdoc (`cargo doc --no-deps -p engine --open`) has 
 next to the code.
 
 **Current shape, stated plainly:** the engine has a generic core, but its only rules are the
-tank's. `engine::generic` (ADR-014 step B1) holds the game-agnostic parts: the `Rules` trait,
-`Match<R>` (tick counter, seeded RNG, event log, outcome, action history), `Replay<R>`,
+tank's. `engine::generic` (ADR-014 step B1) holds the game-agnostic parts: the `Rules` trait (with a defaulted `reward`), the opt-in
+`Flat` view for bindings,
+`Match<R>` (tick counter, seeded RNG, event log, outcome, flat action history), `Replay<R>`,
 `ReplayPlayer<R>`, `Policy<R>`, `MatchRng` and `StateHasher`. `TankRules` is the one `Rules`
 implementation, and `engine::Match`, `engine::Replay` and `engine::ReplayPlayer` are aliases
 for the tank instances, so existing code didn't change. Tanks, projectiles, the tank step

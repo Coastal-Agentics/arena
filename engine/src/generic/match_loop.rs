@@ -42,7 +42,64 @@ pub struct Match<R: Rules> {
     state: R::State,
     events: Vec<R::Event>,
     outcome: Option<Outcome>,
-    history: Vec<Vec<R::Action>>,
+    /// [`Rules::agents`], read once at [`Match::new`]: the stride of `history`.
+    agents: usize,
+    /// Every recorded action, tick after tick (`agents` per tick), in one buffer that
+    /// grows by doubling instead of one `Vec` per tick.
+    history: Vec<R::Action>,
+    /// Reused by [`Match::step_policies`] for the tick's actions.
+    scratch: Vec<R::Action>,
+}
+
+/// The recorded actions of a match, one slice of [`Rules::agents`] actions per tick:
+/// a view of [`Match`]'s flat history buffer ([`Match::history`]).
+#[derive(Debug, PartialEq)]
+pub struct History<'a, A> {
+    actions: &'a [A],
+    agents: usize,
+    ticks: usize,
+}
+
+impl<A> Clone for History<'_, A> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+impl<A> Copy for History<'_, A> {}
+
+impl<'a, A> History<'a, A> {
+    /// Number of recorded ticks (equals [`Match::tick`]).
+    pub fn len(&self) -> usize {
+        self.ticks
+    }
+    /// True before the first step.
+    pub fn is_empty(&self) -> bool {
+        self.ticks == 0
+    }
+    /// Actions per tick ([`Rules::agents`]).
+    pub fn agents(&self) -> usize {
+        self.agents
+    }
+    /// Tick `t`'s actions, indexed by agent, or `None` past the end.
+    pub fn get(&self, t: usize) -> Option<&'a [A]> {
+        (t < self.ticks).then(|| &self.actions[t * self.agents..(t + 1) * self.agents])
+    }
+    /// Every tick's actions, in order.
+    pub fn iter(&self) -> impl ExactSizeIterator<Item = &'a [A]> + DoubleEndedIterator + 'a {
+        let (actions, agents) = (self.actions, self.agents);
+        (0..self.ticks).map(move |t| &actions[t * agents..(t + 1) * agents])
+    }
+    /// The whole buffer: tick 0's actions, then tick 1's, and so on.
+    pub fn as_flat(&self) -> &'a [A] {
+        self.actions
+    }
+}
+
+impl<A> std::ops::Index<usize> for History<'_, A> {
+    type Output = [A];
+    fn index(&self, t: usize) -> &[A] {
+        self.get(t).expect("tick out of range")
+    }
 }
 
 impl<R: Rules> Match<R> {
@@ -53,6 +110,7 @@ impl<R: Rules> Match<R> {
         let mut rng = MatchRng::new(seed);
         let state = R::init(&config, &mut rng);
         let outcome = R::outcome(&config, &state, 0);
+        let agents = R::agents(&state);
         Self {
             config,
             seed,
@@ -61,7 +119,9 @@ impl<R: Rules> Match<R> {
             state,
             events: Vec::new(),
             outcome,
+            agents,
             history: Vec::new(),
+            scratch: Vec::new(),
         }
     }
 
@@ -93,10 +153,20 @@ impl<R: Rules> Match<R> {
     pub fn is_over(&self) -> bool {
         self.outcome.is_some()
     }
-    /// Actions applied so far (after [`Rules::sanitize`]), one `Vec` (indexed by agent)
+    /// Actions applied so far (after [`Rules::sanitize`]): one slice (indexed by agent)
     /// per tick.
-    pub fn history(&self) -> &[Vec<R::Action>] {
-        &self.history
+    pub fn history(&self) -> History<'_, R::Action> {
+        History {
+            actions: &self.history,
+            agents: self.agents,
+            ticks: self.tick as usize,
+        }
+    }
+
+    /// [`Rules::reward`] for `agent` on the tick just stepped (0.0 unless the game
+    /// defines it). Never recorded.
+    pub fn reward(&self, agent: usize) -> f32 {
+        R::reward(&self.config, &self.state, &self.events, agent)
     }
 
     /// The observation for `agent` from the current state ([`Rules::observe`]).
@@ -108,26 +178,28 @@ impl<R: Rules> Match<R> {
     /// mean `Action::default()`, extra entries are ignored. Returns the outcome once the
     /// match has ended (further calls are no-ops).
     ///
-    /// Order: clear the events; sanitize one action per agent ([`Rules::sanitize`]);
-    /// [`Rules::step`]; record the sanitized actions; increment the tick; check
-    /// [`Rules::outcome`]. For Tank Arena's order inside the step, see
+    /// Order: clear the events; sanitize one action per agent ([`Rules::sanitize`]) and
+    /// append them to the history; [`Rules::step`] on those recorded actions; increment
+    /// the tick; check [`Rules::outcome`]. For Tank Arena's order inside the step, see
     /// [`crate::TankRules`].
     pub fn step(&mut self, actions: &[R::Action]) -> Option<Outcome> {
         if self.outcome.is_some() {
             return self.outcome;
         }
         self.events.clear();
-        let recorded: Vec<R::Action> = (0..R::agents(&self.state))
-            .map(|i| R::sanitize(actions.get(i).copied().unwrap_or_default()))
-            .collect();
+        let n = R::agents(&self.state);
+        assert_eq!(n, self.agents, "Rules::agents changed during the match");
+        // Record straight into the flat history; the rules step reads that slice.
+        let start = self.history.len();
+        self.history
+            .extend((0..n).map(|i| R::sanitize(actions.get(i).copied().unwrap_or_default())));
         R::step(
             &self.config,
             &mut self.state,
-            &recorded,
+            &self.history[start..],
             &mut self.rng,
             &mut self.events,
         );
-        self.history.push(recorded);
         self.tick += 1;
         self.outcome = R::outcome(&self.config, &self.state, self.tick);
         self.outcome
@@ -139,13 +211,17 @@ impl<R: Rules> Match<R> {
     /// `Action::default()` (the policy is not called). All observations are taken from
     /// the same tick-start state.
     pub fn step_policies(&mut self, policies: &mut [&mut dyn Policy<R>]) -> Option<Outcome> {
-        let actions: Vec<R::Action> = (0..R::agents(&self.state))
-            .map(|i| match policies.get_mut(i) {
+        let mut actions = std::mem::take(&mut self.scratch);
+        actions.clear();
+        actions.extend(
+            (0..R::agents(&self.state)).map(|i| match policies.get_mut(i) {
                 Some(p) if R::is_active(&self.state, i) => p.act(&self.observe(i)),
                 _ => R::Action::default(),
-            })
-            .collect();
-        self.step(&actions)
+            }),
+        );
+        let outcome = self.step(&actions);
+        self.scratch = actions;
+        outcome
     }
 
     /// Run to completion with the given policies.

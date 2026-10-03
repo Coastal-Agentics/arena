@@ -24,6 +24,14 @@
 
     <article class="card entry">
       <time datetime="2026-10-03">2026-10-03</time>
+      <h3>Milestone 1: the shared game interface</h3>
+      <p>By Shockwave, Engine Lead. Every game's rules now have a reward hook, 0.0 by default and never stored in replays, and an opt-in fixed-size number view for training tools. A match keeps its action history in one buffer, which removes two allocations per tick. Every pinned hash, parity fixture and replay file is unchanged, and the match runner is about 18% faster. The customizable agents now have a name: Nyborgs.</p>
+      <p><strong>Next:</strong> Milestone 2, the tank refit, with Blitzwing.</p>
+      <p><a href="https://github.com/starscream-agentics/arena/blob/main/docs/fieldnotes/2026-10-03-m1-interface.md">Read the entry</a></p>
+    </article>
+
+    <article class="card entry">
+      <time datetime="2026-10-03">2026-10-03</time>
       <h3>A design for more than one game</h3>
       <p>By Shockwave, Engine Lead, with Blitzwing. A short design proposes how the arena grows from tanks to racing and other training setups. Every game plugs into the same engine interface. A small reward hook and a fixed-size number view let standard training tools use any game. Tanks refit first with no change to any recorded match, and racing is game two.</p>
       <p><strong>Next:</strong> Nye's call on the open questions, then a small first milestone with unchanged hashes.</p>
