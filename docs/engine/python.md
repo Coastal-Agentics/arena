@@ -15,10 +15,28 @@ as a native run. The wheel is built locally. Publishing it is a separate gate.
 cd engine-py
 pip install "maturin>=1.9.4,<2"
 maturin build --release --out dist            # one abi3 wheel, CPython 3.10 to 3.14
-pip install dist/*.whl -r requirements-test.txt
-python -m pytest -q                            # python/tests
+pip install "$(ls dist/*.whl)[all]" -r requirements-test.txt -r requirements-extras.txt
+SALTMARSH_ARENA_EXTRAS=all python -m pytest -q # python/tests
 cargo test --release                           # the Rust core, no Python needed
 ```
+
+**Thin by default.** The base install needs only numpy. `FlatEnv`, the catalog calls and
+`verify_replay` never import anything else. The envs are extras:
+
+| Install | Adds | For |
+|---|---|---|
+| `saltmarsh-arena` | numpy | `FlatEnv`, `games`, `catalog`, `default_build`, `validate_build`, `verify_replay` |
+| `saltmarsh-arena[gym]` | gymnasium | `gym_env` |
+| `saltmarsh-arena[pettingzoo]` | pettingzoo, gymnasium (PettingZoo's spaces) | `parallel_env` |
+| `saltmarsh-arena[all]` | both | everything |
+
+The env modules (`_gymnasium`, `_pettingzoo`) are imported on first use. Without their
+extra, `gym_env`, `parallel_env`, `ArenaGymEnv` and `ArenaParallelEnv` raise
+`saltmarsh_arena.MissingExtraError`, an `ImportError` that names the extra to install.
+`python/tests/test_bare.py` checks this, and it checks that the base API loads neither
+Gymnasium nor PettingZoo. `SALTMARSH_ARENA_EXTRAS=none` makes a run assert that the extras
+are absent (the bare-wheel CI step). `=all` makes a missing extra fail the env tests
+instead of skipping them.
 
 **Kept apart from the engine.** `engine-py` is its own Cargo workspace. The root workspace
 lists it in `exclude`, and it has its own `Cargo.lock` and `target/`. So `cargo build`,
@@ -37,8 +55,8 @@ import saltmarsh_arena as sa
 sa.games()            # [{"game": "tank", "obs_len": 176, "action_len": 4, "min_agents": 2, ...}, {"game": "racing", ...}]
 sa.catalog("racing"); sa.default_build("tank"); sa.validate_build("tank", build)   # the viewer's catalog calls
 
-env = sa.parallel_env("tank", builds=[blue, orange], learning=None, frame_skip=4)  # PettingZoo ParallelEnv
-env = sa.gym_env("racing", builds=[car] * 4, agent=0)                              # Gymnasium Env, one learner
+env = sa.parallel_env("tank", builds=[blue, orange], learning=None, frame_skip=4)  # PettingZoo ParallelEnv ([pettingzoo])
+env = sa.gym_env("racing", builds=[car] * 4, agent=0)                              # Gymnasium Env, one learner ([gym])
 f = sa.FlatEnv("racing", builds, learning=[0, 2])                                  # zero-copy numpy views
 
 env.replay_json()                     # the match as replay JSON
@@ -109,8 +127,9 @@ observation so it stays valid after the next step. `FlatEnv` is the zero-copy pa
 
 Run `cargo run --release --example bench` (native) and `python bench/bench.py` (the same
 loop through `FlatEnv` and the PettingZoo env). The numbers for a change go in its PR.
-`bench/sb3_smoke.py` is an optional Stable-Baselines3 PPO smoke run. It needs SB3 and
-torch, which the wheel doesn't depend on.
+The PettingZoo column needs `[pettingzoo]`. `bench/sb3_smoke.py` is an optional
+Stable-Baselines3 PPO smoke run. It needs `[gym]`, SB3 and torch, which the wheel doesn't
+depend on.
 
 ## Not here yet
 

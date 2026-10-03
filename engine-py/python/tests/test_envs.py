@@ -2,10 +2,16 @@
 
 import numpy as np
 import pytest
-from gymnasium.utils.env_checker import check_env
-from pettingzoo.test import parallel_api_test, parallel_seed_test
 
-import saltmarsh_arena as sa
+from conftest import need
+
+need("gymnasium")
+need("pettingzoo")
+
+from gymnasium.utils.env_checker import check_env  # noqa: E402
+from pettingzoo.test import parallel_api_test, parallel_seed_test  # noqa: E402
+
+import saltmarsh_arena as sa  # noqa: E402
 
 SETUPS = [
     ("tank", None, None),

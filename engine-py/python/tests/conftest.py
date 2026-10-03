@@ -1,10 +1,25 @@
+import importlib
 import json
+import os
 import pathlib
+from types import ModuleType
 
 import numpy as np
 import pytest
 
 FIXTURE = pathlib.Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "determinism.json"
+
+# What the test run expects installed: "none" (the bare wheel, numpy only), "all"
+# (the [all] extras), or unset (whatever is there; env tests skip without extras).
+EXTRAS = os.environ.get("SALTMARSH_ARENA_EXTRAS", "")
+
+
+def need(module: str) -> ModuleType:
+    """Import an extra's module for an env test: skip without it, unless the run
+    expects every extra (SALTMARSH_ARENA_EXTRAS=all), where a missing one fails."""
+    if EXTRAS == "all":
+        return importlib.import_module(module)
+    return pytest.importorskip(module)
 
 
 def reference_actions(step: int, rows: int, action_len: int) -> np.ndarray:

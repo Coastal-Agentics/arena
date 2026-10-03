@@ -13,7 +13,7 @@ import pytest
 
 import saltmarsh_arena as sa
 from saltmarsh_arena import _core
-from conftest import reference_actions
+from conftest import need, reference_actions
 
 
 def record(name, replay):
@@ -83,6 +83,7 @@ def test_python_run_equals_native_run(cases, name):
 
 @pytest.mark.parametrize("name", ["tank-duel-both-learning", "tank-1000-steps", "racing-four-learning", "racing-car2-learning-vs-scripted"])
 def test_parallel_env_run_equals_native_run(cases, name):
+    need("pettingzoo")
     case = next(c for c in cases if c["name"] == name)
     if not case["learning"]:
         pytest.skip("no PettingZoo agents")
@@ -103,6 +104,7 @@ def test_parallel_env_run_equals_native_run(cases, name):
 
 
 def test_gym_env_run_equals_native_run(cases):
+    need("gymnasium")
     case = next(c for c in cases if c["name"] == "tank-blue-learning-vs-charger")
     env = sa.gym_env("tank", case["builds"], agent=0, frame_skip=case["frame_skip"])
     env.reset(seed=case["seed"])

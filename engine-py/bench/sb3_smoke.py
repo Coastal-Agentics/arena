@@ -1,7 +1,7 @@
 """SB3 PPO smoke run (GATE-003 M3, optional): `python bench/sb3_smoke.py [game] [steps]`.
 
-Needs `stable-baselines3` (and torch, CPU is fine), which the wheel does not depend
-on. Trains PPO on the single-agent Gymnasium env against the build's scripted
+Needs the `[gym]` extra and `stable-baselines3` (and torch, CPU is fine), which the
+wheel does not depend on. Trains PPO on the single-agent Gymnasium env against the build's scripted
 opponent, then plays one deterministic episode and verifies its replay natively.
 """
 

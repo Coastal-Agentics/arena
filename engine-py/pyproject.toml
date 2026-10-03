@@ -16,10 +16,15 @@ classifiers = [
     "Programming Language :: Python :: Implementation :: CPython",
     "Typing :: Typed",
 ]
-dependencies = ["numpy>=1.24", "gymnasium>=1.0", "pettingzoo>=1.24"]
+# Thin by default: numpy only. FlatEnv, the catalog calls and verify_replay need
+# nothing else; the envs are extras, imported only when used.
+dependencies = ["numpy>=1.24"]
 dynamic = ["version"]
 
 [project.optional-dependencies]
+gym = ["gymnasium>=1.0,<2"]
+pettingzoo = ["pettingzoo>=1.24,<2", "gymnasium>=1.0,<2"]
+all = ["saltmarsh-arena[gym,pettingzoo]"]
 test = ["pytest>=8"]
 
 [project.urls]

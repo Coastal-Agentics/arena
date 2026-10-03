@@ -1,13 +1,15 @@
 # saltmarsh-arena
 
 The arena's deterministic Rust games (Tank Arena, Racing) as Python training
-environments: a PettingZoo `ParallelEnv`, a single-agent Gymnasium `Env`, and a
-zero-copy `FlatEnv` over numpy views. The simulation stays in Rust; every match is an
+environments: a zero-copy `FlatEnv` over numpy views, a PettingZoo `ParallelEnv`, and a
+single-agent Gymnasium `Env`.
+
+The base install needs only numpy. The envs are extras: `pip install
+"saltmarsh-arena[pettingzoo]"`, `"saltmarsh-arena[gym]"` or `"saltmarsh-arena[all]"`. The simulation stays in Rust; every match is an
 ordinary arena replay that verifies natively and plays in the browser viewer.
 
 ```python
-import numpy as np
-import saltmarsh_arena as sa
+import saltmarsh_arena as sa                       # with the [pettingzoo] extra
 
 env = sa.parallel_env("racing", learning=[0, 1])   # cars 2 and 3 drive scripted
 obs, infos = env.reset(seed=7)

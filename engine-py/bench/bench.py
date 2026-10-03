@@ -2,7 +2,7 @@
 `python bench/bench.py [steps]` (after installing the wheel).
 
 FlatEnv is the zero-copy path (write the action view, call step). ParallelEnv adds
-the PettingZoo dicts and observation copies.
+the PettingZoo dicts and observation copies, and needs the [pettingzoo] extra.
 """
 
 import sys
