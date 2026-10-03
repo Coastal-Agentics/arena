@@ -17,6 +17,13 @@
 //!   ending tick, including one destroyed on that tick. A draw (wipe-out or tick limit)
 //!   gives 0.
 //!
+//! Confirmed by Shockwave (11:20 AM ET):
+//! - **A destroyed agent's encoding is all zeros.**
+//! - **`decode_action` clamps** each analog value to [−1, 1] and maps NaN to 0 itself.
+//! - **A hit on a tank already at ≤ 0 hp** earlier in the same tick shapes 0.
+//! - **Relative positions are in the world frame,** not the hull's.
+//! - **Native-vs-wasm parity of `encode_obs`** is deferred to M4/M5, so it isn't covered here.
+//!
 //! Hash invariance (section 5) compares instrumented runs with plain runs and with the
 //! recorded fixtures. The literal bot pins stay where they already live
 //! (`src/bots.rs`, `tests/evolve_m1.rs`, `engine-wasm/tests/parity/`), so this file
@@ -758,9 +765,14 @@ fn every_value_is_finite_in_range_and_matches_the_table_over_many_matches() {
                 for (i, &v) in o.iter().enumerate().take(TICK + 1).skip(WALLS) {
                     assert!(v >= 0.0, "{}: walls and tick are ≥ 0", at(i));
                 }
-                // TODO(Shockwave): the encoding of a destroyed agent is unspecified (zeros,
-                // or its last state?). Only the range is checked for dead tanks.
-                if m.tanks()[agent].alive {
+                // A destroyed agent's encoding is all zeros (confirmed).
+                if !m.tanks()[agent].alive {
+                    close_slice(
+                        &o,
+                        &[0.0; OBS],
+                        &format!("{label}: destroyed agent {agent}"),
+                    );
+                } else {
                     assert!(o[SELF + 8] > 0.0 && o[SELF + 9] > 0.0, "{}", at(SELF + 8));
                     let want = reference(&m.observe(agent), m.config());
                     close_slice(
@@ -824,9 +836,8 @@ fn decode_round_trips_actions() {
 
 #[test]
 fn out_of_range_input_is_clamped_before_it_is_applied_and_recorded() {
-    // TODO(Shockwave): tank-refit.md doesn't say whether decode_action clamps itself or
-    // leaves it to Rules::sanitize (the Flat docs say the loop sanitizes). Only the
-    // sanitized result, which is what gets applied and recorded, is asserted here.
+    // decode_action clamps itself and maps NaN to 0 (confirmed); the loop's sanitize is
+    // then a no-op on its output.
     let cases = [
         ([2.0, -3.0, 1.5, 5.0], (1.0, -1.0, 1.0, true)),
         ([-9.0, 9.0, -1.01, -5.0], (-1.0, 1.0, -1.0, false)),
@@ -842,6 +853,7 @@ fn out_of_range_input_is_clamped_before_it_is_applied_and_recorded() {
             turret_turn: r,
             fire: f,
         };
+        assert_eq!(decode(input), want, "decode clamps {input:?}");
         assert_eq!(TankRules::sanitize(decode(input)), want, "{input:?}");
         let mut m = Match::new(MatchConfig::duel(), 42);
         m.step(&[decode(input), Action::default()]);
@@ -882,8 +894,7 @@ fn shaping(m: &Match, agent: usize) -> (f32, f32) {
             })
             .sum();
         let before = m.tanks()[target].hp + later;
-        // TODO(Shockwave): a second hit in the same tick on a tank already at ≤ 0 hp is
-        // capped to 0 here (hp before it is ≤ 0). Confirm.
+        // A later hit in the same tick on a tank already at ≤ 0 hp shapes 0 (confirmed).
         let eff = damage.min(before.max(0));
         let v = 0.5 * eff as f32 / m.tank_params(target).max_hp as f32;
         if owner == agent {
