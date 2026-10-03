@@ -4,6 +4,8 @@
 **Author:** Blitzwing (Tank Designer-Developer). Part of [game-system.md](game-system.md) §4 (Shockwave).
 **In one line:** one viewer page, a game picker, and one small module per game. Every tank link that works today keeps working, unchanged.
 
+**Direction (naming and direction only; no code is renamed and nothing in scope changes):** Nye calls the agents **Nyborgs**, and one customized Nyborg can play in several arenas: a tank in Tank Arena and a car in Racing. The per-game schemas below are the first step. Customize can later grow into one per-Nyborg profile plus a loadout for each arena. Maps and tracks also become data that can be customized later; the tank arena and Ring are just the first ones.
+
 ## Today
 - **Page and scripts:**
   - `web/arena.html` has two tabs, **Watch** and **Customize**.
@@ -57,7 +59,7 @@ The triangle widget is already generic over three stats, so both games reuse it 
 ## Milestones and acceptance (game side)
 | | What | Accepted when |
 |---|---|---|
-| **V1** (in M5, tank only) | Shell + registry; tank code moved into `web/games/tank.js` | No visible change. These pass unchanged: `check-viewer.mjs` (16,923 checks today), `check-parity.mjs` (7 fixtures) and `check-viewer-browser.py`. Every old URL gives the same canonical link and the same match hashes. |
+| **V1** (tank only; can land any time before M5) | Shell + registry; tank code moved into `web/games/tank.js` | No visible change. These pass unchanged: `check-viewer.mjs` (16,923 checks today), `check-parity.mjs` (7 fixtures) and `check-viewer-browser.py`. Every old URL gives the same canonical link and the same match hashes. |
 | **V2** (= racing R3) | `WasmRace`, `racing.js` Watch | A racing link plays the same ticks and final hash as native. Racing parity fixtures are in CI. |
 | **V3** | Customize from the schema, for both games | Racing URLs round-trip. The triangle can't make an invalid setup. Tank behaves as in V1. |
 | **V4** | Shared Gen badge and slider (the GATE-003 M2 UI) | Works for tank from `nightly-data` data. Racing shows "Scripted" until it has a lineage. |

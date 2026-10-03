@@ -4,6 +4,8 @@
 **Author:** Blitzwing (Tank Designer-Developer). Part of [game-system.md](game-system.md) §3 (Shockwave), which defines `Rules`, `reward`, `Flat` and replay format 5.
 **In one line:** 2–4 cars race 3 laps around a walled track. There are no weapons. The first car home wins. Cars learn by evolution first (like the tanks), and later through PettingZoo.
 
+**Direction (naming and direction only; no code is renamed and nothing in scope changes):** Nye calls the agents **Nyborgs**. A car and a tank are two arena bodies for the same Nyborg, so one customized Nyborg can race and fight. Tracks are data, and Ring is just the first one. Later the engine moves toward customizing both the Nyborgs and the maps and tracks they play on.
+
 Units are the engine's, the same as Tank Arena: engine units (u), ticks at 60 Hz, headings in BAU (65536 = one turn, 0 = +X, counter-clockwise, Y-up). The rules are a `Rules` + `Flat` impl (#30, game-system.md §1) in a new crate, `games/racing`, with game id `racing`. This needs no change to the tank code (see [tank-refit.md](tank-refit.md)).
 
 ## Track
@@ -72,8 +74,8 @@ The turn rate is 364 BAU/tick for every car, the tank's Speed 3 value (about 120
 - **No separate brake:** negative throttle already brakes. A third control would add an action dimension for RL and a gene for evolution and give the car nothing new.
 
 ## How a race ends
-- **Finished** (the new `EndReason`; *terminated*): every car has finished, or 600 ticks (10 s) have passed since the winner crossed the line. `Outcome.winner` is the winner's team; each car is its own team.
-- **TickLimit** (truncated): 3,600 ticks with nobody finished. `winner` is `None`.
+- **Finished** (the new `EndReason`; *terminated*): the race ends when every active car has finished (no car is left racing), or 600 ticks (10 s) after the winner crosses the line, whichever comes first. `Outcome.winner` is the winner's team; each car is its own team.
+- **TickLimit** (*truncated*): the 3,600-tick (60 s) cap is reached. This applies even when the cap falls inside the 10 s window after a winner, and then the reason is still `TickLimit`. `winner` is the first finisher's team if a car has finished, otherwise `None`.
 - **Placings** live in the race state, not in `Outcome`. Finishers are ranked by finish tick, and everyone else by progress at the end. Equal values share a place. A car that has finished becomes inactive (`is_active` = false), which ends its episode (*terminated*) while the others keep racing.
 - **Progress** = gates passed + a fraction of the way to the next gate (the car's position projected onto that centreline segment, clamped to 0–1). It depends only on the current state.
 
