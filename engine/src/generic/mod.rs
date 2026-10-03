@@ -48,6 +48,10 @@ use serde::Serialize;
 ///
 /// Two optional surfaces for training tools sit next to this trait and are never called
 /// by the loop: [`reward`](Rules::reward) (defaults to 0.0) and the [`Flat`] f32 view.
+///
+/// Three constants identify the game in replays and are never read by the loop:
+/// [`GAME`](Rules::GAME), [`RULES_VERSION`](Rules::RULES_VERSION) and
+/// [`WRITES_FORMAT`](Rules::WRITES_FORMAT).
 pub trait Rules {
     /// Everything (with the seed) needed to reproduce a match. Stored in replays and
     /// hashed by [`setup_hash`] in its `serde_json` form.
@@ -60,6 +64,23 @@ pub trait Rules {
     type Observation;
     /// Something that happened during the last step, for viewers and rule layers.
     type Event;
+
+    /// The game's id, written as `game` in format 5 replays and checked when one loads
+    /// (e.g. `"racing"`). Never changes once replays exist.
+    const GAME: &'static str;
+    /// The version of this game's rules, written as `rules_version` in format 5
+    /// replays. [`Replay::from_json`] rejects a format 5 file with any other value, so
+    /// bump it whenever the same config, seed and actions would play out differently.
+    /// `u64` like a game crate's catalog `RULES_VERSION` (`games/catalog`), so a game
+    /// can use one constant for both.
+    const RULES_VERSION: u64;
+    /// The replay format [`Replay::from_match`] writes for this game: 4 or 5. Defaults to
+    /// [`REPLAY_FORMAT`] (5): a new game writes format 5 and reads only format 5 files
+    /// of its own `game` and `rules_version`. A game whose replays predate format 5 sets
+    /// 4 (Tank Arena): it keeps writing the format 4 envelope byte for byte (no `game`
+    /// or `rules_version`), still reads formats [`OLDEST_READABLE_FORMAT`] to 4 as its
+    /// own, and also reads format 5 files that name it.
+    const WRITES_FORMAT: u32 = REPLAY_FORMAT;
 
     /// The state at tick 0. May draw from `rng` (e.g. random spawns), in a documented
     /// order.

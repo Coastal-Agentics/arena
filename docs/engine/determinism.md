@@ -153,7 +153,7 @@ check makes that a standing test on a fixed set of pinned replays (GATE-003 ask 
   | `arena-2v2-tick-limit.json` | Tank Arena 2v2 (four tanks, teammates), all three policies, `max_ticks` cut to 360 | 360 | `tick_limit` |
 
 - **Native side:** `engine-wasm/tests/parity.rs`. It runs in `cargo test --workspace`, so
-  the CI `test` job already runs it. Every fixture must load as the current `REPLAY_FORMAT`,
+  the CI `test` job already runs it. Every fixture must load as the format Tank Arena writes (`TankRules::WRITES_FORMAT`, 4),
   pass `Replay::verify`, and match the manifest field by field. It also checks that the
   manifest lists every fixture file, and that a tampered fixture fails.
 - **Wasm side:** `node scripts/check-parity.mjs`. It loads the committed `web/pkg` with
@@ -185,7 +185,7 @@ and the manifest. It's deterministic: two runs give byte-identical files. The re
 actions, not policies, so they stay valid when a `games/tank` policy changes (a regenerated
 file would just differ).
 
-**When a fixture change is legitimate:** only with a `REPLAY_FORMAT` bump or a deliberate
+**When a fixture change is legitimate:** only with a bump of the format Tank Arena writes or a deliberate
 change to the sim rules (movement, firing, hits, end conditions, the state hash or the
 setup hash), and the PR must say so and why. Any other reason to touch these files means
 native and wasm, or old and new, disagree, and that is the bug to find. Adding a new

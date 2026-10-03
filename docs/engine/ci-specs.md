@@ -57,7 +57,7 @@ a rebuild from source.
   is never to rerun:
   1. `web/pkg` behaves differently from native (a real parity bug);
   2. a fixture or the manifest was edited by hand;
-  3. the sim changed without regenerating. That's legitimate only with a `REPLAY_FORMAT` bump
+  3. the sim changed without regenerating. That's legitimate only with a bump of the format Tank Arena writes
      or a deliberate rule change, stated in the PR.
 
   The `test` job's `parity` test fails in cases 2 and 3 as well, so a red `wasm` job with a
