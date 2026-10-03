@@ -81,3 +81,54 @@ pub(crate) fn play_config(config: MatchConfig, seed: u64) -> Match {
 pub(crate) fn play(seed: u64) -> Match {
     play_config(MatchConfig::duel(), seed)
 }
+
+/// The test binary's allocator: the system one, counting allocations (and reallocations)
+/// per thread, so tests running in parallel don't see each other's.
+mod counting {
+    use std::alloc::{GlobalAlloc, Layout, System};
+    use std::cell::Cell;
+
+    thread_local! {
+        static ALLOCATIONS: Cell<u64> = const { Cell::new(0) };
+    }
+
+    struct Counting;
+
+    fn count() {
+        // `try_with`: the thread-local may already be gone while a thread shuts down.
+        let _ = ALLOCATIONS.try_with(|n| n.set(n.get() + 1));
+    }
+
+    // SAFETY: every call is forwarded unchanged to `System`.
+    unsafe impl GlobalAlloc for Counting {
+        unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
+            count();
+            System.alloc(layout)
+        }
+        unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
+            count();
+            System.alloc_zeroed(layout)
+        }
+        unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
+            System.dealloc(ptr, layout)
+        }
+        unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
+            count();
+            System.realloc(ptr, layout, new_size)
+        }
+    }
+
+    #[global_allocator]
+    static COUNTING: Counting = Counting;
+
+    pub(crate) fn allocations() -> u64 {
+        ALLOCATIONS.with(Cell::get)
+    }
+}
+
+/// Heap allocations (and reallocations) made on this thread while `f` runs.
+pub(crate) fn allocations_in<T>(f: impl FnOnce() -> T) -> (T, u64) {
+    let before = counting::allocations();
+    let out = f();
+    (out, counting::allocations() - before)
+}
