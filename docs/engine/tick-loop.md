@@ -53,7 +53,10 @@ Two optional pieces sit next to the loop but are never called by it (game-system
 recorded (`Match::reward(agent)` reads it for the tick just stepped); and the opt-in `Flat`
 trait, a fixed-size `f32` view for bindings (`OBS_LEN`, `ACTION_LEN`, `encode_obs` into a
 caller-owned slice, `decode_action`; `Match::encode_obs(agent, out)`). Tank implements
-neither yet (M2).
+both (M2): `TankRules::reward` is the GATE-003 §6 reward (hit shaping capped at the target's
+remaining hp, ±1 for the `last_standing` end to the tanks active at the start of that tick),
+and `engine::tank_flat` holds the 176/4 layout, scaled by the match's own arena size and tick
+limit. Both are allocation-free; the rustdoc has the exact rules.
 
 ## Inside one step (Tank Arena)
 
