@@ -151,7 +151,7 @@ impl<R: Rules> Replay<R> {
             engine_version: crate::version().to_string(),
             seed: m.seed(),
             config: m.config().clone(),
-            actions: m.history().to_vec(),
+            actions: m.history().iter().map(<[_]>::to_vec).collect(),
             outcome: m.outcome(),
             final_hash: format!("{:016x}", m.state_hash()),
             setup_hash: Some(format!("{:016x}", setup_hash(m.seed(), m.config()))),

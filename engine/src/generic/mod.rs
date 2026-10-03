@@ -12,12 +12,14 @@
 //! [`crate::ReplayPlayer`] likewise, and [`Policy`] defaults its rules parameter to
 //! `TankRules`, so `impl Policy for MyBot` and `&mut dyn Policy` mean the tank policy.
 
+mod flat;
 mod match_loop;
 mod replay;
 #[cfg(test)]
 mod tests;
 
-pub use match_loop::{EndReason, Match, Outcome};
+pub use flat::Flat;
+pub use match_loop::{EndReason, History, Match, Outcome};
 pub use replay::{
     setup_hash, Replay, ReplayError, ReplayPlayer, OLDEST_READABLE_FORMAT, REPLAY_FORMAT,
 };
@@ -43,6 +45,9 @@ use serde::Serialize;
 /// result in the history, calls [`step`](Rules::step), increments the tick and asks
 /// [`outcome`](Rules::outcome) whether the match is over. [`Match::step_policies`] calls
 /// a policy only for agents that are [`is_active`](Rules::is_active).
+///
+/// Two optional surfaces for training tools sit next to this trait and are never called
+/// by the loop: [`reward`](Rules::reward) (defaults to 0.0) and the [`Flat`] f32 view.
 pub trait Rules {
     /// Everything (with the seed) needed to reproduce a match. Stored in replays and
     /// hashed by [`setup_hash`] in its `serde_json` form.
@@ -59,7 +64,9 @@ pub trait Rules {
     /// The state at tick 0. May draw from `rng` (e.g. random spawns), in a documented
     /// order.
     fn init(config: &Self::Config, rng: &mut MatchRng) -> Self::State;
-    /// Number of agents: the length of every tick's action list.
+    /// Number of agents: the length of every tick's action list. Fixed for the whole
+    /// match (read once in [`Match::new`]; the history is one flat buffer with this
+    /// stride).
     fn agents(state: &Self::State) -> usize;
     /// Whether `agent` takes part this tick. For an inactive agent the policy isn't
     /// called and the default action is recorded.
@@ -92,6 +99,19 @@ pub trait Rules {
     /// the field (reported as [`ReplayError::FieldNotInFormat`]). Called by
     /// [`Replay::from_json`] after the format range and `setup_hash` checks.
     fn check_format(config: &Self::Config, format: u32) -> Result<(), &'static str>;
+
+    /// Reward for `agent` on the tick just stepped, for training tools ([`Match::reward`]).
+    /// Computed from the state and that step's events only, so it is deterministic; it
+    /// is never recorded in the history or in replays, and the loop never calls it.
+    /// Defaults to 0.0. Evolution scores match results instead.
+    fn reward(
+        _config: &Self::Config,
+        _state: &Self::State,
+        _events: &[Self::Event],
+        _agent: usize,
+    ) -> f32 {
+        0.0
+    }
 }
 
 /// The match's seeded random number generator: `ChaCha8Rng::seed_from_u64(seed)`.
