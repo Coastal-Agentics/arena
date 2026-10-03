@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="760" viewBox="0 0 1000 760" font-family="DejaVu Sans, Helvetica, Arial, sans-serif">
+<title>Nyborg character mockup (design only)</title>
+<defs>
+<g id="head"><circle cx="0" cy="-31" r="31" fill="#EADFCB" stroke="#5E544B" stroke-width="2.6"/><ellipse cx="-11" cy="-44" rx="9" ry="5" fill="#fff" opacity="0.35" transform="rotate(-25 -11 -44)"/></g>
+<g id="eyes" fill="#2F2A26"><circle cx="-10" cy="-28" r="3.6"/><circle cx="10" cy="-28" r="3.6"/></g>
+<g id="tuft" stroke="#5E544B" stroke-width="2.2" stroke-linejoin="round"><path d="M0,2 C-6,-4 -15,-8 -19,-17 C-10,-19 -3,-11 0,2 Z"/><path d="M0,2 C6,-4 15,-7 20,-15 C11,-18 3,-11 0,2 Z"/><path d="M0,2 C-4,-8 -3,-19 2,-26 C7,-18 5,-8 0,2 Z"/></g>
+<g id="glasses" fill="none" stroke="#3B3632" stroke-width="2.2"><circle cx="-10" cy="-28" r="7.5" fill="#fff" fill-opacity="0.25"/><circle cx="10" cy="-28" r="7.5" fill="#fff" fill-opacity="0.25"/><path d="M-2.5,-29 Q0,-31 2.5,-29"/><path d="M-17.5,-30 L-27,-33 M17.5,-30 L27,-33"/></g>
+<g id="hat" stroke="#5E544B" stroke-width="2.2" stroke-linejoin="round" transform="rotate(14 14 -55)"><ellipse cx="14" cy="-54" rx="19" ry="4.5" fill="#5F7A99"/><path d="M2,-55 C2,-66 7,-71 14,-71 C21,-71 26,-66 26,-55 Z" fill="#6E8BAE"/><rect x="2.6" y="-60" width="22.8" height="4.4" fill="#E9C46A" stroke="none"/></g>
+</defs>
+<rect width="1000" height="760" fill="#F5F2EC"/>
+<rect x="12" y="12" width="976" height="736" rx="18" fill="none" stroke="#E2DCD2" stroke-width="2"/>
+<text x="40" y="52" font-size="22" fill="#5E544B" font-weight="700" text-anchor="start">Nyborg — character mockup</text>
+<text x="40" y="74" font-size="13" fill="#8C8378" font-weight="400" text-anchor="start">Design only (gate draft). Flat layers: head, eyes, tuft (tinted at runtime), accessory.</text>
+<text x="40" y="112" font-size="15" fill="#5E544B" font-weight="700" text-anchor="start">Tuft colours</text>
+<text x="690" y="112" font-size="15" fill="#5E544B" font-weight="700" text-anchor="start">Upgrades (cosmetic only)</text>
+<g transform="translate(95,232) scale(1.35)"><ellipse cx="0" cy="0" rx="22.0" ry="4.2" fill="#000" opacity="0.10"/><g transform="translate(0,0) rotate(0) scale(1,1)"><g transform="translate(0,-61) rotate(0)"><use href="#tuft" fill="#7F9B6B"/></g><use href="#head"/><g transform="translate(0,0)"><use href="#eyes"/></g></g></g>
+<text x="95" y="262" font-size="13" fill="#5E544B" font-weight="600" text-anchor="middle">Moss</text>
+<text x="95" y="279" font-size="11" fill="#8C8378" font-weight="400" text-anchor="middle">#7F9B6B · muted</text>
+<g transform="translate(235,232) scale(1.35)"><ellipse cx="0" cy="0" rx="22.0" ry="4.2" fill="#000" opacity="0.10"/><g transform="translate(0,0) rotate(0) scale(1,1)"><g transform="translate(0,-61) rotate(0)"><use href="#tuft" fill="#A3B48E"/></g><use href="#head"/><g transform="translate(0,0)"><use href="#eyes"/></g></g></g>
+<text x="235" y="262" font-size="13" fill="#5E544B" font-weight="600" text-anchor="middle">Sage</text>
+<text x="235" y="279" font-size="11" fill="#8C8378" font-weight="400" text-anchor="middle">#A3B48E · muted</text>
+<g transform="translate(375,232) scale(1.35)"><ellipse cx="0" cy="0" rx="22.0" ry="4.2" fill="#000" opacity="0.10"/><g transform="translate(0,0) rotate(0) scale(1,1)"><g transform="translate(0,-61) rotate(0)"><use href="#tuft" fill="#58C24E"/></g><use href="#head"/><g transform="translate(0,0)"><use href="#eyes"/></g></g></g>
+<text x="375" y="262" font-size="13" fill="#5E544B" font-weight="600" text-anchor="middle">Sprout</text>
+<text x="375" y="279" font-size="11" fill="#8C8378" font-weight="400" text-anchor="middle">#58C24E · bright</text>
+<g transform="translate(515,232) scale(1.35)"><ellipse cx="0" cy="0" rx="22.0" ry="4.2" fill="#000" opacity="0.10"/><g transform="translate(0,0) rotate(0) scale(1,1)"><g transform="translate(0,-61) rotate(0)"><use href="#tuft" fill="#E2506A"/></g><use href="#head"/><g transform="translate(0,0)"><use href="#eyes"/></g></g></g>
+<text x="515" y="262" font-size="13" fill="#5E544B" font-weight="600" text-anchor="middle">Radish</text>
+<text x="515" y="279" font-size="11" fill="#8C8378" font-weight="400" text-anchor="middle">#E2506A · bright</text>
+<g transform="translate(735,232) scale(1.35)"><ellipse cx="0" cy="0" rx="22.0" ry="4.2" fill="#000" opacity="0.10"/><g transform="translate(0,0) rotate(0) scale(1,1)"><g transform="translate(0,-61) rotate(0)"><use href="#tuft" fill="#7F9B6B"/></g><use href="#head"/><g transform="translate(0,0)"><use href="#eyes"/><use href="#glasses"/></g></g></g>
+<text x="735" y="262" font-size="13" fill="#5E544B" font-weight="600" text-anchor="middle">Glasses</text>
+<text x="735" y="279" font-size="11" fill="#8C8378" font-weight="400" text-anchor="middle">Moss tuft</text>
+<g transform="translate(880,232) scale(1.35)"><ellipse cx="0" cy="0" rx="22.0" ry="4.2" fill="#000" opacity="0.10"/><g transform="translate(0,0) rotate(0) scale(1,1)"><g transform="translate(0,-61) rotate(0)"><use href="#tuft" fill="#E2506A"/></g><use href="#head"/><g transform="translate(0,0)"><use href="#eyes"/><use href="#hat"/></g></g></g>
+<text x="880" y="262" font-size="13" fill="#5E544B" font-weight="600" text-anchor="middle">Hat</text>
+<text x="880" y="279" font-size="11" fill="#8C8378" font-weight="400" text-anchor="middle">Radish tuft</text>
+<line x1="40" x2="960" y1="306" y2="306" stroke="#E2DCD2" stroke-width="2"/>
+<text x="40" y="340" font-size="15" fill="#5E544B" font-weight="700" text-anchor="start">Idle loop — 4 frames at 6 fps (gentle breathing bob)</text>
+<rect x="55" y="356" width="110" height="130" rx="10" fill="#FBF9F5" stroke="#E7E1D7"/>
+<g transform="translate(110,466) scale(1.0)"><ellipse cx="0" cy="0" rx="22.0" ry="4.2" fill="#000" opacity="0.10"/><g transform="translate(0,0) rotate(0) scale(1.04,0.96)"><g transform="translate(0,-61) rotate(0)"><use href="#tuft" fill="#58C24E"/></g><use href="#head"/><g transform="translate(0,0)"><use href="#eyes"/></g></g></g>
+<text x="110" y="504" font-size="12" fill="#8C8378" font-weight="400" text-anchor="middle">f0</text>
+<rect x="185" y="356" width="110" height="130" rx="10" fill="#FBF9F5" stroke="#E7E1D7"/>
+<g transform="translate(240,466) scale(1.0)"><ellipse cx="0" cy="0" rx="20.4" ry="3.9" fill="#000" opacity="0.10"/><g transform="translate(0,-1) rotate(0) scale(1,1)"><g transform="translate(0,-61) rotate(3)"><use href="#tuft" fill="#58C24E"/></g><use href="#head"/><g transform="translate(0,0)"><use href="#eyes"/></g></g></g>
+<text x="240" y="504" font-size="12" fill="#8C8378" font-weight="400" text-anchor="middle">f1</text>
+<rect x="315" y="356" width="110" height="130" rx="10" fill="#FBF9F5" stroke="#E7E1D7"/>
+<g transform="translate(370,466) scale(1.0)"><ellipse cx="0" cy="0" rx="18.9" ry="3.6" fill="#000" opacity="0.10"/><g transform="translate(0,-2) rotate(0) scale(0.98,1.03)"><g transform="translate(0,-61) rotate(0)"><use href="#tuft" fill="#58C24E"/></g><use href="#head"/><g transform="translate(0,0)"><use href="#eyes"/></g></g></g>
+<text x="370" y="504" font-size="12" fill="#8C8378" font-weight="400" text-anchor="middle">f2</text>
+<rect x="445" y="356" width="110" height="130" rx="10" fill="#FBF9F5" stroke="#E7E1D7"/>
+<g transform="translate(500,466) scale(1.0)"><ellipse cx="0" cy="0" rx="20.4" ry="3.9" fill="#000" opacity="0.10"/><g transform="translate(0,-1) rotate(0) scale(1,1)"><g transform="translate(0,-61) rotate(-3)"><use href="#tuft" fill="#58C24E"/></g><use href="#head"/><g transform="translate(0,0)"><use href="#eyes"/></g></g></g>
+<text x="500" y="504" font-size="12" fill="#8C8378" font-weight="400" text-anchor="middle">f3</text>
+<text x="640" y="400" font-size="12" fill="#8C8378" font-weight="400" text-anchor="start">Cell 112×112 px, pivot at the feet (56, 104).</text>
+<text x="640" y="420" font-size="12" fill="#8C8378" font-weight="400" text-anchor="start">Squash on f0, rise on f2;</text>
+<text x="640" y="440" font-size="12" fill="#8C8378" font-weight="400" text-anchor="start">the tuft sways ±3°.</text>
+<line x1="40" x2="960" y1="524" y2="524" stroke="#E2DCD2" stroke-width="2"/>
+<text x="40" y="556" font-size="15" fill="#5E544B" font-weight="700" text-anchor="start">Move loop — 6 frames at 10 fps (bounce, lean, tuft wobble; eyes look ahead)</text>
+<rect x="43" y="572" width="104" height="132" rx="10" fill="#FBF9F5" stroke="#E7E1D7"/>
+<g transform="translate(95,684) scale(1.0)"><ellipse cx="0" cy="0" rx="22.0" ry="4.2" fill="#000" opacity="0.10"/><g transform="translate(0,0) rotate(7) scale(1.06,0.94)"><g transform="translate(0,-61) rotate(-6)"><use href="#tuft" fill="#E2506A"/></g><use href="#head"/><g transform="translate(5,0)"><use href="#eyes"/></g></g></g>
+<text x="95" y="722" font-size="12" fill="#8C8378" font-weight="400" text-anchor="middle">f0 →</text>
+<rect x="161" y="572" width="104" height="132" rx="10" fill="#FBF9F5" stroke="#E7E1D7"/>
+<g transform="translate(213,684) scale(1.0)"><ellipse cx="0" cy="0" rx="15.7" ry="3.0" fill="#000" opacity="0.10"/><g transform="translate(0,-4) rotate(7) scale(1,1)"><g transform="translate(0,-61) rotate(-12)"><use href="#tuft" fill="#E2506A"/></g><use href="#head"/><g transform="translate(5,0)"><use href="#eyes"/></g></g></g>
+<text x="213" y="722" font-size="12" fill="#8C8378" font-weight="400" text-anchor="middle">f1 →</text>
+<rect x="279" y="572" width="104" height="132" rx="10" fill="#FBF9F5" stroke="#E7E1D7"/>
+<g transform="translate(331,684) scale(1.0)"><ellipse cx="0" cy="0" rx="12.1" ry="2.3" fill="#000" opacity="0.10"/><g transform="translate(0,-8) rotate(6) scale(0.97,1.04)"><g transform="translate(0,-61) rotate(-4)"><use href="#tuft" fill="#E2506A"/></g><use href="#head"/><g transform="translate(5,0)"><use href="#eyes"/></g></g></g>
+<text x="331" y="722" font-size="12" fill="#8C8378" font-weight="400" text-anchor="middle">f2 →</text>
+<rect x="397" y="572" width="104" height="132" rx="10" fill="#FBF9F5" stroke="#E7E1D7"/>
+<g transform="translate(449,684) scale(1.0)"><ellipse cx="0" cy="0" rx="12.6" ry="2.4" fill="#000" opacity="0.10"/><g transform="translate(0,-6) rotate(7) scale(1,1)"><g transform="translate(0,-61) rotate(6)"><use href="#tuft" fill="#E2506A"/></g><use href="#head"/><g transform="translate(5,0)"><use href="#eyes"/></g></g></g>
+<text x="449" y="722" font-size="12" fill="#8C8378" font-weight="400" text-anchor="middle">f3 →</text>
+<rect x="515" y="572" width="104" height="132" rx="10" fill="#FBF9F5" stroke="#E7E1D7"/>
+<g transform="translate(567,684) scale(1.0)"><ellipse cx="0" cy="0" rx="18.9" ry="3.6" fill="#000" opacity="0.10"/><g transform="translate(0,-2) rotate(7) scale(1,1)"><g transform="translate(0,-61) rotate(11)"><use href="#tuft" fill="#E2506A"/></g><use href="#head"/><g transform="translate(5,0)"><use href="#eyes"/></g></g></g>
+<text x="567" y="722" font-size="12" fill="#8C8378" font-weight="400" text-anchor="middle">f4 →</text>
+<rect x="633" y="572" width="104" height="132" rx="10" fill="#FBF9F5" stroke="#E7E1D7"/>
+<g transform="translate(685,684) scale(1.0)"><ellipse cx="0" cy="0" rx="22.0" ry="4.2" fill="#000" opacity="0.10"/><g transform="translate(0,0) rotate(7) scale(1.04,0.96)"><g transform="translate(0,-61) rotate(3)"><use href="#tuft" fill="#E2506A"/></g><use href="#head"/><g transform="translate(5,0)"><use href="#eyes"/></g></g></g>
+<text x="685" y="722" font-size="12" fill="#8C8378" font-weight="400" text-anchor="middle">f5 →</text>
+<rect x="822" y="572" width="116" height="132" rx="10" fill="#FFF7EC" stroke="#E9B872" stroke-dasharray="5 4"/>
+<g transform="translate(880,684) scale(1.0)"><ellipse cx="0" cy="0" rx="12.1" ry="2.3" fill="#000" opacity="0.10"/><g transform="scale(-1,1)"><g transform="translate(0,-8) rotate(6) scale(0.97,1.04)"><g transform="translate(0,-61) rotate(-4)"><use href="#tuft" fill="#E2506A"/></g><use href="#head"/><g transform="translate(5,0)"><use href="#eyes"/></g></g></g></g>
+<text x="880" y="722" font-size="12" fill="#5E544B" font-weight="600" text-anchor="middle">← f2, facing left</text>
+<text x="880" y="738" font-size="11" fill="#8C8378" font-weight="400" text-anchor="middle">(mirrored in x)</text>
+</svg>
