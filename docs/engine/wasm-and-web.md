@@ -55,7 +55,7 @@ Wanderer seeding: `seed ^ 0x5eed` on team 1 (so Chaser vs Wanderer equals
 | `await init()` (default export) | | Loads `engine_wasm_bg.wasm` from `new URL('engine_wasm_bg.wasm', import.meta.url)`, i.e. next to the JS file |
 | `initSync({ module })` | | Same, from bytes you already have (e.g. `readFileSync` in Node; `scripts/check-viewer.mjs` does this) |
 | `new WasmMatch(seed, team0, team1)` | `WasmMatch` | `MatchConfig::duel()`. `seed` is a **decimal string**; bots `"Chaser"`/`"Wanderer"`. Throws on bad input |
-| `WasmMatch.withConfig(configJson, seed, team0, team1)` | `WasmMatch` | Same, with a custom `MatchConfig` as a JSON string ([config](replay-format.md#config)), e.g. per-tank params. Throws `config json: …` on bad JSON or a missing field |
+| `WasmMatch.withConfig(configJson, seed, team0, team1)` | `WasmMatch` | Same, with a custom `MatchConfig` as a JSON string ([config](replay-format.md#config)), e.g. per-tank params. A tank's own `params` must be a valid build on the shared params (see [Builds](#builds-the-per-game-catalog)). Throws `config json: …` on bad JSON or a missing field, and `tanks[i].params is not a valid 9-point build on the shared params` otherwise |
 | `m.step(n)` | `boolean` | Advance up to `n` ticks; `true` once the match is over |
 | `m.tick()` | `number` | Ticks so far |
 | `m.isOver()` | `boolean` | |
@@ -66,6 +66,11 @@ Wanderer seeding: `seed ^ 0x5eed` on team 1 (so Chaser vs Wanderer equals
 | `m.free()` | | Release the Rust object |
 | `duelConfigJson()` | `string` | `MatchConfig::duel()` as JSON, a starting point for `withConfig` |
 | `WasmMatch.tank(query)` | `WasmMatch` | A Tank Arena duel from a URL query (see below). Throws on bad input |
+| `WasmMatch.fromBuilds(game, seed, blueBuildJson, orangeBuildJson)` | `WasmMatch` | A Tank Arena duel from two builds, each checked by `validateBuild`; plays exactly like `WasmMatch.tank` with the same seed, behaviors and levels. Throws `blue: invalid build [{"code":…,"key":…}]` (or `orange: …`), and for a champion behavior (the loader resolves those) |
+| `games()` | `string` | JSON `[{"game": "tank", "rules_version": 1}]` |
+| `catalogJson(game)` | `string` | JSON build catalog for a game (below). Throws `unknown game "…"` |
+| `defaultBuild(game)` | `string` | JSON default build (3/3/3, first scripted behavior). Throws for an unknown game |
+| `validateBuild(game, buildJson)` | `string` | JSON `{"ok": true, …}` with the normalized build, or `{"ok": false, "errors": […]}`. Never throws |
 | `tankCatalogJson()` | `string` | JSON `CatalogView`: the Customize tab's tables and lists (below) |
 | `snapLoadout(attack, speed, defense)` | `string` | Snap barycentric weights (Attack, Speed and Defense corners of the Customize triangle) to the nearest valid loadout, `"A-S-D"` (`tank::Loadout::snap`) |
 | `canonicalTankQuery(query)` | `string` | Canonical `seed=…&blue=…&orange=…` for a query; throws on invalid input |
@@ -74,15 +79,105 @@ Wanderer seeding: `seed ^ 0x5eed` on team 1 (so Chaser vs Wanderer equals
 
 `withConfig(duelConfigJson(), seed, a, b)` plays exactly like `new WasmMatch(seed, a, b)`
 (test `custom_config_with_per_tank_params`; checked in headless Chrome for six seeds). A
-loadout from JS:
+loadout from JS: a spawn's params replace the shared set as a whole, and must be exactly a
+valid build applied to the shared params (`tank::Loadout::apply`: Attack sets
+`projectile_damage`, Speed `max_speed`, `turn_rate` and `fire_cooldown`, Defense `max_hp`),
+or the shared params unchanged. Anything else throws, so a config can't hand a tank
+more than 9 points:
 
 ```js
 const cfg = JSON.parse(duelConfigJson());
-// A spawn's params replace the shared set as a whole: start from cfg.params.
-cfg.tanks[0].params = { ...cfg.params, projectile_damage: 28, max_hp: 60 };
-cfg.tanks[1].params = { ...cfg.params, projectile_damage: 24, max_speed: 90, turn_rate: 273, max_hp: 120 };
+const c = JSON.parse(catalogJson("tank"));
+const lv = (stat, level) => c.stats.find((s) => s.key === stat).values[level - 1];
+// Glass Cannon 5/3/1 for tank 0 and Brawler 4/1/4 for tank 1.
+cfg.tanks[0].params = { ...cfg.params, projectile_damage: lv("attack", 5).damage, ...lv("speed", 3), max_hp: lv("defense", 1).max_hp };
+cfg.tanks[1].params = { ...cfg.params, projectile_damage: lv("attack", 4).damage, ...lv("speed", 1), max_hp: lv("defense", 4).max_hp };
+for (const t of cfg.tanks) delete t.params.level;
 const m = WasmMatch.withConfig(JSON.stringify(cfg), "42", "Chaser", "Wanderer");
 ```
+
+### Builds: the per-game catalog
+
+A **build** is the per-game part of a Nyborg ([nyborg-library.md](../design/nyborg-library.md)):
+levels plus a behavior, with no resolved numbers. Four exports wrap `tank::catalog`
+(`games/tank/src/catalog.rs`), which generates everything from the `tank::loadout` tables.
+The engine never sees a Nyborg's `look`.
+
+```json
+{"rules_version": 1,
+ "levels": {"attack": 5, "speed": 3, "defense": 1},
+ "behavior": {"kind": "scripted", "id": "kiter"}}
+```
+
+`behavior` may instead be `{"kind": "champion", "ref": "tank/nightly/gen-99"}`; only its
+shape is checked (a non-empty string of at most 200 bytes), because the loader resolves the
+ref. Unknown top-level fields (a `look`, a `game: "tank"`) are ignored.
+
+- **`games()`**: `[{"game":"tank","rules_version":1}]`. Racing joins in M3.
+- **`catalogJson("tank")`**: `game`, `rules_version`, `budget` (9), `stats` (Attack, Speed,
+  Defense, each `{key, label, min: 1, max: 5, cost_per_level: 1, values}` where `values[i]` is
+  level `i + 1` resolved: `damage`; `max_speed`, `turn_rate` and `fire_cooldown` (reload
+  ticks); `max_hp`), `behaviors` (`["charger","kiter","sniper"]`), `presets`
+  (`{id, label, levels}`: Balanced 3/3/3, Glass Cannon 5/3/1, Brawler 4/1/4, Scout 2/5/2) and
+  `default_build`. Abridged:
+
+  ```json
+  {"game":"tank","rules_version":1,"budget":9,
+   "stats":[{"key":"attack","label":"Attack","min":1,"max":5,"cost_per_level":1,
+             "values":[{"level":1,"damage":14},{"level":2,"damage":17},"…",{"level":5,"damage":29}]},
+            {"key":"speed","label":"Speed","min":1,"max":5,"cost_per_level":1,
+             "values":[{"level":1,"max_speed":90.0,"turn_rate":273,"fire_cooldown":64},"…"]},
+            {"key":"defense","label":"Defense","min":1,"max":5,"cost_per_level":1,
+             "values":[{"level":1,"max_hp":460},"…",{"level":5,"max_hp":940}]}],
+   "behaviors":["charger","kiter","sniper"],
+   "presets":[{"id":"balanced","label":"Balanced","levels":{"attack":3,"speed":3,"defense":3}},
+              {"id":"glass_cannon","label":"Glass Cannon","levels":{"attack":5,"speed":3,"defense":1}},
+              {"id":"brawler","label":"Brawler","levels":{"attack":4,"speed":1,"defense":4}},
+              {"id":"scout","label":"Scout","levels":{"attack":2,"speed":5,"defense":2}}],
+   "default_build":{"rules_version":1,"levels":{"attack":3,"speed":3,"defense":3},
+                    "behavior":{"kind":"scripted","id":"charger"}}}
+  ```
+- **`defaultBuild("tank")`**: the catalog's `default_build`.
+- **`validateBuild(game, buildJson)`**: each level must be an integer 1 to 5 and the levels
+  must spend exactly 9 points, which leaves 19 valid builds (tested). Success:
+
+  ```json
+  {"ok":true,"game":"tank","rules_version":1,
+   "levels":{"attack":5,"speed":3,"defense":1},"behavior":{"kind":"scripted","id":"kiter"},
+   "points":9,
+   "params":{"radius":16.0,"max_speed":120.0,"turn_rate":364,"turret_turn_rate":546,"max_hp":460,
+             "fire_cooldown":45,"projectile_speed":360.0,"projectile_ttl":120,
+             "projectile_damage":29,"projectile_spread":256}}
+  ```
+
+  `params` is what the tank plays with (`Loadout::params`, the duel's shared params with the
+  levels applied). Failure lists every error, each naming its key:
+
+  ```json
+  {"ok":false,"errors":[{"code":"unknown_key","key":"luck"},
+                        {"code":"out_of_range","key":"attack"},
+                        {"code":"unknown_behavior","key":"behavior"}]}
+  ```
+
+  | `code` | `key` | When |
+  | --- | --- | --- |
+  | `invalid_json` | `""` | The text doesn't parse, or isn't an object |
+  | `wrong_game` | `game` | `game` isn't a known game, or the build's own `game` field differs |
+  | `rules_version_mismatch` | `rules_version` | Missing, or not this game's `rules_version` |
+  | `unknown_key` | the key | A `levels` key that isn't a stat |
+  | `out_of_range` | the stat | Missing, not an integer, or outside 1 to 5 |
+  | `over_budget` / `under_budget` | `levels` | The levels spend more / fewer than 9 points (only checked once every level is in range) |
+  | `unknown_behavior` | `behavior` | Not a known scripted id (ids are lower case), or a champion without a usable `ref`, or another `kind` |
+
+  The first three stop the check, since the levels mean nothing without them; the rest are
+  all reported together.
+
+**Enforcement.** Every JS path that starts a match goes through the same check in
+`tank::catalog`: `fromBuilds` validates each build, `WasmMatch.tank` checks each tank of the
+query (`validate_spec`, the same level and budget rule), and `withConfig` rejects per-tank
+params that aren't a valid build (`check_config`). An imported or edited profile can't beat
+the budget. Replays aren't builds: `checkReplayJson` still re-simulates whatever config a
+replay file records.
 
 ### Tank Arena duels (rules v1)
 
@@ -227,7 +322,14 @@ comment-only changes.** Doc comments on `#[wasm_bindgen]` items are copied into 
 JSDoc. Panic locations (file:line) are compiled into the wasm, so moving code lines changes
 the bytes. PR #12 was an example: rustdoc-only edits changed both files.
 
-Size: `engine_wasm_bg.wasm` is 284,864 bytes (108,790 with `gzip -9 -n`) since
+Size: `engine_wasm_bg.wasm` is 323,765 bytes (119,115 with `gzip -9 -n`) with the build
+catalog (2026-10-03), up from 286,828 (109,245) after the tank `Flat` view: +36,937 bytes
+(+12.9%), +9,870 gzipped (+9.0%). By `twiggy diff` of the name-section builds, about 15.5 KB
+is `serde_json` serialization of the catalog and validation structs, 11.6 KB the catalog and
+validator logic, 4.1 KB the wasm wrappers and `fromBuilds`, 2.6 KB the build parser and 2.6
+KB data. The first draft built the JSON with `serde_json::Value` and grew the file by 79,191
+bytes; typed `Serialize` structs and a small purpose-built parser (`tank::catalog::Loose`)
+halved that. Before that, 284,864 bytes (108,790) since
 `build-wasm.sh` strips the `name` and `producers` sections (2026-09-30), down from 356,307
 (117,316): −71,443 bytes (−20.1%), −8,526 gzipped. (`gzip -n` leaves the file name out of the
 header. The older gzipped figures in this paragraph were measured with `gzip -9 -c <file>`,

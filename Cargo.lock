@@ -319,6 +319,7 @@ version = "0.1.0"
 dependencies = [
  "engine",
  "rand_chacha",
+ "serde",
  "serde_json",
 ]
 
