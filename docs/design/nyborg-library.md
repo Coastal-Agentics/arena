@@ -1,6 +1,6 @@
 # Nyborg library and save format
 
-**Status:** Draft for a gate (2026-10-03). Docs only: no code changes.
+**Status:** Gate design (2026-10-03, #49). Docs only: no code changes. Updated 2026-10-03 to match the engine's build catalog as shipped in #51 (see [wasm-and-web.md](../engine/wasm-and-web.md#builds-the-per-game-catalog)).
 **Author:** Blitzwing (Tank Designer-Developer). The engine side was agreed with Shockwave (Engine Lead).
 **Builds on:**
 - [nyborg.md](nyborg.md): the look, cosmetics only (#44);
@@ -50,8 +50,10 @@ One Nyborg is one JSON object. The web side owns this format, and the engine nev
   - `accessories` lists known ids (`glasses`, `hat`) with no repeats.
 - **`builds[game]`:** one entry per game.
   - It stores **levels plus `rules_version`, not resolved values** (no HP or damage). The numbers always come from the engine's current tables.
-  - A game with no entry uses that game's `defaultBuild` from the catalog. This covers a new Nyborg, or a game added after it was made.
-- **`behavior`:** either `{kind: "scripted", id}`, using a scripted id from the catalog, or `{kind: "champion", ref}` (for example `{"kind": "champion", "ref": "tank/nightly/gen-99"}`).
+  - A game with no entry uses that game's default build: the catalog's `default_build`, which `defaultBuild(game)` also returns. This covers a new Nyborg, or a game added after it was made.
+  - A stored build has no `game` field; the game is the key in `builds`. The validator ignores unknown top-level fields, but the web side never sends `look` to it anyway.
+- **`behavior`:** either `{kind: "scripted", id}`, using a scripted id from the catalog's `behaviors` (lower case, exact: `"Kiter"` fails), or `{kind: "champion", ref}` (for example `{"kind": "champion", "ref": "tank/nightly/gen-99"}`).
+  - The validator checks only a `ref`'s shape: a non-empty string of at most 200 bytes. The champion loader resolves it.
   - A `ref` points at a published champion under `web/data/<game>/evolution/` (lineage and generation).
   - Every champion is open to every Nyborg.
 - **Migration:**
@@ -90,7 +92,7 @@ There is no server.
 - **Create:**
   - The new Nyborg is named "Nyborg 5" (or the next free number).
   - It gets the default look (Yarn Red, 3 strands, no accessories).
-  - Each game starts at its catalog's `defaultBuild` (3/3/3) with the first scripted behavior.
+  - Each game starts at its catalog's `default_build` (3/3/3 with the first scripted behavior; for tanks, Charger).
 - **Duplicate** copies everything except the id, and the copy is named "Pip copy". **Rename** edits the name in place.
 - **Delete:** one confirm ("Delete Pip?"). An **Undo** toast then stays up for 10 s, and the Nyborg is only removed once it closes.
 - **Edit the look:**
@@ -100,7 +102,7 @@ There is no server.
 - **Edit each game's build:**
   - **Tabs:** one game tab per entry in the engine's `games()`. Racing appears when racing lands, and later games add a tab with no new UI code.
   - **What the tab draws from the game's `catalogJson(game)`:**
-    - the three stats as the triangle widget, plus level pips;
+    - the three stats as the triangle widget, plus level pips from each stat's `min` to `max`;
     - the readout values per level;
     - "9 / 9 points";
     - the presets and the behavior picker.
@@ -112,16 +114,17 @@ There is no server.
 - **Rules change** (`rules_version_mismatch`): that game's line shows "rebuild needed", and the tab offers **Rebuild with defaults**. The build is never fixed silently. Until you rebuild it, that Nyborg can't be picked for that game.
 
 ## 4. Equal footing, enforced in every game
-- **One source of truth:** each game's catalog sets its stats, the range (levels 1–5, at least 1 per stat, 1 point per level) and the budget (exactly 9 points). The UI never hardcodes a number.
-- **One validator, three places:** the engine's `validateBuild(game, buildJson)` runs:
-  - in the Customizer;
-  - on import;
-  - at match start, inside the wasm.
+- **One source of truth:** each game's catalog sets its stats, each stat's range (`min` 1 and `max` 5, so at least 1 per stat), its `cost_per_level` (1) and the `budget` (exactly 9 points). The UI never hardcodes a number.
+- **One validator, three places:** the engine's one build check runs:
+  - in the Customizer, through `validateBuild(game, buildJson)`;
+  - on import, through `validateBuild`;
+  - at match start, inside the wasm: `WasmMatch.fromBuilds` checks each build and throws on a bad one. `WasmMatch.tank(query)` and `withConfig` share the same level and budget check.
 
   The web check is only a convenience. The wasm check at match start is the one that counts, so a hand-edited or tampered file can't get past it.
 - **Never an advantage:**
-  - an invalid build (`over_budget`, `out_of_range`, `unknown_key`, `wrong_game`, `unknown_behavior`) is rejected;
-  - on import it is replaced by the catalog's `defaultBuild`, with a note saying which game;
+  - an invalid build (`invalid_json`, `wrong_game`, `unknown_key`, `out_of_range`, `over_budget`, `under_budget`, `unknown_behavior`) is rejected;
+  - on import it is replaced by the catalog's `default_build`, with a note saying which game;
+  - a `rules_version_mismatch` is not replaced silently: it gets "rebuild needed" (section 3);
   - points are never "spread" to make a bad build fit.
 - **No pay-to-win:** nothing is bought. Every behavior and every published champion is open to every Nyborg.
 - **Cosmetics never reach the sim:**
@@ -129,19 +132,34 @@ There is no server.
   - The engine only ever sees `builds[game]`.
   - Two Nyborgs with the same build and behavior play exactly the same match, whatever they look like.
 
-## 5. Engine side: agreed with Shockwave (engine-wasm, his)
-1. **`games()`** lists the game ids with their `rules_version`.
-2. **`catalogJson(game)`** returns `{game, rules_version, budget: 9, stats: [{key, label, levels, cost_per_level, values per level}], behaviors: [scripted ids], defaultBuild, presets}`. It is generated from the games' own tables (`games/tank/src/loadout.rs` for tanks), so the UI never hardcodes a number.
-3. **`validateBuild(game, buildJson)`** returns the normalized params and the points spent, or one error code: `over_budget`, `out_of_range`, `unknown_key`, `wrong_game`, `rules_version_mismatch` or `unknown_behavior`.
-4. **Match setup also calls `validateBuild`** and takes one validated build per tank. This is the same path `TankSpawn.params` uses today, so tank matches, replays and pins come out byte-identical.
+## 5. Engine side: shipped by Shockwave in #51 (engine-wasm, his)
+The full reference, with exact outputs, is [wasm-and-web.md](../engine/wasm-and-web.md#builds-the-per-game-catalog). In short:
+
+1. **`games()`** lists the game ids with their `rules_version`: `[{"game":"tank","rules_version":1}]`.
+2. **`catalogJson(game)`** returns `{game, rules_version, budget, stats: [{key, label, min, max, cost_per_level, values: [{level, …resolved numbers}]}], behaviors: [scripted ids], presets: [{id, label, levels}], default_build}`. Every key is snake case. It is generated from the game's own tables (`games/tank/src/loadout.rs` for tanks, through `tank::catalog`), so the UI never hardcodes a number. An unknown game throws `unknown game "…"`. **`defaultBuild(game)`** returns the same `default_build`.
+3. **`validateBuild(game, buildJson)` never throws.** It returns a JSON string:
+   - success: `{ok: true, game, rules_version, levels, behavior, points, params}`, where `levels` come back in stat order and `params` are what the tank plays with;
+   - failure: `{ok: false, errors: [{code, key}]}`. Every error names its key, so the UI can say which stat is wrong.
+
+   | `code` | `key` | When |
+   |---|---|---|
+   | `invalid_json` | `""` | The text doesn't parse, or isn't an object |
+   | `wrong_game` | `game` | Not a known game, or the build's own `game` field differs |
+   | `rules_version_mismatch` | `rules_version` | Missing, or not the game's current `rules_version` |
+   | `unknown_key` | the key | A `levels` key that isn't a stat |
+   | `out_of_range` | the stat | Missing, not an integer (`2.5` and `"3"` fail), or outside `min`–`max` |
+   | `over_budget` | `levels` | The levels spend more than 9 points |
+   | `under_budget` | `levels` | The levels spend fewer than 9 points |
+   | `unknown_behavior` | `behavior` | Not a known scripted id, a champion without a usable `ref`, or another `kind` |
+
+   The first three stop the check. The rest are reported together, and the budget is only checked once every level is in range.
+4. **Match start:** `WasmMatch.fromBuilds("tank", seed, blueJson, orangeJson)` runs the same check on each build. It throws on an invalid build (`blue: invalid build [{"code":…,"key":…}]`, or `orange: …`), and on a champion behavior until the loader resolves it. It plays exactly like `WasmMatch.tank` with the same seed, behaviors and levels, so tank matches, replays and pins come out byte-identical.
 5. **Stat keys:**
    - **Tank:** `attack`/Attack, `speed`/Speed, `defense`/Defense.
-   - **Racing:** `power`/Power, `top_speed`/Top speed, `grip`/Grip.
-   - **Both:** levels 1–5, 1 point per level, at least 1 per stat, a budget of exactly 9.
+   - **Racing (planned, M3):** `power`/Power, `top_speed`/Top speed, `grip`/Grip.
+   - **Both:** `min` 1, `max` 5, `cost_per_level` 1, a budget of exactly 9.
 
-**Still to confirm with Shockwave** (not agreed yet):
-- How `validateBuild` checks a `champion` behavior, once the web side has resolved the ref to a genome (the gene bounds, as in `Genome::from_json`).
-- Whether an error should name the key it failed on, so the UI can say which stat is wrong.
+**Still open:** how a champion is checked once the web side has resolved its `ref` to a genome (the gene bounds, as in `Genome::from_json`). Today `validateBuild` checks only the `ref`'s shape, and `fromBuilds` refuses champions.
 
 ## 6. Cleanup: from today's tank-only tab to one Customizer
 - **Today:** the Customize tab is tank-only. It lives in `renderCustomize` in `web/arena.js`, with the triangle in `web/tank-ui.js` and the data from `tankCatalogJson`.
@@ -165,7 +183,7 @@ There is no server.
 |---|---|---|---|
 | **N4** | Save format 1, the validator, localStorage, export and import | items 1–4 above for tank | Validator tests for every error code; a corrupt or tampered file never loads with an advantage; old URLs unchanged |
 | **N5** | One Customizer for tank: library, look editor, schema-driven tank tab, pick for a match | N4, V1 | Viewer checks unchanged; tank links and hashes byte-identical |
-| **N6** | Racing tab and car slots | racing R1–R2 (M3), `catalogJson("racing")` | Racing builds round-trip; an invalid setup can't start a race |
+| **N6** | Racing tab and car slots | racing R1–R2 (M3), `catalogJson("racing")`, `WasmRace.fromBuilds` | Racing builds round-trip; an invalid setup can't start a race |
 | **N7** | Nyborgs shown in Watch for both games | N2, V2 | Draws stay off the tick loop; replays unchanged |
 
 **How this fits the new order** (M1 → M2 → M3 racing → M4 → M5, with Soundwave confirming the final order):
