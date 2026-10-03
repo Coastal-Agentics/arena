@@ -54,7 +54,10 @@ impl fmt::Display for SetupError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::LevelOutOfRange { stat, level } => {
-                write!(f, "{stat} level {level} is outside {MIN_LEVEL}..={MAX_LEVEL}")
+                write!(
+                    f,
+                    "{stat} level {level} is outside {MIN_LEVEL}..={MAX_LEVEL}"
+                )
             }
             Self::WrongTotal(t) => write!(f, "stats sum to {t}, must be exactly {BUDGET}"),
             Self::Syntax(s) => write!(f, "setup {s:?} is not P-T-G (e.g. 3-3-3)"),

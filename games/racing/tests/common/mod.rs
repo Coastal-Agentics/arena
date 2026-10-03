@@ -106,7 +106,7 @@ impl Wild {
 
 impl Policy<RacingRules> for Wild {
     fn act(&mut self, _o: &Observation) -> RaceAction {
-        if self.t % self.hold == 0 {
+        if self.t.is_multiple_of(self.hold) {
             self.a = RaceAction {
                 throttle: self.next() * 1.2,
                 steer: self.next() * 1.2,

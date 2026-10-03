@@ -216,8 +216,8 @@ impl RacingRules {
         if speed <= ph.full_steer_speed {
             speed / ph.full_steer_speed
         } else {
-            let f = ((speed - ph.full_steer_speed) / (params.top_speed - ph.full_steer_speed))
-                .min(1.0);
+            let f =
+                ((speed - ph.full_steer_speed) / (params.top_speed - ph.full_steer_speed)).min(1.0);
             1.0 - (1.0 - ph.top_speed_steer) * f
         }
     }
@@ -420,7 +420,11 @@ impl RacingRules {
             let a = if c.finished() {
                 RaceAction::default()
             } else {
-                actions.get(i).copied().map(Self::sanitize).unwrap_or_default()
+                actions
+                    .get(i)
+                    .copied()
+                    .map(Self::sanitize)
+                    .unwrap_or_default()
             };
             Self::drive(c, a, &config.cars[i], &config.physics);
         }

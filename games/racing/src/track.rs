@@ -318,7 +318,11 @@ mod tests {
     fn ring_matches_the_spec_table() {
         let g = TrackGeom::new(&Track::ring());
         assert_eq!(g.gate_count(), 9);
-        assert!((g.lap_length() - 1648.528).abs() < 0.01, "{}", g.lap_length());
+        assert!(
+            (g.lap_length() - 1648.528).abs() < 0.01,
+            "{}",
+            g.lap_length()
+        );
         // Gate 0: from the infield edge (y 160) to the outer wall (y 40) at x 400.
         assert!(close(g.gates[0].inner, Vec2::new(400.0, 160.0)));
         assert!(close(g.gates[0].outer, Vec2::new(400.0, 40.0)));
@@ -361,7 +365,10 @@ mod tests {
         assert_eq!(g.ray(p, Vec2::X, 200.0), 200.0);
         assert!(close(g.point_at(0.0), p));
         assert!(close(g.point_at(150.0), Vec2::new(550.0, 100.0)));
-        assert!(close(g.point_at(g.lap_length() + 10.0), Vec2::new(410.0, 100.0)));
+        assert!(close(
+            g.point_at(g.lap_length() + 10.0),
+            Vec2::new(410.0, 100.0)
+        ));
         assert!((g.fraction_to(1, Vec2::new(475.0, 130.0)) - 0.5).abs() < 1e-6);
     }
 }

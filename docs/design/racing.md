@@ -1,6 +1,6 @@
 # Racing — game spec (draft)
 
-**Status:** Draft for review (2026-10-03). Nothing in it is built yet. Numbers marked as starting values get tuned in a racing `BALANCE.md`, the same way the tank numbers were.
+**Status:** Approved by Nye (racing v0, 2026-10-03 11:50 ET; duplicate Nyborgs may race each other). R1, the rules crate `games/racing`, is built; see "R1 as built" at the end. Numbers marked as starting values get tuned in a racing `BALANCE.md`, the same way the tank numbers were.
 **Author:** Blitzwing (Tank Designer-Developer). Part of [game-system.md](game-system.md) §3 (Shockwave), which defines `Rules`, `reward`, `Flat` and replay format 5.
 **In one line:** 2–4 cars race 3 laps around a walled track. There are no weapons. The first car home wins. Cars learn by evolution first (like the tanks), and later through PettingZoo.
 
@@ -121,3 +121,16 @@ These are steps inside game-system.md's M3 (racing v0) and M5 (viewer).
 | **R4** (after M3) | Evolution for racing (the GATE-003 GA over the baselines' params and the car setup) | A champion beats Gen 0 by at least 65% on 1,000 held-out seeds, and two runs are byte-identical. |
 
 **Needed from the engine (Shockwave):** the `Finished` end reason, the format 5 envelope, and `reward` and `Flat` (M1). Segment walls, rays and circle-vs-segment tests go in `games/racing` first (Shockwave, game-system.md §3). They move to `engine::arena` only if another game needs them. Each car is its own team, so `Outcome.winner: Option<u8>` works unchanged for up to 4 cars.
+
+## R1 as built (games/racing, rules_version 1)
+Where the spec left a choice open, R1 settles it as follows. The crate docs (`games/racing/src/rules.rs`) give the exact order inside one step.
+- **Identity:** game id `racing`, `RULES_VERSION = 1`, stat keys `power`, `top_speed`, `grip` (levels 1–5, minimum 1, budget 9, 19 setups). The config stores each car's resulting numbers (`CarParams`), not its levels, so retuning the level tables never changes an old replay.
+- **Cars per race:** 1–4. A solo race is valid (the acceptance runs baselines alone), and duplicate setups and drivers are allowed.
+- **Braking** is 480 u/s² (twice L3 Power), a starting value for BALANCE.md. Steering scales with |forward speed|, so a reversing car steers too, and positive steer is always counter-clockwise. The speed vector is capped at the car's top speed every tick.
+- **Collisions:** up to 64 passes per tick, stopping as soon as nothing overlaps. Each pass resolves car pairs first: all pairs are computed from the same positions and applied together, so car order doesn't matter. Each car moves half the overlap. A car already pushed off a wall this tick doesn't move back into it; the other car takes that part. Walls come second in each pass. Overlapping cars are separated to 2 × radius + 0.01 u. Over 1,000 test seeds, no car ends a tick more than 0.001 u inside a wall or another car.
+- **Finished cars** are inactive and become ghosts. They drive with the default action (coast), still hit walls, but no longer touch other cars. Without this, a winner coasting to a stop past the line would block the field. They also drop out of the other cars' opponent slots.
+- **Progress** is 0 before a car crosses the start line. It is `laps × gates` once the car has finished, and otherwise gates passed + fraction. So the rewards sum to exactly final progress ÷ gates + bonus.
+- **Ties:** on a shared first place, `Outcome.winner` is the lowest car index. A solo finish earns a bonus of 1.
+- **`Finished`:** until Shockwave's M3a puts `EndReason::Finished` on `main`, a finished race records `EndReason::LastStanding`. Racing code reads `racing::RaceEnd` (`Finished` or `TickLimit`) through `RacingRules::race_end`; swapping in the real variant is a one-line change in `games/racing/src/end.rs`.
+- **Replays:** racing replays are written with the engine's current envelope (format 4) until M3a adds format 5 with `game` and `rules_version`. `check_format` rejects racing configs in formats below 4, and rejects any config that fails validation (for example a top speed per tick that is not below the radius).
+

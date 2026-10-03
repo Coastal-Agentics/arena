@@ -117,7 +117,10 @@ impl RacingConfig {
         let ph = &self.physics;
         let pos_finite = |v: f32| v.is_finite() && v > 0.0;
         if !pos_finite(ph.radius) {
-            return err("physics.radius", format!("{} is not a positive number", ph.radius));
+            return err(
+                "physics.radius",
+                format!("{} is not a positive number", ph.radius),
+            );
         }
         for (field, v) in [
             ("physics.full_steer_speed", ph.full_steer_speed),
@@ -144,11 +147,17 @@ impl RacingConfig {
             );
         }
         if self.cars.is_empty() || self.cars.len() > MAX_CARS {
-            return err("cars", format!("{} cars; 1..={MAX_CARS} allowed", self.cars.len()));
+            return err(
+                "cars",
+                format!("{} cars; 1..={MAX_CARS} allowed", self.cars.len()),
+            );
         }
         for c in &self.cars {
             if !pos_finite(c.power) {
-                return err("cars[].power", format!("{} is not a positive number", c.power));
+                return err(
+                    "cars[].power",
+                    format!("{} is not a positive number", c.power),
+                );
             }
             if !pos_finite(c.top_speed) || c.top_speed <= ph.full_steer_speed {
                 return err(
@@ -192,7 +201,10 @@ impl RacingConfig {
             }
         }
         if !(t.width.is_finite() && t.width > 4.0 * ph.radius) {
-            return err("track.width", format!("{} must exceed two car widths", t.width));
+            return err(
+                "track.width",
+                format!("{} must exceed two car widths", t.width),
+            );
         }
         if !(pos_finite(t.size[0]) && pos_finite(t.size[1])) {
             return err("track.size", "must be positive".to_string());

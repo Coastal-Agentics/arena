@@ -109,7 +109,13 @@ impl Flat for RacingRules {
 
     /// # Panics
     /// If `out.len()` is not [`OBS_LEN`].
-    fn encode_obs(config: &RacingConfig, state: &RaceState, agent: usize, tick: u32, out: &mut [f32]) {
+    fn encode_obs(
+        config: &RacingConfig,
+        state: &RaceState,
+        agent: usize,
+        tick: u32,
+        out: &mut [f32],
+    ) {
         assert_eq!(out.len(), OBS_LEN, "observation buffer length");
         let o = Observation::new(config, state, agent, tick);
         encode(config, state, &o, out);

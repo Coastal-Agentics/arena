@@ -28,8 +28,10 @@ fn line_drivers(cfg: &RacingConfig) -> Vec<LineDriver> {
 fn run_line(cfg: &RacingConfig, seed: u64) -> Race {
     let mut m = Race::new(cfg.clone(), seed);
     let mut ds = line_drivers(cfg);
-    let mut ps: Vec<&mut dyn Policy<RacingRules>> =
-        ds.iter_mut().map(|d| d as &mut dyn Policy<RacingRules>).collect();
+    let mut ps: Vec<&mut dyn Policy<RacingRules>> = ds
+        .iter_mut()
+        .map(|d| d as &mut dyn Policy<RacingRules>)
+        .collect();
     m.run(&mut ps);
     m
 }
@@ -43,7 +45,12 @@ fn solo() -> RacingConfig {
 }
 
 /// A started car (next gate 1) placed by hand, for the gate tests.
-fn state_with_car(cfg: &RacingConfig, pos: engine::Vec2, heading: u16, crossings: u32) -> RaceState {
+fn state_with_car(
+    cfg: &RacingConfig,
+    pos: engine::Vec2,
+    heading: u16,
+    crossings: u32,
+) -> RaceState {
     let mut s = RaceState::start(cfg, &[0]);
     let c = &mut s.cars[0];
     c.pos = pos;
@@ -80,7 +87,15 @@ fn a_standing_car_cannot_turn_and_speed_is_capped() {
     let cfg = solo();
     let mut s = RaceState::start(&cfg, &[0]);
     let h0 = s.cars[0].heading;
-    drive(&cfg, &mut s, RaceAction { throttle: 0.0, steer: 1.0 }, 30);
+    drive(
+        &cfg,
+        &mut s,
+        RaceAction {
+            throttle: 0.0,
+            steer: 1.0,
+        },
+        30,
+    );
     assert_eq!(s.cars[0].heading, h0, "no spinning in place");
     assert_eq!(s.cars[0].pos, v(370.0, 120.0));
     // Full throttle on the bottom straight: 240 u/s² reaches 240 u/s in one second.
@@ -124,7 +139,11 @@ fn scraping_a_wall_costs_speed_and_never_leaves_the_car_inside() {
     let c = s.cars[0];
     assert!(c.pos.y >= 40.0 + 12.0 - 1e-3, "{}", c.pos);
     assert!(c.vel.y >= -1e-3, "no speed into the wall");
-    assert!(c.vel.length() < 200.0 * 0.6 + 1.0, "scrape cost 40%: {}", c.vel);
+    assert!(
+        c.vel.length() < 200.0 * 0.6 + 1.0,
+        "scrape cost 40%: {}",
+        c.vel
+    );
 }
 
 // ---------------------------------------------------------------- gates, laps, exploits
@@ -144,7 +163,12 @@ fn reversing_over_the_line_does_not_count_a_lap() {
         ev.extend(drive(&cfg, &mut s, GO, 1));
     }
     assert_eq!((s.cars[0].crossings, s.cars[0].laps), (G as u32 + 1, 1));
-    assert_eq!(ev.iter().filter(|e| matches!(e, RaceEvent::Lap { .. })).count(), 1);
+    assert_eq!(
+        ev.iter()
+            .filter(|e| matches!(e, RaceEvent::Lap { .. }))
+            .count(),
+        1
+    );
     // Back and forth over the line again: nothing more (gate 1 is next).
     rock_over_the_line(&cfg, &mut s, 3);
     assert_eq!((s.cars[0].crossings, s.cars[0].laps), (G as u32 + 1, 1));
@@ -249,8 +273,10 @@ fn reward_is_progress_gained_and_the_bonus_lands_once() {
     let mut bonus_ticks = [0u32; 4];
     while !m.is_over() {
         let before: Vec<f32> = m.state().cars.iter().map(|c| c.progress).collect();
-        let mut ps: Vec<&mut dyn Policy<RacingRules>> =
-            ds.iter_mut().map(|d| d as &mut dyn Policy<RacingRules>).collect();
+        let mut ps: Vec<&mut dyn Policy<RacingRules>> = ds
+            .iter_mut()
+            .map(|d| d as &mut dyn Policy<RacingRules>)
+            .collect();
         m.step_policies(&mut ps);
         for (a, c) in m.state().cars.iter().enumerate() {
             let base = (c.progress - before[a]) / G as f32;
@@ -280,7 +306,9 @@ fn no_car_ends_a_tick_overlapping_a_wall_or_another_car() {
     // 1,000 seeds: four cars, each seed mixing line drivers at different offsets with
     // random drivers, so there is traffic, contact and wall scraping. Split across
     // threads so the debug-build CI run stays short.
-    let threads = std::thread::available_parallelism().map_or(4, |n| n.get()).min(16) as u64;
+    let threads = std::thread::available_parallelism()
+        .map_or(4, |n| n.get())
+        .min(16) as u64;
     let totals: Vec<(u64, u64)> = std::thread::scope(|sc| {
         let hs: Vec<_> = (0..threads)
             .map(|t| sc.spawn(move || overlap_sweep((0..1000u64).filter(|s| s % threads == t))))
@@ -288,7 +316,10 @@ fn no_car_ends_a_tick_overlapping_a_wall_or_another_car() {
         hs.into_iter().map(|h| h.join().unwrap()).collect()
     });
     let (contacts, walls) = totals.iter().fold((0, 0), |a, b| (a.0 + b.0, a.1 + b.1));
-    assert!(contacts > 1000 && walls > 1000, "the sweep exercised collisions: {contacts} {walls}");
+    assert!(
+        contacts > 1000 && walls > 1000,
+        "the sweep exercised collisions: {contacts} {walls}"
+    );
 }
 
 /// Runs the seeds and checks every tick; returns (contact events, wall events).
@@ -340,7 +371,9 @@ fn overlap_sweep(seeds: impl Iterator<Item = u64>) -> (u64, u64) {
                         (a.pos - b.pos).length() >= 2.0 * r - eps,
                         "seed {seed} tick {}: cars overlap: {:?}",
                         m.tick(),
-                        cars.iter().map(|c| (c.pos, c.finished())).collect::<Vec<_>>()
+                        cars.iter()
+                            .map(|c| (c.pos, c.finished()))
+                            .collect::<Vec<_>>()
                     );
                 }
             }
@@ -360,7 +393,10 @@ fn a_config_that_could_tunnel_is_rejected() {
     cfg.physics.radius = 10.0;
     assert_eq!(cfg.validate().unwrap_err().field, "cars[].top_speed");
     // The fastest real setup is far inside the limit.
-    let fastest = CarParams { top_speed: setup::TOP_SPEED[4], ..CarParams::default() };
+    let fastest = CarParams {
+        top_speed: setup::TOP_SPEED[4],
+        ..CarParams::default()
+    };
     assert!(RacingConfig::ring(vec![fastest; 4]).validate().is_ok());
     // A replay carrying a bad config is rejected at load.
     let good = run_line(&solo(), 0).replay();
@@ -368,7 +404,10 @@ fn a_config_that_could_tunnel_is_rejected() {
     bad.config.cars[0].top_speed = 800.0;
     assert_eq!(
         RaceReplay::from_json(&bad.to_json()),
-        Err(ReplayError::FieldNotInFormat { format: good.format, field: "cars[].top_speed" })
+        Err(ReplayError::FieldNotInFormat {
+            format: good.format,
+            field: "cars[].top_speed"
+        })
     );
 }
 
@@ -383,7 +422,8 @@ fn starting_a_race_with_a_tunnelling_config_panics() {
 #[test]
 fn other_invalid_configs_name_their_field() {
     let base = four();
-    let cases: Vec<(&str, Box<dyn Fn(&mut RacingConfig)>)> = vec![
+    type Edit = Box<dyn Fn(&mut RacingConfig)>;
+    let cases: Vec<(&str, Edit)> = vec![
         ("cars", Box::new(|c| c.cars.clear())),
         ("cars", Box::new(|c| c.cars.push(CarParams::default()))),
         ("cars[].grip", Box::new(|c| c.cars[1].grip = 1.5)),
@@ -393,7 +433,10 @@ fn other_invalid_configs_name_their_field() {
         ("grid", Box::new(|c| c.grid = Some(vec![0, 1, 1, 2]))),
         ("grid", Box::new(|c| c.grid = Some(vec![0, 1, 2]))),
         ("track.width", Box::new(|c| c.track.width = 40.0)),
-        ("track.centreline", Box::new(|c| c.track.centreline.truncate(2))),
+        (
+            "track.centreline",
+            Box::new(|c| c.track.centreline.truncate(2)),
+        ),
         ("physics.wall_keep", Box::new(|c| c.physics.wall_keep = 2.0)),
     ];
     for (field, f) in cases {
@@ -412,8 +455,10 @@ fn a_race_ends_when_every_car_has_finished_and_finished_cars_go_inactive() {
     let mut ds = line_drivers(&cfg);
     let mut saw_inactive = false;
     while !m.is_over() {
-        let mut ps: Vec<&mut dyn Policy<RacingRules>> =
-            ds.iter_mut().map(|d| d as &mut dyn Policy<RacingRules>).collect();
+        let mut ps: Vec<&mut dyn Policy<RacingRules>> = ds
+            .iter_mut()
+            .map(|d| d as &mut dyn Policy<RacingRules>)
+            .collect();
         m.step_policies(&mut ps);
         for (a, c) in m.state().cars.iter().enumerate() {
             assert_eq!(RacingRules::is_active(m.state(), a), !c.finished());
@@ -447,7 +492,10 @@ fn the_finish_window_closes_ten_seconds_after_the_winner() {
     let o = m.run(&mut [&mut d, &mut sit]);
     let t0 = m.state().first_finish.unwrap();
     assert_eq!(o.ticks, t0 + 600);
-    assert_eq!(RacingRules::race_end(&cfg, m.state(), o.ticks), Some(RaceEnd::Finished));
+    assert_eq!(
+        RacingRules::race_end(&cfg, m.state(), o.ticks),
+        Some(RaceEnd::Finished)
+    );
     assert_eq!(o.winner, Some(0));
     // (Car 0 may nudge it over the line at the start, but it never finishes.)
     assert!(!m.state().cars[1].finished());
@@ -462,8 +510,15 @@ fn the_tick_cap_is_tick_limit_even_inside_the_window() {
     let mut sit = |_: &Observation| RaceAction::default();
     let mut sit2 = |_: &Observation| RaceAction::default();
     let o = m.run(&mut [&mut sit, &mut sit2]);
-    assert_eq!((o.ticks, o.reason, o.winner), (3600, EndReason::TickLimit, None));
-    assert_eq!(m.state().cars[0].place, 1, "equal progress shares first place");
+    assert_eq!(
+        (o.ticks, o.reason, o.winner),
+        (3600, EndReason::TickLimit, None)
+    );
+    assert_eq!(
+        m.state().cars[0].place,
+        1,
+        "equal progress shares first place"
+    );
     assert_eq!(m.state().cars[1].place, 1);
     // A winner finishes, then the cap falls inside the 10 s window: still TickLimit,
     // winner = the first finisher.
@@ -505,7 +560,11 @@ fn progress_is_zero_before_the_line_and_continuous_through_gates() {
     while !m.is_over() {
         m.step_policies(&mut [&mut d]);
         let p = m.state().cars[0].progress;
-        assert!(p >= last - 0.05 && p - last < 0.1, "tick {}: {last} -> {p}", m.tick());
+        assert!(
+            p >= last - 0.05 && p - last < 0.1,
+            "tick {}: {last} -> {p}",
+            m.tick()
+        );
         last = p;
     }
     assert_eq!(last, 27.0);
@@ -516,8 +575,14 @@ fn progress_is_zero_before_the_line_and_continuous_through_gates() {
 #[test]
 fn flat_lengths_layout_and_wrong_length_panics() {
     assert_eq!((RacingRules::OBS_LEN, RacingRules::ACTION_LEN), (43, 2));
-    assert_eq!((SPEED, HEADING, POSITION, RAYS, NEXT_GATE, NEXT_DIR), (0, 2, 4, 6, 15, 17));
-    assert_eq!((GATE_AFTER, LAPS, PROGRESS, PLACE, OPPONENTS, TICK), (19, 21, 22, 23, 24, 42));
+    assert_eq!(
+        (SPEED, HEADING, POSITION, RAYS, NEXT_GATE, NEXT_DIR),
+        (0, 2, 4, 6, 15, 17)
+    );
+    assert_eq!(
+        (GATE_AFTER, LAPS, PROGRESS, PLACE, OPPONENTS, TICK),
+        (19, 21, 22, 23, 24, 42)
+    );
     assert_eq!(OPPONENT_SLOT * racing::obs::OPPONENT_SLOTS, 18);
 }
 
@@ -542,7 +607,14 @@ fn decode_clamps_and_maps_nan_to_zero() {
     assert_eq!((a.throttle, a.steer), (1.0, 0.0));
     let a = RacingRules::decode_action(&[f32::NEG_INFINITY, -3.0]);
     assert_eq!((a.throttle, a.steer), (-1.0, -1.0));
-    assert_eq!(RacingRules::sanitize(RaceAction { throttle: f32::NAN, steer: 2.0 }).steer, 1.0);
+    assert_eq!(
+        RacingRules::sanitize(RaceAction {
+            throttle: f32::NAN,
+            steer: 2.0
+        })
+        .steer,
+        1.0
+    );
 }
 
 #[test]
@@ -566,7 +638,10 @@ fn flat_values_on_the_grid_match_the_table() {
     // Nearest opponent: car 2 at (340, 120), 30 u behind; then car 1 at (370, 80), 40 u
     // to the right; then car 3 at (340, 80). Nobody moves and places are all shared.
     let mut want = [0.0f32; TICK - LAPS];
-    for (k, (f, l)) in [(-30.0, 0.0), (0.0, -40.0), (-30.0, -40.0)].into_iter().enumerate() {
+    for (k, (f, l)) in [(-30.0, 0.0), (0.0, -40.0), (-30.0, -40.0)]
+        .into_iter()
+        .enumerate()
+    {
         let b = OPPONENTS + k * OPPONENT_SLOT - LAPS;
         want[b] = 1.0;
         want[b + 1] = f / 300.0;
@@ -603,7 +678,11 @@ fn every_flat_value_is_finite_and_in_range_over_whole_races() {
             }
             let (a, b) = ds.split_at_mut(1);
             let mut ps: Vec<&mut dyn Policy<RacingRules>> = vec![&mut wd, &mut a[0]];
-            ps.extend(b.iter_mut().skip(1).map(|d| d as &mut dyn Policy<RacingRules>));
+            ps.extend(
+                b.iter_mut()
+                    .skip(1)
+                    .map(|d| d as &mut dyn Policy<RacingRules>),
+            );
             m.step_policies(&mut ps);
         }
         m.encode_obs(0, &mut buf);
