@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["engine", "engine-cli", "engine-wasm", "games/tank", "games/racing"]
+members = ["engine", "engine-cli", "engine-wasm", "games/catalog", "games/racing", "games/tank"]
 
 [workspace.package]
 version = "0.1.0"

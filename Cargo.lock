@@ -136,10 +136,19 @@ name = "engine-wasm"
 version = "0.1.0"
 dependencies = [
  "engine",
+ "game-catalog",
  "serde",
  "serde_json",
  "tank",
  "wasm-bindgen",
+]
+
+[[package]]
+name = "game-catalog"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -328,7 +337,9 @@ name = "tank"
 version = "0.1.0"
 dependencies = [
  "engine",
+ "game-catalog",
  "rand_chacha",
+ "serde",
  "serde_json",
 ]
 
