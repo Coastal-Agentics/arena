@@ -137,6 +137,7 @@ version = "0.1.0"
 dependencies = [
  "engine",
  "game-catalog",
+ "racing",
  "serde",
  "serde_json",
  "tank",
