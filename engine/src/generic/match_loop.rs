@@ -3,7 +3,11 @@
 use super::{MatchRng, Policy, Replay, Rules, StateHasher};
 use serde::{Deserialize, Serialize};
 
-/// Why a match ended. Team-based; generic across games (ADR-014).
+/// Why a match ended. Team-based; generic across games (ADR-014). Serialized in
+/// snake_case (`"last_standing"`, `"all_destroyed"`, `"tick_limit"`, `"finished"`).
+///
+/// For training tools, [`TickLimit`](EndReason::TickLimit) is *truncated* and every
+/// other reason is *terminated* (`docs/design/game-system.md` §1).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum EndReason {
@@ -14,6 +18,11 @@ pub enum EndReason {
     AllDestroyed,
     /// `max_ticks` reached (draw).
     TickLimit,
+    /// The game's own completion rule was met, e.g. every racer has crossed the line
+    /// (racing: or the window after the winner's finish has closed). The game sets
+    /// [`Outcome::winner`] (racing: the first finisher's team). Added for format 5
+    /// games; Tank Arena never returns it.
+    Finished,
 }
 
 /// Final result of a match.

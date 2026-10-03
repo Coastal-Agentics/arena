@@ -6,7 +6,8 @@ use serde::Deserialize;
 
 /// Agents race along a line to `goal`; each step adds the (clamped) move plus a coin
 /// flip from the match RNG. A finished agent is inactive. The match ends when every
-/// agent has finished (the first one wins) or at `max_ticks` (draw).
+/// agent has finished (`EndReason::Finished`, the first one wins) or at `max_ticks`
+/// (draw). It writes replay format 5 (the default `WRITES_FORMAT`).
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 struct Race;
 
@@ -15,7 +16,8 @@ struct RaceConfig {
     agents: usize,
     goal: i32,
     max_ticks: u32,
-    /// "Added in format 4": rejected by `check_format` in older replays.
+    /// "Added in format 4": rejected by `check_format` in older replays (only reachable
+    /// through [`Legacy`], which reads formats before 5).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     boost: Option<i32>,
 }
@@ -48,6 +50,9 @@ impl Rules for Race {
     type Action = Move;
     type Observation = RaceObs;
     type Event = Finished;
+
+    const GAME: &'static str = "race";
+    const RULES_VERSION: u32 = 3;
 
     fn init(config: &RaceConfig, rng: &mut MatchRng) -> RaceState {
         RaceState {
@@ -101,7 +106,7 @@ impl Rules for Race {
             Some(Outcome {
                 winner: state.first.map(|w| w as u8),
                 ticks: tick,
-                reason: EndReason::LastStanding,
+                reason: EndReason::Finished,
             })
         } else if tick >= config.max_ticks {
             Some(Outcome {
@@ -159,7 +164,7 @@ fn same_seed_same_match_different_seed_differs() {
 fn loop_sanitizes_records_and_ends() {
     let m = run(config(), 1);
     let o = m.outcome().expect("over");
-    assert_eq!((o.winner, o.reason), (Some(2), EndReason::LastStanding));
+    assert_eq!((o.winner, o.reason), (Some(2), EndReason::Finished));
     assert_eq!(o.ticks, m.tick());
     assert_eq!(m.history().len(), m.tick() as usize);
     // Sanitized before recording: 7 is recorded as 3.
@@ -243,10 +248,15 @@ fn replays_roundtrip_verify_and_reject() {
     let m = run(config(), 11);
     let json = m.replay().to_json();
     assert!(
-        json.contains(r#""format":4"#) && json.contains(r#""seed":"11""#),
+        json.starts_with(r#"{"format":5,"game":"race","rules_version":3,"engine_version":"#)
+            && json.contains(r#""seed":"11""#),
         "{json}"
     );
     let r = Replay::<Race>::from_json(&json).expect("parses");
+    assert_eq!(
+        (r.game.as_deref(), r.rules_version),
+        (Some("race"), Some(3))
+    );
     assert_eq!(r.to_json(), json);
     let back = r.verify().expect("reproduces");
     assert_eq!(back.state(), m.state());
@@ -262,26 +272,215 @@ fn replays_roundtrip_verify_and_reject() {
         a[2].step = -1;
     }
     assert!(t.verify().is_err());
-    // A field the older format doesn't have, via Rules::check_format.
+}
+
+#[test]
+fn format_5_checks_game_and_rules_version() {
+    let json = run(config(), 11).replay().to_json();
+    let load = |from: &str, to: &str| {
+        assert!(json.contains(from), "{from}");
+        Replay::<Race>::from_json(&json.replace(from, to))
+    };
+    let other_game = load(r#""game":"race""#, r#""game":"racing""#).unwrap_err();
+    assert_eq!(
+        other_game,
+        ReplayError::GameMismatch {
+            expected: "race",
+            got: Some("racing".into())
+        }
+    );
+    assert_eq!(
+        other_game.to_string(),
+        r#"replay is for game "racing", these rules are "race""#
+    );
+    assert_eq!(
+        load(r#""game":"race","#, ""),
+        Err(ReplayError::GameMismatch {
+            expected: "race",
+            got: None
+        })
+    );
+    let old_rules = load(r#""rules_version":3"#, r#""rules_version":2"#).unwrap_err();
+    assert_eq!(
+        old_rules,
+        ReplayError::RulesVersionMismatch {
+            game: "race",
+            expected: 3,
+            got: Some(2)
+        }
+    );
+    assert_eq!(
+        old_rules.to_string(),
+        "replay has race rules_version 2, these rules are version 3"
+    );
+    assert_eq!(
+        load(r#""rules_version":3,"#, ""),
+        Err(ReplayError::RulesVersionMismatch {
+            game: "race",
+            expected: 3,
+            got: None
+        })
+    );
+    // A format 5 writer reads no older file: those predate `game` (Tank Arena files).
+    let v4 = json.replace(
+        r#""format":5,"game":"race","rules_version":3"#,
+        r#""format":4"#,
+    );
+    assert_eq!(
+        Replay::<Race>::from_json(&v4),
+        Err(ReplayError::GameMismatch {
+            expected: "race",
+            got: None
+        })
+    );
+    // An older format can't carry the format 5 fields.
+    let e = load(r#""format":5"#, r#""format":4"#).unwrap_err();
+    assert_eq!(
+        e,
+        ReplayError::FieldNotInFormat {
+            format: 4,
+            field: "game"
+        }
+    );
+    assert_eq!(
+        e.to_string(),
+        "replay format 4 has no game (needs format 5)"
+    );
+    assert_eq!(
+        load(r#""format":5"#, r#""format":6"#),
+        Err(ReplayError::Format(6))
+    );
+}
+
+#[test]
+fn another_games_replay_is_named_not_misparsed() {
+    // The envelope is read before the config, so the error names the game.
+    let tank = crate::Match::new(crate::MatchConfig::duel(), 7)
+        .replay()
+        .to_json();
+    assert_eq!(
+        Replay::<Race>::from_json(&tank),
+        Err(ReplayError::GameMismatch {
+            expected: "race",
+            got: None
+        })
+    );
+    let race = run(config(), 7).replay().to_json();
+    assert_eq!(
+        crate::Replay::from_json(&race),
+        Err(ReplayError::GameMismatch {
+            expected: "tank",
+            got: Some("race".into())
+        })
+    );
+}
+
+/// [`Race`] as a game whose replays predate format 5 (`WRITES_FORMAT = 4`), the path
+/// Tank Arena takes, without tank code. Every rule delegates to [`Race`].
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+struct Legacy;
+
+impl Rules for Legacy {
+    type Config = RaceConfig;
+    type State = RaceState;
+    type Action = Move;
+    type Observation = RaceObs;
+    type Event = Finished;
+
+    const GAME: &'static str = "legacy";
+    const RULES_VERSION: u32 = 1;
+    const WRITES_FORMAT: u32 = 4;
+
+    fn init(config: &RaceConfig, rng: &mut MatchRng) -> RaceState {
+        Race::init(config, rng)
+    }
+    fn agents(state: &RaceState) -> usize {
+        Race::agents(state)
+    }
+    fn is_active(state: &RaceState, agent: usize) -> bool {
+        Race::is_active(state, agent)
+    }
+    fn sanitize(action: Move) -> Move {
+        Race::sanitize(action)
+    }
+    fn step(
+        config: &RaceConfig,
+        state: &mut RaceState,
+        actions: &[Move],
+        rng: &mut MatchRng,
+        events: &mut Vec<Finished>,
+    ) {
+        Race::step(config, state, actions, rng, events)
+    }
+    fn observe(config: &RaceConfig, state: &RaceState, agent: usize, tick: u32) -> RaceObs {
+        Race::observe(config, state, agent, tick)
+    }
+    fn outcome(config: &RaceConfig, state: &RaceState, tick: u32) -> Option<Outcome> {
+        Race::outcome(config, state, tick)
+    }
+    fn hash_state(state: &RaceState, h: &mut StateHasher) {
+        Race::hash_state(state, h)
+    }
+    fn check_format(config: &RaceConfig, format: u32) -> Result<(), &'static str> {
+        Race::check_format(config, format)
+    }
+}
+
+#[test]
+fn a_pre_format_5_game_keeps_its_format_and_reads_both() {
+    let mut legacy = Match::<Legacy>::new(config(), 11);
+    let mut p = |o: &RaceObs| Move {
+        step: (o.agent % 3) as i32,
+    };
+    let mut q = p;
+    let mut s = p;
+    legacy.run(&mut [&mut p, &mut q, &mut s]);
+    let json = legacy.replay().to_json();
+    // Format 4, no game fields: the bytes a pre-format-5 writer always wrote.
+    assert!(
+        json.starts_with(r#"{"format":4,"engine_version":"#),
+        "{json}"
+    );
+    assert!(!json.contains("game") && !json.contains("rules_version"));
+    let r = Replay::<Legacy>::from_json(&json).expect("format 4 loads");
+    assert_eq!((r.game.clone(), r.rules_version), (None, None));
+    assert_eq!(r.verify().unwrap().state_hash(), legacy.state_hash());
+    // The same game in format 5 also loads, when it names this game and version.
+    let v5 = json.replace(
+        r#""format":4"#,
+        r#""format":5,"game":"legacy","rules_version":1"#,
+    );
+    let r5 = Replay::<Legacy>::from_json(&v5).expect("format 5 naming this game loads");
+    assert_eq!(r5.verify().unwrap().state_hash(), legacy.state_hash());
+    assert!(matches!(
+        Replay::<Legacy>::from_json(&v5.replace("legacy", "race")),
+        Err(ReplayError::GameMismatch { .. })
+    ));
+    // A config field the older format doesn't have, via Rules::check_format.
     let mut cfg = config();
     cfg.boost = Some(1);
-    let boosted = run(cfg, 11)
+    let boosted = Match::<Legacy>::new(cfg, 11)
         .replay()
         .to_json()
         .replace(r#""format":4"#, r#""format":3"#);
+    let e = Replay::<Legacy>::from_json(&boosted).unwrap_err();
     assert_eq!(
-        Replay::<Race>::from_json(&boosted),
-        Err(ReplayError::FieldNotInFormat {
+        e,
+        ReplayError::FieldNotInFormat {
             format: 3,
             field: "boost"
-        })
+        }
+    );
+    assert_eq!(
+        e.to_string(),
+        "replay format 3 has no boost (needs format 4)"
     );
     // Format 2: no setup hash, still verifies.
     let mut v2 = r.clone();
     v2.format = 2;
     v2.setup_hash = None;
-    let v2 = Replay::<Race>::from_json(&v2.to_json()).expect("format 2 loads");
-    assert_eq!(v2.verify().unwrap().state_hash(), m.state_hash());
+    let v2 = Replay::<Legacy>::from_json(&v2.to_json()).expect("format 2 loads");
+    assert_eq!(v2.verify().unwrap().state_hash(), legacy.state_hash());
 }
 
 #[test]
@@ -311,7 +510,7 @@ fn policy_trait_objects_for_other_rules() {
     let mut m = Match::<Race>::new(cfg, 8);
     let (a, b) = boxed.split_at_mut(1);
     let o = m.run(&mut [&mut *a[0], &mut *b[0]]);
-    assert_eq!(o.reason, EndReason::LastStanding);
+    assert_eq!(o.reason, EndReason::Finished);
 }
 
 /// The flat view for the test game: [pos, tick, done] per agent; one action value.

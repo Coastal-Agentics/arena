@@ -383,6 +383,17 @@ impl Rules for TankRules {
     type Observation = Observation;
     type Event = Event;
 
+    /// `"tank"`: what a format 5 Tank Arena file would name. Files older than format 5
+    /// have no `game` field and are Tank Arena files.
+    const GAME: &'static str = "tank";
+    /// The rules that replay formats 2 to 4 describe. Tank Arena writes no
+    /// `rules_version` today (see [`TankRules::WRITES_FORMAT`]).
+    const RULES_VERSION: u32 = 1;
+    /// Tank Arena keeps writing format 4, byte for byte (`docs/design/tank-refit.md`):
+    /// no `game` or `rules_version` field, so every tank replay, hash and parity
+    /// fixture is unchanged. Whether tank ever writes format 5 is a separate decision.
+    const WRITES_FORMAT: u32 = 4;
+
     /// Spawns the tanks. Tanks are spawned in id order; a random position is retried up
     /// to 1000 times until it is clear of obstacles (by 1.5 radii) and of already-placed
     /// tanks (centres at least 6 radii apart), falling back to the arena centre. A random
