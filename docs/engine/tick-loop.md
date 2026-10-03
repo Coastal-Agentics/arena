@@ -112,6 +112,19 @@ Consequences worth knowing:
 - A projectile that lands its hit on its last `ttl` tick still counts: the hit test happens
   before the lifetime check.
 
+**Memory (game-system.md E2).** `TankRules::step` and `TankRules::outcome` make no heap
+allocation once their buffers have grown to the match's size (test
+`step_and_outcome_allocate_nothing_per_tick`):
+- the planned moves live in a scratch buffer inside `TankState` that is reused every tick
+  (it is not match state: it isn't hashed, a clone starts empty, and it is ignored by `==`
+  and `Debug`);
+- new shots are pushed straight onto the projectile list, and step 4 filters that list in
+  place;
+- `outcome` counts the teams still alive without collecting them.
+
+`TankRules::observe` still allocates, because the `Observation` it returns owns `Vec`s
+(`enemies`, `allies`, `projectiles`, `obstacles`).
+
 ## The viewer's frame loop
 
 The browser doesn't change the tick rate. `web/arena.js` runs on `requestAnimationFrame`. It
