@@ -230,6 +230,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "racing"
+version = "0.1.0"
+dependencies = [
+ "engine",
+ "game-catalog",
+ "rand_chacha",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "rand_chacha"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
