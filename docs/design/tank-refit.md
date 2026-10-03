@@ -26,6 +26,13 @@
 - **Fixed scales:** velocity ÷ 2.5 (`MAX_SPEED[4]` ÷ 60), max HP ÷ 940 (`MAX_HP[4]`), cooldown ÷ 64 (`FIRE_COOLDOWN[0]`) and shell velocity ÷ 6 (360 u/s ÷ 60). A test checks them against the level tables.
 - **Ties:** tanks go by distance, then lower id; shells by distance, then list order; obstacles by distance (from the tank's centre to the rectangle's nearest point), then index.
 
+**Confirmed by Shockwave** (2026-10-03; shipped in #48 as `engine::tank_flat` and `TankRules::reward`):
+- **Destroyed agents:** an agent whose tank is destroyed encodes as **all zeros**.
+- **`decode_action`:** it **clamps** each value to [−1, 1] and **maps NaN to 0** itself, so fire = value > 0 and NaN means no fire. It panics on a wrong-length input, and `encode_obs` panics on a wrong-length buffer. The loop's `sanitize` still clamps before recording.
+- **Already-dead tanks:** a later hit in the same tick on a tank already at ≤ 0 HP gives **zero shaping**.
+- **Frames:** relative positions and velocities are in the **world frame**, not rotated into the hull's.
+- **Native-vs-wasm parity** of the encoding is **deferred to M4/M5**, with the first wasm or Python consumer. The encoding uses only table trig and plain f32 maths.
+
 **The rich `Observation` stays as it is,** `Vec`s and all, for the Rust policies. Moving it to fixed arrays is *not* part of the refit. The way the arrays are filled and sorted feeds every policy decision, so a small difference could move the M1 champion's hashes. If we ever do it, it is a separate PR under the same checks as below.
 
 ## What must not change
