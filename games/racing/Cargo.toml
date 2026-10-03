@@ -8,6 +8,8 @@ repository.workspace = true
 
 [dependencies]
 engine = { path = "../../engine" }
+# The shared build-catalog shape and validator (Nyborg builds).
+game-catalog = { path = "../catalog" }
 # Seeded policy jitter; no default features so wasm32-unknown-unknown builds (as in engine).
 rand_chacha = { version = "0.9", default-features = false }
 serde = { version = "1", features = ["derive"] }
