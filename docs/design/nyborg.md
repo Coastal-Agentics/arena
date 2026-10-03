@@ -3,39 +3,41 @@
 **Status:** Design draft for a gate (2026-10-03). Naming and design only. Nothing in the code is renamed, and nothing in the sim, the replays or evolution changes.
 **Author:** Blitzwing (Tank Designer-Developer). Fits [game-system.md](game-system.md) and [viewer-multi-game.md](viewer-multi-game.md).
 
-**In one line:** a Nyborg is a little felt, Muppet-style character with a round head, dot eyes and a shaggy tuft of fuzzy hair. The same Nyborg can train in any arena, driving a tank in Tank Arena and a car in Racing.
+**In one line:** a Nyborg is a little soft-toy character with a round head, two dot eyes and 2–4 chunky strands of yarn for hair. The same Nyborg can train in any arena, driving a tank in Tank Arena and a car in Racing.
 
 ![Nyborg mockup](nyborg-mockup.png)
 
-*Source: [nyborg-mockup.svg](nyborg-mockup.svg). This is a mockup, not final art. Revision 2 follows Nye's feedback: felt hair in primary colors, with no green.*
+*Source: [nyborg-mockup.svg](nyborg-mockup.svg). This is a mockup, not final art. Revision 3 follows Nye's feedback: no mouth, and yarn-strand hair in primary colors (no green).*
 
 ## 1. Look
 - **A round head** with a soft dark outline and a faint highlight. There is no body: the head *is* the Nyborg.
-- **Two dot eyes,** set a little apart at the middle of the head, each with a tiny white catchlight. When a Nyborg moves, its eyes shift slightly toward where it's going.
-- **A wide Muppet-style mouth:** a simple smile arc at rest. While moving, it opens into a dark open mouth with a small tongue (move frames 1–3).
-- **Shaggy felt hair on top:** a fuzzy, slightly floppy mop of soft, irregular locks with ragged edges, a few light and dark strand marks, and one lock flopping over the side. It is the main thing you customize.
-- **Flat shapes,** with no gradients. The only texture is the fuzz on the hair's edge. A Nyborg stays readable at the size of a tank on the 800 × 600 arena.
+- **The face is just two dot eyes,** set a little apart at the middle of the head, each with a tiny white highlight. There is no mouth. When a Nyborg moves, its eyes shift slightly toward where it's going.
+- **Yarn hair:** 2 to 4 individual strands of chunky yarn. Each one roots on the top of the head, curves up and out, and ends in a little curl.
+  - **Strand:** a thick stroke with round ends and a soft outline.
+  - **Texture:** thin darker diagonal lines along the strand suggest twisted ply, and a faint light line runs along one side.
+  - Hair is the main thing you customize: its color, and possibly the strand count (question 5).
+- **Flat shapes,** with no gradients. The only texture is the ply lines on the yarn. A Nyborg stays readable at the size of a tank on the 800 × 600 arena.
 
 ## 2. Customization (cosmetic only)
-- **Hair color,** plus **upgrades** such as glasses and hats. A hat sits on top of the hair, and the hair shows under its brim.
+- **Hair color**, possibly the **strand count** (2, 3 or 4), and **upgrades** such as glasses and hats. A hat sits on the head, and the strands poke out from under the brim and over the crown.
 - **Cosmetics never touch training.** They live apart from the training stats (the tank's 9-point loadout, racing's car setup). The sim, replays, state hashes and evolution never see them, so two Nyborgs with the same build and policy play exactly the same match.
-- **Default palette:** the head stays a quiet cream. The hair uses primary colors (red, blue, yellow) plus a few close options. The default is Felt Red, a softened red. There is no green.
+- **Default palette:** the head stays a quiet cream. The hair uses primary colors (red, blue, yellow) plus a few close options. The default is Yarn Red, a softened red. There is no green.
 
 | Part | Default | Other options |
 |---|---|---|
 | Head | Cream `#EADFCB` | Pebble `#D9D3C9`, Mist `#D2DBDF` |
-| Hair, red | **Felt Red `#D9534F`** (default) | Crimson `#B83246`, Coral `#EE7A68` |
+| Hair, red | **Yarn Red `#D9534F`** (default) | Crimson `#B83246`, Coral `#EE7A68` |
 | Hair, blue | Cobalt `#3F6FD8` | Sky `#5AA9E6`, Navy `#2F4A7A` |
 | Hair, yellow | Sunny `#F2C14E` | Mustard `#D4A23A` |
 | Hair, extras | — | Orange `#F08A3C`, Magenta `#C8459A` |
-| Outline, eyes, mouth | Outline `#5E544B`, eyes `#2F2A26`, open mouth `#4A2F2C` with tongue `#E98A86` | fixed |
+| Outline, eyes | Outline `#5E544B`, eyes `#2F2A26` | fixed |
 | Upgrades (mockup) | glasses `#3B3632`; hat `#6E8BAE` with a `#F5F2EC` band | more later |
 
 ## 3. Animation (v1: 2D, two loops)
 | Loop | Frames | fps | Length | What moves |
 |---|---|---|---|---|
-| **Idle** | 4 | 6 | 0.67 s | A gentle bob: a squash on frame 0 and a rise on frame 2. The hair sways ±3° and settles a beat behind the head. |
-| **Move** | 6 | 10 | 0.6 s | A bounce up to 8 px and a 6–7° lean forward. The hair flops about ±12° and bounces a few px behind the head. The eyes look ahead, and the mouth opens on frames 1–3. |
+| **Idle** | 4 | 6 | 0.67 s | A gentle bob: a squash on frame 0 and a rise on frame 2. The strands sway ±4° and lag the head. |
+| **Move** | 6 | 10 | 0.6 s | A bounce up to 8 px and a 6–7° lean forward. The strands flop and trail behind (up to about 18° of bend, most at the tips), then swing back. The eyes look ahead. |
 
 - **Why these numbers:** 6 fps keeps the idle calm, because faster looks fidgety at 4 frames. 10 fps keeps the move lively without needing more frames, and 0.6 s per step reads well at tank speeds (120 u/s at Speed 3).
 - **Facing:** sprites are drawn facing right. A Nyborg facing left is the same frame mirrored in x around its pivot.
@@ -43,8 +45,8 @@
 - **Layers flip together.** The flip is one transform applied to the whole stack, so the hair, face and accessory stay lined up. A hat tilted to the right ends up tilted to the left, and that's intended.
 
 ## 4. Asset format (for the web/wasm viewer; the pipeline comes after the gate)
-- **Separate layers:** base head, hair, face (eyes and mouth), accessory. All four are drawn on the same grid.
-- **Hair color at runtime:** the hair sheet is grayscale and is tinted when it's drawn on the canvas. So there's one sheet for every color, and a new color is just a new hex value. The fuzz is baked into the PNG, so the viewer runs no filter.
+- **Separate layers:** base head, hair (the strands), eyes, accessory. All four are drawn on the same grid.
+- **Hair color at runtime:** the hair sheet is grayscale and is tinted when it's drawn on the canvas. So there's one sheet for every color, and a new color is just a new hex value. The ply lines are drawn into the PNG. There is one hair sheet for each strand count.
 - **Grid:**
   - each cell is 112 × 112 px, with the pivot at the feet (56, 104);
   - each sheet has one row per loop: row 0 idle (4 cells), row 1 move (6 cells);
@@ -52,17 +54,17 @@
 - **Manifest** `nyborg.json`:
   - the cell size and pivot;
   - for each loop, its row, frame count and fps;
-  - for each frame, its offset, the face's mouth state (`smile` or `open`), and the attach points for `hat` (on top of the hair) and `glasses`, so an accessory follows the bob, the lean and the hair's flop.
+  - for each frame, its offset and the attach points for `hat` (on the head, over the strand roots) and `glasses`, so an accessory follows the bob and the lean.
 - **Files:**
   - SVG sources in the repo, under `web/assets/nyborg/src/`;
-  - PNG sheets for runtime, under `web/assets/nyborg/` (`head.png`, `hair.png`, `face.png`, `acc-*.png` and `nyborg.json`).
-  - The mockup's SVG already uses this layering. It tints the hair through its fill and makes the fuzz with an `feTurbulence` + `feDisplacementMap` filter, which `rsvg-convert` renders.
+  - PNG sheets for runtime, under `web/assets/nyborg/` (`head.png`, `hair-2.png`, `hair-3.png`, `hair-4.png`, `eyes.png`, `acc-*.png` and `nyborg.json`).
+  - The mockup's SVG already uses this layering. Each strand is plain strokes (outline, color, ply ticks, highlight) with no filters.
 - **Viewer only.** Nyborgs are drawn on the viewer's canvas. Nothing about them reaches `engine`, `games/*` or `engine-wasm`'s sim calls, so determinism and the parity checks aren't touched.
 
 ## 5. One Nyborg, many arenas
 | Part | Holds | Seen by the sim? |
 |---|---|---|
-| **Profile** | id, name, look (hair color, accessories), lineage and generation | No: viewer data only |
+| **Profile** | id, name, look (hair color, strand count, accessories), lineage and generation | No: viewer data only |
 | **Build for each arena** | Tank Arena: Attack / Speed / Defense (9 points). Racing: Power / Top speed / Grip (9 points). Later arenas add their own. | Yes, as today's loadout |
 | **Policy for each arena** | the scripted behavior or the evolved champion that arena trained | Yes, as today |
 
@@ -86,4 +88,4 @@
 2. **Upgrades:** are they earned through training (e.g. a hat at Gen 50), or free cosmetics from day one?
 3. **Names:** should a Nyborg's name show above its head in Watch?
 4. **Placement:** does the head sit *on* the tank or car, or float beside it?
-5. **Palette:** is Felt Red the right default hair, and should the open mouth show only while moving, or sometimes at rest too?
+5. **Hair:** is Yarn Red the right default color? And should the strand count (2, 3 or 4) be a cosmetic choice, or should one count be fixed for every Nyborg?
