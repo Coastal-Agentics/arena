@@ -322,9 +322,21 @@ cargo install wasm-bindgen-cli --version 0.2.100 --locked
 
 1. sets `RUSTFLAGS` to remap `$CARGO_HOME` → `/cargo` and the repo root → `/src`, so paths
    embedded in panic messages don't depend on who built it;
-2. `cargo build -p engine-wasm --release --target wasm32-unknown-unknown`;
-3. `wasm-bindgen --target web --no-typescript --remove-name-section --remove-producers-section
-   --out-dir web/pkg target/wasm32-unknown-unknown/release/engine_wasm.wasm`. The two
+2. `cargo build -p engine-wasm --release --target wasm32-unknown-unknown` with one codegen
+   unit (`CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1`);
+3. finds the `.wasm` cargo actually built, so `CARGO_TARGET_DIR`, `CARGO_BUILD_TARGET_DIR` or
+   `build.target-dir` work (since 2026-10-03; it used to package `target/…` even when
+   cargo had built elsewhere, so it could ship a stale file). It reads the target
+   directory from `cargo metadata --format-version 1 --no-deps`, and the built file and
+   whether it was rebuilt from cargo's JSON messages (`--message-format=json-render-diagnostics`,
+   parsed with `grep`/`sed`, no `jq`). It fails loudly if cargo reports no `engine_wasm`
+   artifact, if the reported file isn't the expected one under that target directory, if
+   the file is missing, or if cargo rebuilt it but its mtime is older than the build start
+   (an up-to-date build, `"fresh": true`, is fine). `web/pkg` comes out byte-identical with
+   any target directory, because the paths are remapped in step 1 and the binary carries no
+   target-directory paths;
+4. `wasm-bindgen --target web --no-typescript --remove-name-section --remove-producers-section
+   --out-dir web/pkg <that .wasm>`. The two
    `--remove-*` flags (since 2026-09-30) drop the `name` custom section (Rust function names,
    about 71 KB, used only by profilers and stack traces) and the `producers` section
    (toolchain telemetry, 112 bytes). Code and data are unchanged.

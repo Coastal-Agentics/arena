@@ -15,9 +15,42 @@ export RUSTFLAGS="${RUSTFLAGS:-} --remap-path-prefix=${cargo_home%/}=/cargo --re
 # then sees each crate whole and drops ~15 KB of duplicated and dead code. Same
 # behaviour (every parity hash is identical) and no slower in Node.
 export CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1
-cargo build -p engine-wasm --release --target wasm32-unknown-unknown
+
+fail() {
+  echo "build-wasm.sh: error: $*" >&2
+  exit 1
+}
+
+# Package the .wasm cargo actually built, wherever its target directory is
+# (CARGO_TARGET_DIR, CARGO_BUILD_TARGET_DIR or build.target-dir), not a hard-coded
+# target/. `cargo metadata` resolves it; sed reads the one field (no jq needed).
+target_dir="$(cargo metadata --format-version 1 --no-deps |
+  sed -n 's/.*"target_directory":"\([^"]*\)".*/\1/p')"
+[ -n "$target_dir" ] || fail "could not read target_directory from cargo metadata"
+expected="$target_dir/wasm32-unknown-unknown/release/engine_wasm.wasm"
+
+started="$(mktemp)" # mtime = build start
+trap 'rm -f "$started"' EXIT
+# Diagnostics and progress still go to the terminal; the JSON messages on stdout say
+# which file cargo produced and whether it was rebuilt ("fresh": false) or up to date.
+messages="$(cargo build -p engine-wasm --release --target wasm32-unknown-unknown \
+  --message-format=json-render-diagnostics)"
+artifact="$(printf '%s\n' "$messages" |
+  grep '"reason":"compiler-artifact"' | grep '"name":"engine_wasm"' || true)"
+[ -n "$artifact" ] || fail "cargo reported no engine_wasm artifact"
+wasm="$(printf '%s\n' "$artifact" | grep -o '"[^"]*engine_wasm\.wasm"' | tr -d '"' || true)"
+[ "$wasm" = "$expected" ] ||
+  fail "cargo built '${wasm:-no .wasm}', expected '$expected' (target dir from cargo metadata)"
+[ -f "$wasm" ] || fail "$wasm is missing after the build"
+# Rebuilt: the file must be newer than the build start. Up to date ("fresh": true):
+# cargo has just checked it against every source, so an older mtime is expected.
+if printf '%s\n' "$artifact" | grep -q '"fresh":false'; then
+  [ "$wasm" -nt "$started" ] || fail "$wasm is older than this build; refusing to package it"
+fi
+echo "build-wasm.sh: packaging $wasm"
+
 # --remove-name-section drops the debug `name` section (function names, ~70 KB) that only
 # profilers and stack traces use; --remove-producers-section drops the toolchain telemetry.
 wasm-bindgen --target web --no-typescript --remove-name-section --remove-producers-section \
-  --out-dir web/pkg target/wasm32-unknown-unknown/release/engine_wasm.wasm
+  --out-dir web/pkg "$wasm"
 ls -l web/pkg
