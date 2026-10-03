@@ -162,6 +162,8 @@ Splitting the Rust games across repos would duplicate the tick loop and the pari
 
 *Progress:* M3a, the engine side of M3, adds `EndReason::Finished` and replay format 5 (`Rules::GAME`, `Rules::RULES_VERSION`, `Rules::WRITES_FORMAT`; Tank Arena keeps writing format 4). No tank replay byte or hash changed. See [replay format](../engine/replay-format.md#format-5-the-game-envelope).
 
+*Progress:* M4 adds `engine-py/` and the `saltmarsh-arena` wheel. It has one generic session over `Rules + Flat`, used by tank and racing, with PettingZoo, Gymnasium and zero-copy `FlatEnv` APIs. GATE-003 M3's tests pass for both games: `parallel_api_test`, `parallel_seed_test`, Python 1,000-step `final_hash` = Rust `Replay::verify`, one abi3 wheel on 3.10 and 3.14, and an SB3 PPO smoke run. Its CI workflow is in [ci-specs.md](../engine/ci-specs.md#b-engine-py-wheel-build-m4-ready-to-apply), and the API is in [python.md](../engine/python.md).
+
 **Independent of this order:**
 - **V4,** the shared Gen badge and slider, is Blitzwing's next task (the GATE-003 M2 UI).
 - **V1,** the tank-only viewer shell refactor with no visible change, can land any time before M5.

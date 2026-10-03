@@ -17,6 +17,7 @@ engine/        Rust sim core: deterministic 60 Hz, replays (also compiles to was
                holds the tank step rules, TankParams and observations/actions (ADR-009, ADR-014)
 engine-cli/    headless runner: N matches -> JSON (source of truth for CI)
 engine-wasm/   browser bindings for the viewer (wasm-bindgen), built into web/pkg
+engine-py/     Python bindings (pyo3, maturin): the saltmarsh-arena wheel, its own Cargo workspace
 games/tank/    Tank Arena rules v1: loadouts, arena and spawns, scripted policies, and the
                placeholder bots Chaser and Wanderer used by engine-cli and the viewer's built-in-bot mode
 web/           the GitHub Pages site: viewer + field notes (static; the only generated file is

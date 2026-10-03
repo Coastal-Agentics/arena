@@ -1,0 +1,460 @@
+{
+  "cases": [
+    {
+      "builds": [
+        {
+          "behavior": {
+            "id": "kiter",
+            "kind": "scripted"
+          },
+          "levels": {
+            "attack": 5,
+            "defense": 1,
+            "speed": 3
+          },
+          "rules_version": 1
+        },
+        {
+          "behavior": {
+            "id": "charger",
+            "kind": "scripted"
+          },
+          "levels": {
+            "attack": 4,
+            "defense": 4,
+            "speed": 1
+          },
+          "rules_version": 1
+        }
+      ],
+      "final_hash": "44d4b26208850846",
+      "frame_skip": 4,
+      "game": "tank",
+      "learning": [
+        0,
+        1
+      ],
+      "max_steps": null,
+      "name": "tank-duel-both-learning",
+      "outcome": {
+        "reason": "tick_limit",
+        "ticks": 7200,
+        "winner": null
+      },
+      "seed": 0,
+      "ticks": 7200
+    },
+    {
+      "builds": [
+        {
+          "behavior": {
+            "id": "kiter",
+            "kind": "scripted"
+          },
+          "levels": {
+            "attack": 5,
+            "defense": 1,
+            "speed": 3
+          },
+          "rules_version": 1
+        },
+        {
+          "behavior": {
+            "id": "charger",
+            "kind": "scripted"
+          },
+          "levels": {
+            "attack": 4,
+            "defense": 4,
+            "speed": 1
+          },
+          "rules_version": 1
+        }
+      ],
+      "final_hash": "5e28396addc854fc",
+      "frame_skip": 4,
+      "game": "tank",
+      "learning": [
+        0
+      ],
+      "max_steps": null,
+      "name": "tank-blue-learning-vs-charger",
+      "outcome": {
+        "reason": "last_standing",
+        "ticks": 1614,
+        "winner": 1
+      },
+      "seed": 42,
+      "ticks": 1614
+    },
+    {
+      "builds": [
+        {
+          "behavior": {
+            "id": "kiter",
+            "kind": "scripted"
+          },
+          "levels": {
+            "attack": 5,
+            "defense": 1,
+            "speed": 3
+          },
+          "rules_version": 1
+        },
+        {
+          "behavior": {
+            "id": "charger",
+            "kind": "scripted"
+          },
+          "levels": {
+            "attack": 4,
+            "defense": 4,
+            "speed": 1
+          },
+          "rules_version": 1
+        }
+      ],
+      "final_hash": "cb1ae68a4844000b",
+      "frame_skip": 1,
+      "game": "tank",
+      "learning": [
+        0,
+        1
+      ],
+      "max_steps": 1000,
+      "name": "tank-1000-steps",
+      "outcome": null,
+      "seed": 7,
+      "ticks": 1000
+    },
+    {
+      "builds": [
+        {
+          "behavior": {
+            "id": "kiter",
+            "kind": "scripted"
+          },
+          "levels": {
+            "attack": 5,
+            "defense": 1,
+            "speed": 3
+          },
+          "rules_version": 1
+        },
+        {
+          "behavior": {
+            "id": "charger",
+            "kind": "scripted"
+          },
+          "levels": {
+            "attack": 4,
+            "defense": 4,
+            "speed": 1
+          },
+          "rules_version": 1
+        }
+      ],
+      "final_hash": "2347810d24c7f675",
+      "frame_skip": 4,
+      "game": "tank",
+      "learning": [],
+      "max_steps": null,
+      "name": "tank-all-scripted",
+      "outcome": {
+        "reason": "last_standing",
+        "ticks": 2749,
+        "winner": 1
+      },
+      "seed": 42,
+      "ticks": 2749
+    },
+    {
+      "builds": [
+        {
+          "behavior": {
+            "id": "follower",
+            "kind": "scripted"
+          },
+          "levels": {
+            "grip": 3,
+            "power": 3,
+            "top_speed": 3
+          },
+          "rules_version": 1
+        },
+        {
+          "behavior": {
+            "id": "cutter",
+            "kind": "scripted"
+          },
+          "levels": {
+            "grip": 2,
+            "power": 5,
+            "top_speed": 2
+          },
+          "rules_version": 1
+        },
+        {
+          "behavior": {
+            "id": "blocker",
+            "kind": "scripted"
+          },
+          "levels": {
+            "grip": 5,
+            "power": 2,
+            "top_speed": 2
+          },
+          "rules_version": 1
+        },
+        {
+          "behavior": {
+            "id": "follower",
+            "kind": "scripted"
+          },
+          "levels": {
+            "grip": 4,
+            "power": 1,
+            "top_speed": 4
+          },
+          "rules_version": 1
+        }
+      ],
+      "final_hash": "8b4b30879cf4fae7",
+      "frame_skip": 4,
+      "game": "racing",
+      "learning": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "max_steps": null,
+      "name": "racing-four-learning",
+      "outcome": {
+        "reason": "tick_limit",
+        "ticks": 3600,
+        "winner": null
+      },
+      "seed": 0,
+      "ticks": 3600
+    },
+    {
+      "builds": [
+        {
+          "behavior": {
+            "id": "follower",
+            "kind": "scripted"
+          },
+          "levels": {
+            "grip": 3,
+            "power": 3,
+            "top_speed": 3
+          },
+          "rules_version": 1
+        },
+        {
+          "behavior": {
+            "id": "cutter",
+            "kind": "scripted"
+          },
+          "levels": {
+            "grip": 2,
+            "power": 5,
+            "top_speed": 2
+          },
+          "rules_version": 1
+        },
+        {
+          "behavior": {
+            "id": "blocker",
+            "kind": "scripted"
+          },
+          "levels": {
+            "grip": 5,
+            "power": 2,
+            "top_speed": 2
+          },
+          "rules_version": 1
+        },
+        {
+          "behavior": {
+            "id": "follower",
+            "kind": "scripted"
+          },
+          "levels": {
+            "grip": 4,
+            "power": 1,
+            "top_speed": 4
+          },
+          "rules_version": 1
+        }
+      ],
+      "final_hash": "5ee9d12ce610b91c",
+      "frame_skip": 4,
+      "game": "racing",
+      "learning": [
+        2
+      ],
+      "max_steps": null,
+      "name": "racing-car2-learning-vs-scripted",
+      "outcome": {
+        "reason": "finished",
+        "ticks": 2079,
+        "winner": 1
+      },
+      "seed": 9,
+      "ticks": 2079
+    },
+    {
+      "builds": [
+        {
+          "behavior": {
+            "id": "follower",
+            "kind": "scripted"
+          },
+          "levels": {
+            "grip": 3,
+            "power": 3,
+            "top_speed": 3
+          },
+          "rules_version": 1
+        },
+        {
+          "behavior": {
+            "id": "cutter",
+            "kind": "scripted"
+          },
+          "levels": {
+            "grip": 2,
+            "power": 5,
+            "top_speed": 2
+          },
+          "rules_version": 1
+        },
+        {
+          "behavior": {
+            "id": "blocker",
+            "kind": "scripted"
+          },
+          "levels": {
+            "grip": 5,
+            "power": 2,
+            "top_speed": 2
+          },
+          "rules_version": 1
+        },
+        {
+          "behavior": {
+            "id": "follower",
+            "kind": "scripted"
+          },
+          "levels": {
+            "grip": 4,
+            "power": 1,
+            "top_speed": 4
+          },
+          "rules_version": 1
+        }
+      ],
+      "final_hash": "c768584c5b877714",
+      "frame_skip": 1,
+      "game": "racing",
+      "learning": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "max_steps": 1000,
+      "name": "racing-1000-steps",
+      "outcome": null,
+      "seed": 3,
+      "ticks": 1000
+    },
+    {
+      "builds": [
+        {
+          "behavior": {
+            "id": "follower",
+            "kind": "scripted"
+          },
+          "levels": {
+            "grip": 3,
+            "power": 3,
+            "top_speed": 3
+          },
+          "rules_version": 1
+        },
+        {
+          "behavior": {
+            "id": "cutter",
+            "kind": "scripted"
+          },
+          "levels": {
+            "grip": 2,
+            "power": 5,
+            "top_speed": 2
+          },
+          "rules_version": 1
+        },
+        {
+          "behavior": {
+            "id": "blocker",
+            "kind": "scripted"
+          },
+          "levels": {
+            "grip": 5,
+            "power": 2,
+            "top_speed": 2
+          },
+          "rules_version": 1
+        }
+      ],
+      "final_hash": "9f191eae252cf541",
+      "frame_skip": 4,
+      "game": "racing",
+      "learning": [],
+      "max_steps": null,
+      "name": "racing-all-scripted",
+      "outcome": {
+        "reason": "finished",
+        "ticks": 1602,
+        "winner": 1
+      },
+      "seed": 1,
+      "ticks": 1602
+    },
+    {
+      "builds": [
+        {
+          "behavior": {
+            "id": "follower",
+            "kind": "scripted"
+          },
+          "levels": {
+            "grip": 3,
+            "power": 3,
+            "top_speed": 3
+          },
+          "rules_version": 1
+        }
+      ],
+      "final_hash": "a8cfc16bef221795",
+      "frame_skip": 2,
+      "game": "racing",
+      "learning": [
+        0
+      ],
+      "max_steps": null,
+      "name": "racing-solo",
+      "outcome": {
+        "reason": "tick_limit",
+        "ticks": 3600,
+        "winner": null
+      },
+      "seed": 18446744073709551615,
+      "ticks": 3600
+    }
+  ],
+  "note": "Native final hashes for the determinism episodes (engine-py/tests/fixture.rs; python/tests/test_determinism.py). Learning rows send reference_action(step, row, j) = ((7*step + 5*row + 3*j) % 17) / 8 - 1. max_steps null = to the end."
+}
