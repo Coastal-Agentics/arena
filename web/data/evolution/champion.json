@@ -1,5 +1,5 @@
 {
-  "commit": "093893dda342ba298c2849ae646c18db564ddd02",
+  "commit": "493534514149885f404267335eea9bd97a364583",
   "config": {
     "elite": 4,
     "gene_rate": 0.25,
@@ -13,60 +13,60 @@
   },
   "fitness_function": "mean over matches of (win 1, draw 0.25, loss 0); opponents: Charger, Kiter and Sniper at defaults and 3/3/3, plus the last 8 champions; fixed training seeds, both spawn sides; ties: more damage dealt, then lower population index",
   "format": 1,
-  "generation": 199,
+  "generation": 299,
   "genome": {
     "behavior": "charger",
-    "loadout": "5-3-1",
+    "loadout": "2-4-3",
     "params": {
-      "aim_tol": 0.149,
+      "aim_tol": 0.158,
       "dodge_chance": 0.65,
-      "dodge_horizon": 35.388,
-      "dodge_margin": 17.195,
-      "route_margin": 21.951,
-      "stall.min_speed": 0.296,
-      "stall.reverse_ticks": 9,
-      "stall.stuck_ticks": 5,
-      "steer_tol": 0.563,
+      "dodge_horizon": 26.543,
+      "dodge_margin": 6.231,
+      "route_margin": 21.26,
+      "stall.min_speed": 1.0,
+      "stall.reverse_ticks": 5,
+      "stall.stuck_ticks": 3,
+      "steer_tol": 0.571,
       "stop_dist": 20.0,
-      "weave_deg": 0.0,
-      "weave_jitter": 7,
-      "weave_period": 17,
-      "weave_until": 62.825
+      "weave_deg": 9.098,
+      "weave_jitter": 5,
+      "weave_period": 106,
+      "weave_until": 91.25
     }
   },
   "held_out": {
-    "digest": "780e1d1086a4f0ae",
+    "digest": "b59164166c1de0ac",
     "matches": 6000,
     "seed_base": "9000000000",
     "seeds": 1000,
     "status": "experimental",
     "vs_wdl": {
       "charger": [
-        1857,
-        6,
-        137
+        1993,
+        0,
+        7
       ],
       "kiter": [
-        1670,
-        38,
-        292
+        1548,
+        216,
+        236
       ],
       "sniper": [
-        1499,
-        34,
-        467
+        1572,
+        158,
+        270
       ]
     },
-    "win_rate": 0.8377,
-    "wins": 5026
+    "win_rate": 0.8522,
+    "wins": 5113
   },
-  "label": "charger-5-3-1",
+  "label": "charger-2-4-3",
   "promotion": "win rate vs Gen 0 >= 65% to promote; above 70% the champion is held from promotion and labeled experimental, and the CoS tells Nye",
   "training": {
-    "damage": 0.9804,
-    "fitness": 0.7855,
+    "damage": 0.9845,
+    "fitness": 0.7571,
     "matches": 176,
     "seed_base": "1000000",
-    "vs_scripted": 0.8333
+    "vs_scripted": 0.9375
   }
 }
