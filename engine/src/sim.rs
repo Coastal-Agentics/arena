@@ -268,12 +268,45 @@ pub type Match = generic::Match<TankRules>;
 /// Tank Arena's dynamic state ([`TankRules`]' `State`): the tanks, the projectiles in
 /// flight, and each tank's resolved params. Read it through [`Match::tanks`],
 /// [`Match::projectiles`] and [`Match::tank_params`], or [`generic::Match::state`].
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub struct TankState {
     /// `config.tank_params(id)` for every tank, resolved once at init.
     params: Vec<TankParams>,
     tanks: Vec<Tank>,
     projectiles: Vec<Projectile>,
+    /// Working memory for [`TankRules::step`]; not part of the match state.
+    scratch: StepScratch,
+}
+
+impl std::fmt::Debug for TankState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TankState")
+            .field("params", &self.params)
+            .field("tanks", &self.tanks)
+            .field("projectiles", &self.projectiles)
+            .finish()
+    }
+}
+
+/// Buffers [`TankRules::step`] reuses from tick to tick, so a step allocates nothing
+/// once they have grown to the match's size. They hold no state between steps: a
+/// clone starts empty, and every two scratches compare equal.
+#[derive(Default)]
+struct StepScratch {
+    /// Each tank's (position, velocity) after its move, before it is applied.
+    moves: Vec<(Vec2, Vec2)>,
+}
+
+impl Clone for StepScratch {
+    fn clone(&self) -> Self {
+        Self::default()
+    }
+}
+
+impl PartialEq for StepScratch {
+    fn eq(&self, _: &Self) -> bool {
+        true
+    }
 }
 
 impl TankState {
@@ -333,6 +366,9 @@ impl Match {
 /// is shared. Actions for dead tanks are ignored. The end check ([`Rules::outcome`])
 /// runs after every step, in this order: no tank alive (`all_destroyed`), one team left
 /// with some tank of another team existing (`last_standing`), tick limit (`tick_limit`).
+///
+/// For training tools, [`Rules::reward`] is the GATE-003 tank reward (documented on the
+/// method) and [`crate::tank_flat`] is the fixed-size [`generic::Flat`] view (176/4).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct TankRules;
 
@@ -346,6 +382,17 @@ impl Rules for TankRules {
     type Action = Action;
     type Observation = Observation;
     type Event = Event;
+
+    /// `"tank"`: what a format 5 Tank Arena file would name. Files older than format 5
+    /// have no `game` field and are Tank Arena files.
+    const GAME: &'static str = "tank";
+    /// The rules that replay formats 2 to 4 describe. Tank Arena writes no
+    /// `rules_version` today (see [`TankRules::WRITES_FORMAT`]).
+    const RULES_VERSION: u64 = 1;
+    /// Tank Arena keeps writing format 4, byte for byte (`docs/design/tank-refit.md`):
+    /// no `game` or `rules_version` field, so every tank replay, hash and parity
+    /// fixture is unchanged. Whether tank ever writes format 5 is a separate decision.
+    const WRITES_FORMAT: u32 = 4;
 
     /// Spawns the tanks. Tanks are spawned in id order; a random position is retried up
     /// to 1000 times until it is clear of obstacles (by 1.5 radii) and of already-placed
@@ -400,6 +447,7 @@ impl Rules for TankRules {
             params,
             tanks,
             projectiles: Vec::new(),
+            scratch: StepScratch::default(),
         }
     }
 
@@ -422,13 +470,17 @@ impl Rules for TankRules {
         rng: &mut MatchRng,
         events: &mut Vec<Event>,
     ) {
+        // No allocation once the buffers have grown: `moves` is reused scratch, new shots
+        // go straight onto the projectile list, and step 4 filters that list in place.
+        // Tank positions don't change until step 3, so `state.tanks[i].pos` is tank i's
+        // tick-start position in steps 1 and 2 (tank i is at index i).
         let n = state.tanks.len();
         let r = config.params.radius;
-        let mut spawned = Vec::new();
 
         // 1. Intents against the tick-start snapshot.
-        let old: Vec<Vec2> = state.tanks.iter().map(|t| t.pos).collect();
-        let mut moves: Vec<(Vec2, Vec2)> = old.iter().map(|&p| (p, Vec2::ZERO)).collect();
+        let moves = &mut state.scratch.moves;
+        moves.clear();
+        moves.extend(state.tanks.iter().map(|t| (t.pos, Vec2::ZERO)));
         for (i, &a) in actions.iter().enumerate() {
             if !state.tanks[i].alive {
                 continue;
@@ -442,7 +494,7 @@ impl Rules for TankRules {
                 .turret
                 .wrapping_add_signed((a.turret_turn * params.turret_turn_rate as f32) as i16);
             let want = angle::dir(t.heading) * (a.throttle * params.max_speed * DT);
-            let mut pos = old[i];
+            let mut pos = t.pos;
             let mut vel = want;
             for axis in 0..2 {
                 let mut cand = pos;
@@ -452,7 +504,7 @@ impl Rules for TankRules {
                     || state
                         .tanks
                         .iter()
-                        .any(|o| o.alive && o.id != i && circles_overlap(old[o.id], r, cand, r));
+                        .any(|o| o.alive && o.id != i && circles_overlap(o.pos, r, cand, r));
                 if blocked {
                     vel[axis] = 0.0;
                 } else {
@@ -468,14 +520,14 @@ impl Rules for TankRules {
         loop {
             let mut changed = false;
             for i in 0..n {
-                if !state.tanks[i].alive || moves[i].0 == old[i] {
+                if !state.tanks[i].alive || moves[i].0 == state.tanks[i].pos {
                     continue;
                 }
                 let clash = (0..n).any(|j| {
                     j != i && state.tanks[j].alive && circles_overlap(moves[j].0, r, moves[i].0, r)
                 });
                 if clash {
-                    moves[i] = (old[i], Vec2::ZERO);
+                    moves[i] = (state.tanks[i].pos, Vec2::ZERO);
                     changed = true;
                 }
             }
@@ -484,7 +536,9 @@ impl Rules for TankRules {
             }
         }
 
-        // 3. Fire.
+        // 3. Fire. New shots are appended after the `in_flight` existing ones, which
+        // step 4 moves; the new ones are kept as they are.
+        let in_flight = state.projectiles.len();
         for (i, &a) in actions.iter().enumerate() {
             if !state.tanks[i].alive {
                 continue;
@@ -507,7 +561,7 @@ impl Rules for TankRules {
                 };
                 let h = t.turret.wrapping_add_signed(dev as i16);
                 let d = angle::dir(h);
-                spawned.push(Projectile {
+                state.projectiles.push(Projectile {
                     owner: i,
                     team: t.team,
                     pos: t.pos + d * (r + 1.0),
@@ -520,11 +574,18 @@ impl Rules for TankRules {
             }
         }
 
-        let mut keep = Vec::with_capacity(state.projectiles.len() + spawned.len());
-        for mut pr in std::mem::take(&mut state.projectiles) {
-            // 4. Swept collision over the whole tick: no tunnelling at any speed.
+        // 4. Existing shots in list order (`retain_mut` visits each once, in order, and
+        // keeps the survivors' order); the new shots after them stay as they are.
+        let tanks = &mut state.tanks;
+        let mut index = 0;
+        state.projectiles.retain_mut(|pr| {
+            index += 1;
+            if index > in_flight {
+                return true;
+            }
+            // Swept collision over the whole tick: no tunnelling at any speed.
             let mut hit: Option<(f32, usize)> = None;
-            for t in state.tanks.iter().filter(|t| t.alive && t.team != pr.team) {
+            for t in tanks.iter().filter(|t| t.alive && t.team != pr.team) {
                 if let Some(tt) = segment_circle_entry(pr.pos, pr.vel, t.pos, r) {
                     if hit.is_none_or(|(bt, _)| tt < bt) {
                         hit = Some((tt, t.id));
@@ -535,25 +596,23 @@ impl Rules for TankRules {
             pr.pos += pr.vel;
             match (hit, wall) {
                 (Some((tt, ti)), w) if w.is_none_or(|wt| tt <= wt) => {
-                    state.tanks[ti].hp -= pr.damage;
+                    tanks[ti].hp -= pr.damage;
                     events.push(Event::Hit {
                         target: ti,
                         owner: pr.owner,
                         damage: pr.damage,
                     });
-                    continue;
+                    return false;
                 }
-                (_, Some(_)) => continue,
+                (_, Some(_)) => return false,
                 _ => {}
             }
             if pr.ttl <= 1 {
-                continue;
+                return false;
             }
             pr.ttl -= 1;
-            keep.push(pr);
-        }
-        keep.extend(spawned);
-        state.projectiles = keep;
+            true
+        });
 
         for t in state.tanks.iter_mut() {
             if t.alive && t.hp <= 0 {
@@ -649,18 +708,16 @@ impl Rules for TankRules {
     }
 
     fn outcome(config: &MatchConfig, state: &TankState, tick: u32) -> Option<Outcome> {
-        let mut teams: Vec<u8> = state
-            .tanks
-            .iter()
-            .filter(|t| t.alive)
-            .map(|t| t.team)
-            .collect();
-        teams.sort_unstable();
-        teams.dedup();
-        let (winner, reason) = match teams.len() {
-            0 => (None, EndReason::AllDestroyed),
-            1 if state.tanks.iter().any(|t| t.team != teams[0]) => {
-                (Some(teams[0]), EndReason::LastStanding)
+        // The teams of the living tanks, without collecting them: the first one, then
+        // whether every other living tank is on it (exactly one team left).
+        let mut alive = state.tanks.iter().filter(|t| t.alive).map(|t| t.team);
+        let (winner, reason) = match alive.next() {
+            None => (None, EndReason::AllDestroyed),
+            Some(team)
+                if alive.all(|other| other == team)
+                    && state.tanks.iter().any(|t| t.team != team) =>
+            {
+                (Some(team), EndReason::LastStanding)
             }
             _ if tick >= config.max_ticks => (None, EndReason::TickLimit),
             _ => return None,
@@ -707,6 +764,86 @@ impl Rules for TankRules {
             }
         }
         Ok(())
+    }
+
+    /// The GATE-003 §6 tank reward for tank `agent` on the tick just stepped
+    /// (`docs/design/tank-refit.md`, with Blitzwing's clarifications of 2026-10-03).
+    /// Computed from the post-step state and this tick's events; never recorded, and
+    /// evolution keeps its match-result fitness.
+    ///
+    /// - **Shaping**, for each [`Event::Hit`] this tick: the tank that fired gets
+    ///   `+0.5 × d ÷ target max HP` and the tank that was hit gets `−0.5 × d ÷ its own
+    ///   max HP`. Here `d` is the hit's damage capped at the target's hp just before
+    ///   that hit (never below 0), so overkill doesn't count: a second hit on the same
+    ///   tick on a tank already at ≤ 0 hp gets 0. Each hit is zero-sum. A
+    ///   tank's damage taken sums to at most its max HP, so its negative shaping over a
+    ///   match is at least −0.5; in a duel its positive shaping is at most +0.5.
+    /// - **Terminal**, only on the tick a [`Event::Destroyed`] leaves exactly one team
+    ///   alive while another team exists (the `last_standing` end): +1 if the tank's
+    ///   team won, −1 if it lost. It goes to the tanks active at the start of that tick:
+    ///   tanks still alive and tanks destroyed on it. Tanks destroyed earlier get no
+    ///   terminal reward.
+    /// - **Draws give 0:** `all_destroyed` (no winner), the tick limit, and every tick
+    ///   on which the match doesn't end.
+    ///
+    /// Allocation-free. Read it once per tick: after the match is over,
+    /// [`generic::Match::step`] does nothing and the last tick's events stay in place.
+    fn reward(_config: &MatchConfig, state: &TankState, events: &[Event], agent: usize) -> f32 {
+        let tanks = &state.tanks;
+        let mut reward = 0.0;
+
+        // Shaping. A target's hp before hit k = its hp now + the damage of hits k.. on it.
+        for (k, e) in events.iter().enumerate() {
+            let Event::Hit {
+                target,
+                owner,
+                damage,
+            } = *e
+            else {
+                continue;
+            };
+            if agent != target && agent != owner {
+                continue;
+            }
+            let later: i32 = events[k..]
+                .iter()
+                .map(|e| match *e {
+                    Event::Hit {
+                        target: t,
+                        damage: d,
+                        ..
+                    } if t == target => d,
+                    _ => 0,
+                })
+                .sum();
+            let hp_before = tanks[target].hp + later;
+            let counted = damage.min(hp_before).max(0) as f32;
+            let share = 0.5 * counted / state.params[target].max_hp as f32;
+            if agent == owner {
+                reward += share;
+            }
+            if agent == target {
+                reward -= share;
+            }
+        }
+
+        // Terminal: the last_standing end, on the tick of a Destroyed event.
+        let destroyed = |id: usize| {
+            events
+                .iter()
+                .any(|e| matches!(*e, Event::Destroyed { tank } if tank == id))
+        };
+        if events.iter().any(|e| matches!(e, Event::Destroyed { .. }))
+            && (tanks[agent].alive || destroyed(agent))
+        {
+            let mut alive = tanks.iter().filter(|t| t.alive).map(|t| t.team);
+            if let Some(team) = alive.next() {
+                if alive.all(|other| other == team) && tanks.iter().any(|t| t.team != team) {
+                    reward += if tanks[agent].team == team { 1.0 } else { -1.0 };
+                }
+            }
+        }
+        reward
     }
 }
 
@@ -1362,5 +1499,183 @@ mod tests {
         assert!(crate::arena::segment_circle_entry(p0, d, p2, 16.0).is_some());
         // LOS is symmetric here: 1 cannot see 0 either.
         assert!(!m.observe(1).enemies.iter().find(|e| e.id == 0).unwrap().los);
+    }
+
+    type BoxedPolicy = Box<dyn FnMut(&Observation) -> Action>;
+
+    fn hit(target: usize, owner: usize, damage: i32) -> Event {
+        Event::Hit {
+            target,
+            owner,
+            damage,
+        }
+    }
+
+    #[test]
+    fn reward_shaping_on_hand_built_events() {
+        let m = Match::new(MatchConfig::duel(), 5);
+        let rewards = |state: &TankState, events: &[Event]| {
+            [0, 1].map(|a| TankRules::reward(m.config(), state, events, a))
+        };
+        // A 20-damage hit on a full 100-hp tank: ±0.5 × 20 / 100, and nothing else.
+        let mut s = m.state().clone();
+        s.tanks[1].hp = 80;
+        assert_eq!(rewards(&s, &[hit(1, 0, 20)]), [0.1, -0.1]);
+        assert_eq!(rewards(&s, &[Event::Fired { tank: 0 }]), [0.0, 0.0]);
+        // Overkill is capped at the hp before each hit: 30 left, two 20-damage hits on
+        // the same tick count 20 + 10.
+        s.tanks[1].hp = -10;
+        let (r, count) =
+            crate::testing::allocations_in(|| rewards(&s, &[hit(1, 0, 20), hit(1, 0, 20)]));
+        assert_eq!(count, 0);
+        assert_eq!(r, [0.15, -0.15]);
+    }
+
+    #[test]
+    fn reward_terminal_goes_to_tanks_active_at_the_start_of_the_tick() {
+        // 2v2: tank 3 (red) died earlier; tank 1 (red) dies now, so blue wins.
+        let mut config = MatchConfig::duel();
+        config.tanks = (0..4)
+            .map(|i| TankSpawn {
+                team: (i % 2) as u8,
+                ..Default::default()
+            })
+            .collect();
+        let m = Match::new(config, 2);
+        let mut s = m.state().clone();
+        for id in [1, 3] {
+            s.tanks[id].alive = false;
+            s.tanks[id].hp = 0;
+        }
+        let events = [hit(1, 2, 20), Event::Destroyed { tank: 1 }];
+        let r: Vec<f32> = (0..4)
+            .map(|a| TankRules::reward(m.config(), &s, &events, a))
+            .collect();
+        // Shaping: tank 1 had 20 hp left, so the hit counts in full (0.5 × 20 / 100).
+        assert_eq!(r, [1.0, -1.0 - 0.1, 1.0 + 0.1, 0.0]);
+        // A wipe-out on the same tick is a draw: shaping only.
+        let mut wiped = s.clone();
+        wiped.tanks[0].alive = false;
+        wiped.tanks[2].alive = false;
+        let events = [
+            Event::Destroyed { tank: 0 },
+            Event::Destroyed { tank: 1 },
+            Event::Destroyed { tank: 2 },
+        ];
+        for a in 0..4 {
+            assert_eq!(TankRules::reward(m.config(), &wiped, &events, a), 0.0);
+        }
+    }
+
+    #[test]
+    fn reward_over_a_real_duel_is_zero_sum_with_the_winners_sign() {
+        let mut m = Match::new(MatchConfig::duel(), 11);
+        let (mut a, mut b) = (crate::testing::hunter(), crate::testing::drifter(11));
+        let mut totals = [0.0f32; 2];
+        while !m.is_over() {
+            m.step_policies(&mut [&mut a, &mut b]);
+            let r = [m.reward(0), m.reward(1)];
+            if !m.is_over() {
+                assert_eq!(r[0], -r[1], "shaping is zero-sum");
+            }
+            totals[0] += r[0];
+            totals[1] += r[1];
+        }
+        let o = m.outcome().unwrap();
+        match o.winner {
+            Some(w) => {
+                assert_eq!(o.reason, EndReason::LastStanding);
+                assert!(totals[w as usize] > 0.5 && totals[1 - w as usize] < -0.5);
+            }
+            None => assert!(totals[0].abs() <= 0.5),
+        }
+    }
+
+    /// Plays a whole match through `TankRules` directly, counting the heap allocations
+    /// of `step` and `outcome` only (observations and policies are outside the count).
+    /// The buffers are pre-grown, so any allocation is a per-tick one.
+    fn step_and_outcome_allocations(config: &MatchConfig, seed: u64) -> (u64, u32, u64) {
+        let mut rng = MatchRng::new(seed);
+        let mut state = TankRules::init(config, &mut rng);
+        let n = state.tanks.len();
+        state.projectiles.reserve(64);
+        state.scratch.moves.reserve(n);
+        let mut events: Vec<Event> = Vec::with_capacity(64);
+        let mut policies: Vec<BoxedPolicy> = (0..n)
+            .map(|i| -> BoxedPolicy {
+                if i % 2 == 0 {
+                    Box::new(crate::testing::hunter())
+                } else {
+                    Box::new(crate::testing::drifter(seed + i as u64))
+                }
+            })
+            .collect();
+        let mut actions = vec![Action::default(); n];
+        let (mut allocations, mut tick, mut shots) = (0, 0, 0);
+        loop {
+            for (i, a) in actions.iter_mut().enumerate() {
+                *a = if state.tanks[i].alive {
+                    TankRules::sanitize(policies[i](&TankRules::observe(config, &state, i, tick)))
+                } else {
+                    Action::default()
+                };
+            }
+            let (over, count) = crate::testing::allocations_in(|| {
+                events.clear();
+                TankRules::step(config, &mut state, &actions, &mut rng, &mut events);
+                TankRules::outcome(config, &state, tick + 1).is_some()
+            });
+            allocations += count;
+            shots += events
+                .iter()
+                .filter(|e| matches!(e, Event::Fired { .. }))
+                .count() as u64;
+            tick += 1;
+            if over {
+                return (allocations, tick, shots);
+            }
+        }
+    }
+
+    #[test]
+    fn step_and_outcome_allocate_nothing_per_tick() {
+        // The counter sees an allocation when there is one.
+        let (v, count) = crate::testing::allocations_in(|| std::hint::black_box(vec![1u8]));
+        assert_eq!((v.len(), count), (1, 1));
+        let mut two_v_two = MatchConfig::duel();
+        two_v_two.tanks = (0..4)
+            .map(|i| TankSpawn {
+                team: i % 2,
+                ..Default::default()
+            })
+            .collect();
+        two_v_two.max_ticks = 2000;
+        for (config, seed) in [
+            (MatchConfig::duel(), 0),
+            (MatchConfig::duel(), 42),
+            (two_v_two, 7),
+        ] {
+            let (allocations, ticks, shots) = step_and_outcome_allocations(&config, seed);
+            assert!(
+                ticks > 100 && shots > 5,
+                "a real match: {ticks} ticks, {shots} shots"
+            );
+            assert_eq!(allocations, 0, "{} tanks, seed {seed}", config.tanks.len());
+        }
+    }
+
+    #[test]
+    fn step_scratch_is_not_state() {
+        let mut m = Match::new(MatchConfig::duel(), 3);
+        let fresh = m.state().clone();
+        m.step(&[drive(), drive()]);
+        let mut stepped = m.state().clone();
+        assert_ne!(stepped, fresh);
+        // A clone starts with empty scratch and still equals the original.
+        assert!(stepped.scratch.moves.is_empty());
+        assert_eq!(&stepped, m.state());
+        stepped.scratch.moves.push((Vec2::ONE, Vec2::ONE));
+        assert_eq!(&stepped, m.state());
+        assert!(!format!("{stepped:?}").contains("scratch"));
     }
 }

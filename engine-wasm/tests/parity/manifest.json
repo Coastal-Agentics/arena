@@ -68,39 +68,39 @@
     },
     {
       "file": "arena-charger-mirror.json",
-      "why": "Tank Arena rules v1 as WasmMatch.tank plays it: seed=2&blue=charger-5-3-1&orange=charger-5-3-1. Loadouts as per-tank params, fixed spawns, the pillar arena; ends as an all_destroyed draw.",
+      "why": "Tank Arena rules v1 as WasmMatch.tank plays it: seed=2&blue=charger-5-3-1&orange=charger-5-3-1. Loadouts as per-tank params, fixed spawns, the pillar arena; ends last_standing (orange) at tick 816, the winner on 54 HP.",
       "format": 4,
       "seed": "2",
       "tanks": 2,
-      "ticks": 818,
+      "ticks": 816,
       "outcome": {
-        "winner": null,
-        "ticks": 818,
-        "reason": "all_destroyed"
+        "winner": 1,
+        "ticks": 816,
+        "reason": "last_standing"
       },
-      "final_hash": "d8b3fec9b177e010",
+      "final_hash": "ac210f6c43d8d0cc",
       "setup_hash": "b3ebb5e1786015d4",
-      "bytes": 112227
+      "bytes": 111574
     },
     {
       "file": "arena-sniper-vs-charger.json",
-      "why": "Tank Arena: seed=0&blue=sniper-5-3-1&orange=charger-5-3-1. The sniper holds a spot with a sight line and fires only when it sees the target, so its shots depend on the pillars; ends last_standing (orange).",
+      "why": "Tank Arena: seed=0&blue=sniper-5-3-1&orange=charger-5-3-1. The sniper holds a spot with a sight line and fires only when it sees the target, so its shots depend on the pillars; ends last_standing (blue, the sniper) at tick 1023.",
       "format": 4,
       "seed": "0",
       "tanks": 2,
-      "ticks": 881,
+      "ticks": 1023,
       "outcome": {
-        "winner": 1,
-        "ticks": 881,
+        "winner": 0,
+        "ticks": 1023,
         "reason": "last_standing"
       },
-      "final_hash": "e09cf50fd8e2160b",
+      "final_hash": "7e0aee077fc0c96d",
       "setup_hash": "8aa5ba11679b13da",
-      "bytes": 120553
+      "bytes": 137403
     },
     {
       "file": "arena-2v2-tick-limit.json",
-      "why": "Tank Arena 2v2 corner spawns (four tanks, teammates, no friendly fire), charger/kiter/sniper/charger with loadouts 5-3-1, 2-5-2, 3-1-5, 4-4-1, seed 1, max_ticks cut to 360 so it ends at the tick_limit (a draw) while small. Three tanks have taken hits by then.",
+      "why": "Tank Arena 2v2 corner spawns (four tanks, teammates, no friendly fire), charger/kiter/sniper/charger with loadouts 5-3-1, 2-5-2, 3-1-5, 4-4-1, seed 1, max_ticks cut to 360 so it ends at the tick_limit (a draw) while small. Two tanks (both chargers) have taken hits by then.",
       "format": 4,
       "seed": "1",
       "tanks": 4,
@@ -110,9 +110,9 @@
         "ticks": 360,
         "reason": "tick_limit"
       },
-      "final_hash": "0aa1ae238e20374d",
+      "final_hash": "dbf98e19a259b4fd",
       "setup_hash": "4b65859bb85a74bb",
-      "bytes": 98255
+      "bytes": 96979
     }
   ]
 }

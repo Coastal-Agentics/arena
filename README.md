@@ -17,9 +17,11 @@ engine/        Rust sim core: deterministic 60 Hz, replays (also compiles to was
                holds the tank step rules, TankParams and observations/actions (ADR-009, ADR-014)
 engine-cli/    headless runner: N matches -> JSON (source of truth for CI)
 engine-wasm/   browser bindings for the viewer (wasm-bindgen), built into web/pkg
+engine-py/     Python bindings (pyo3, maturin): the saltmarsh-arena wheel, its own Cargo workspace
 games/tank/    Tank Arena rules v1: loadouts, arena and spawns, scripted policies, and the
                placeholder bots Chaser and Wanderer used by engine-cli and the viewer's built-in-bot mode
-web/           the GitHub Pages site: viewer + field notes (static, no build step)
+web/           the GitHub Pages site: viewer + field notes (static; the only generated file is
+               web/fieldnotes/index.json, built from web/fieldnotes/cards/)
 docs/          charter, state, decisions, provenance card, role briefs, field notes, playbooks
 .github/       CI, nightly and Pages workflows
 ```
@@ -30,6 +32,12 @@ Requires Rust stable (pinned via `rust-toolchain.toml`).
 cargo test --workspace
 cargo run -p engine-cli -- --matches 10 --seed 42
 cargo build -p engine --target wasm32-unknown-unknown
+```
+
+Preview the site locally. The field notes page reads `web/fieldnotes/index.json`, which is generated and not committed, so build it first:
+```sh
+node scripts/fieldnotes_index.mjs        # Node 20+; writes web/fieldnotes/index.json
+python3 -m http.server -d web 8000       # open http://localhost:8000/fieldnotes.html
 ```
 
 ## Docs

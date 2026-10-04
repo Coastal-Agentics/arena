@@ -57,7 +57,7 @@ a rebuild from source.
   is never to rerun:
   1. `web/pkg` behaves differently from native (a real parity bug);
   2. a fixture or the manifest was edited by hand;
-  3. the sim changed without regenerating. That's legitimate only with a `REPLAY_FORMAT` bump
+  3. the sim changed without regenerating. That's legitimate only with a bump of the format Tank Arena writes
      or a deliberate rule change, stated in the PR.
 
   The `test` job's `parity` test fails in cases 2 and 3 as well, so a red `wasm` job with a
@@ -65,39 +65,32 @@ a rebuild from source.
 - **Also consider (optional):** `node scripts/check-viewer.mjs` (the viewer's pure helpers
   against `web/pkg`, about 0.2 s) isn't in CI today. It fits right after the parity step.
 
-## (b) engine-py wheel build (spec for later: M3, `engine-py/` does not exist yet)
+## (b) engine-py wheel build (M4: ready to apply)
 
-**Do not apply this until the `engine-py/` crate lands.** It is recorded now so the M3 PR
-and the workflow change can be reviewed against one plan (GATE-003 plan §6 and the M3 row;
-ask 4 there).
+`engine-py/` landed in M4 ([python.md](python.md)). This is the workflow for it, for the
+workflow owner to add as `.github/workflows/engine-py.yml`. It is separate, so engine CI
+isn't slowed, and `ci.yml` needs no change.
 
-**Keeping existing jobs unaffected.** Every current job runs `cargo … --workspace`, and
-`--workspace` builds *all* members, whatever `default-members` says. So `default-members`
-alone would not keep `engine-py` out of `cargo test --workspace` or `cargo clippy
---workspace`. The M3 PR should instead:
+**Existing jobs are unaffected.** `engine-py` is its own Cargo workspace. The root
+`Cargo.toml` lists it in `exclude`, and it has its own `Cargo.lock` and `target/`. Every
+`cargo … --workspace` job (lint, test, wasm, nightly) never compiles pyo3 or needs Python.
+The root `Cargo.lock` has no pyo3 entries. pyo3 is behind the crate's `python` feature,
+which maturin turns on. maturin (1.9.4 or later) sets `PYO3_BUILD_EXTENSION_MODULE`
+itself, so pyo3's deprecated `extension-module` feature isn't used. The wheel uses pyo3's
+`abi3-py310`, so one wheel covers CPython 3.10 to 3.14.
 
-- add `exclude = ["engine-py"]` to the root `[workspace]`, and give `engine-py/Cargo.toml`
-  its own empty `[workspace]` table and its own `Cargo.lock`. It depends on `engine` and
-  `games/tank` by path. The existing jobs then never compile pyo3 or link Python.
-- not use pyo3's `extension-module` feature. It is deprecated; maturin 1.9.4 or later sets
-  `PYO3_BUILD_EXTENSION_MODULE` itself. Build with pyo3's `abi3-py310`, so one wheel covers
-  CPython 3.10 to 3.14.
-
-The alternative, gating by feature while keeping `engine-py` a member, would still make
-every `--workspace` job build pyo3 and need a Python interpreter, so it isn't recommended.
-
-**Proposed new workflow** `.github/workflows/engine-py.yml`, separate so engine CI isn't
-slowed:
+**The workflow:** one wheel job (Rust checks, build, test on 3.10, native replay check) and
+one job testing the same wheel on 3.14.
 
 ```yaml
 name: engine-py
 
 on:
   pull_request:
-    paths: ["engine/**", "games/tank/**", "engine-py/**", "Cargo.lock", "rust-toolchain.toml", ".github/workflows/engine-py.yml"]
+    paths: ["engine/**", "games/**", "engine-py/**", "Cargo.lock", "rust-toolchain.toml", ".github/workflows/engine-py.yml"]
   push:
     branches: [main]
-    paths: ["engine/**", "games/tank/**", "engine-py/**", "Cargo.lock", "rust-toolchain.toml", ".github/workflows/engine-py.yml"]
+    paths: ["engine/**", "games/**", "engine-py/**", "Cargo.lock", "rust-toolchain.toml", ".github/workflows/engine-py.yml"]
   workflow_dispatch:
 
 permissions:
@@ -110,8 +103,11 @@ concurrency:
 jobs:
   wheel:
     name: wheel (abi3-py310)
-    # Pinned like test/wasm: the parity step compares hashes (ADR-003: same platform).
+    # Pinned like test/wasm: the determinism pins are same-platform results (ADR-003).
     runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: engine-py
     steps:
       - uses: actions/checkout@v7
       - name: Install toolchain (from rust-toolchain.toml)
@@ -122,69 +118,89 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.10" # the abi3 floor: build once, on the oldest supported
+      - name: fmt
+        run: cargo fmt --check
+      - name: clippy (core, then with pyo3)
+        run: |
+          cargo clippy --all-targets -- -D warnings
+          cargo clippy --all-targets --features python -- -D warnings
+      - name: Rust tests (session vs native, pinned hashes, allocations, lockfile)
+        run: cargo test --release
+      - name: doc
+        run: RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --features python
       - name: Build one abi3 wheel
         run: |
           python -m pip install --disable-pip-version-check "maturin>=1.9.4,<2"
-          maturin build --release -m engine-py/Cargo.toml --out dist
+          maturin build --release --out dist
           ls -l dist
+      - name: Test the bare wheel, numpy only (Python 3.10)
+        run: |
+          python -m venv "$RUNNER_TEMP/bare"
+          "$RUNNER_TEMP/bare/bin/python" -m pip install --disable-pip-version-check dist/*.whl -r requirements-test.txt
+          SALTMARSH_ARENA_EXTRAS=none "$RUNNER_TEMP/bare/bin/python" -m pytest -q
+      - name: Test the wheel with [all] (Python 3.10)
+        run: |
+          python -m pip install --disable-pip-version-check "$(ls dist/*.whl)[all]" -r requirements-test.txt -r requirements-extras.txt
+          SALTMARSH_ARENA_EXTRAS=all SALTMARSH_ARENA_REPLAY_DIR=target/py-replays python -m pytest -q
+      - name: Verify the Python-run replays natively
+        run: cargo run --release -q --example verify_replay -- target/py-replays/*.json
       - uses: actions/upload-artifact@v7
         with:
-          name: engine-py-wheel
-          path: dist/*.whl
+          name: saltmarsh-arena-wheel
+          path: engine-py/dist/*.whl
 
   test:
-    name: test (py${{ matrix.python }})
+    name: test (py3.14, same wheel)
     needs: wheel
     runs-on: ubuntu-24.04
-    strategy:
-      fail-fast: false
-      matrix:
-        python: ["3.10", "3.14"] # the same abi3 wheel on the oldest and newest
     steps:
       - uses: actions/checkout@v7
-      - name: Install toolchain (from rust-toolchain.toml)
-        run: rustup toolchain install && rustup show
-      - uses: Swatinem/rust-cache@v2
       - uses: actions/setup-python@v7
         with:
-          python-version: ${{ matrix.python }}
-          cache: pip
-          cache-dependency-path: engine-py/requirements-test.txt
+          python-version: "3.14"
       - uses: actions/download-artifact@v8
         with:
-          name: engine-py-wheel
+          name: saltmarsh-arena-wheel
           path: dist
-      - name: Install the wheel and test deps
+      - name: Test the bare wheel, numpy only (Python 3.14)
+        working-directory: engine-py
         run: |
-          python -m pip install --disable-pip-version-check dist/*.whl -r engine-py/requirements-test.txt
-      - name: PettingZoo API and seed tests
-        run: python -m pytest -q engine-py/tests
-      - name: Python-vs-Rust parity (1,000-step episode)
+          python -m venv "$RUNNER_TEMP/bare"
+          "$RUNNER_TEMP/bare/bin/python" -m pip install --disable-pip-version-check ../dist/*.whl -r requirements-test.txt
+          SALTMARSH_ARENA_EXTRAS=none "$RUNNER_TEMP/bare/bin/python" -m pytest -q
+      - name: Test the wheel with [all] (Python 3.14)
+        working-directory: engine-py
         run: |
-          python engine-py/tests/record_episode.py --steps 1000 --seed 42 --out target/py-parity/episode.json
-          cargo run -q -p engine-wasm --example verify_replay -- target/py-parity/episode.json
+          python -m pip install --disable-pip-version-check "$(ls ../dist/*.whl)[all]" -r requirements-test.txt -r requirements-extras.txt
+          SALTMARSH_ARENA_EXTRAS=all python -m pytest -q
 ```
 
-What the M3 PR has to provide for this to run (none of it exists yet):
+What the steps run (all in `engine-py/`):
 
-- `engine-py/requirements-test.txt` pinning `pettingzoo==1.27.0`, `pytest` and `numpy`.
-- `engine-py/tests/test_pettingzoo.py` running `pettingzoo.test.parallel_api_test(env,
-  num_cycles=1000)` and `pettingzoo.test.parallel_seed_test(env_fn)` on
-  `TankArenaParallelEnv`.
-- `engine-py/tests/record_episode.py`, which plays a Python-driven episode and writes its
-  `Replay` JSON, including the `final_hash` Python saw.
-- A Rust verifier outside `engine/`: an `engine-wasm` example `verify_replay`, or an
-  `engine-cli` subcommand. It runs `Replay::from_json(...)?.verify()` and fails if the
-  re-simulated `final_hash` differs from the recorded one. That is the "Python `final_hash`
-  equals Rust `Replay::verify`" criterion. It could reuse `engine_wasm::check_replay`, which
-  the parity check already uses. The episode could also be added to the parity fixtures once
-  its format is settled.
+- `cargo test --release`: `tests/session.rs` (a session's replay equals the native loop's,
+  byte for byte, for both games), `tests/fixture.rs` (the pinned native final hashes in
+  `tests/fixtures/determinism.json`), `tests/alloc.rs` (steps allocate only for history
+  doubling) and `tests/lock.rs` (shared crates have the root lockfile's versions).
+- `pytest`: `python/tests/`, twice per Python.
+  - **Bare wheel (numpy only), `SALTMARSH_ARENA_EXTRAS=none`:** the API, `FlatEnv` and
+    the Python-vs-native determinism episodes (including 1,000-step tank and racing
+    episodes). It asserts that Gymnasium and PettingZoo are absent, and that the envs
+    raise `MissingExtraError` naming `[gym]` or `[pettingzoo]`. The env tests skip.
+  - **`[all]`, `SALTMARSH_ARENA_EXTRAS=all`:** everything, including PettingZoo's
+    `parallel_api_test` and `parallel_seed_test`, Gymnasium's `check_env`, and the env
+    determinism runs. A missing extra fails here instead of skipping.
+  - The pins for the extras are in `requirements-extras.txt`, and pytest's pin is in
+    `requirements-test.txt`.
+- `verify_replay`: re-verifies, with no Python, every replay the Python determinism test
+  wrote (`Replay::verify`). This is the "Python `final_hash` equals Rust's
+  `Replay::verify`" criterion.
 
-Expected runtime, to confirm when M3 exists: the wheel job is dominated by the release build
-(about 1 to 2 minutes cold, less with `rust-cache`). The test jobs take tens of seconds, plus
-pip installs.
+Measured locally (2026-10-03): the release build of the wheel takes about 11 s warm. The
+Rust tests take under 1 s, and pytest takes about 1 s on each Python. A cold CI run is
+dominated by compiling the engine crates and pyo3, about 1 to 2 minutes.
 
-Failure semantics: any failing step fails the workflow. A failed parity step means Python
-and Rust disagree about the same actions, which is a bridge bug (for example a lossy action
-conversion), not flakiness. The job is separate, so `lint`, `test`, `wasm` and `nightly` are
-unaffected whatever it does.
+Failure semantics: any failing step fails the workflow. A failed determinism test or
+`verify_replay` means Python and Rust disagree about the same actions. That is a bridge bug
+(for example a lossy action conversion), not flakiness. The jobs are separate, so `lint`,
+`test`, `wasm` and `nightly` are unaffected whatever they do. The workflow publishes
+nothing: the wheel is a build artifact only, and publishing is a separate gate.

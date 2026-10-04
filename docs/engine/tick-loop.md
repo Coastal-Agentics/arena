@@ -36,11 +36,27 @@ match loop, and everything tank-specific happens inside the `Rules` functions it
 
 1. clear the previous step's events;
 2. build one action per agent (`Rules::agents`): `actions[i]` or the default, passed through
-   `Rules::sanitize`;
-3. `Rules::step(config, state, actions, rng, events)`, the only place besides `Rules::init`
-   that gets the match RNG;
-4. push the sanitized actions onto the history, `tick += 1`;
+   `Rules::sanitize`, and append them to the history;
+3. `Rules::step(config, state, actions, rng, events)` on exactly those recorded actions, the
+   only place besides `Rules::init` that gets the match RNG;
+4. `tick += 1`;
 5. store `Rules::outcome(config, state, tick)`.
+
+The history is one flat `Vec<Action>`, `Rules::agents` entries per tick (the count is read
+once in `Match::new` and must not change), so recording a tick allocates nothing beyond the
+buffer's amortized doubling; `step_policies` reuses one action scratch buffer.
+`Match::history()` returns a `History` view: one slice per tick (`h[t]`, `h.iter()`), or the
+whole buffer (`h.as_flat()`). Replays store the same actions as one list per tick, as before.
+
+Two optional pieces sit next to the loop but are never called by it (game-system.md M1):
+`Rules::reward(config, state, events, agent)`, 0.0 unless a game defines it and never
+recorded (`Match::reward(agent)` reads it for the tick just stepped); and the opt-in `Flat`
+trait, a fixed-size `f32` view for bindings (`OBS_LEN`, `ACTION_LEN`, `encode_obs` into a
+caller-owned slice, `decode_action`; `Match::encode_obs(agent, out)`). Tank implements
+both (M2): `TankRules::reward` is the GATE-003 §6 reward (hit shaping capped at the target's
+remaining hp, ±1 for the `last_standing` end to the tanks active at the start of that tick),
+and `engine::tank_flat` holds the 176/4 layout, scaled by the match's own arena size and tick
+limit. Both are allocation-free; the rustdoc has the exact rules.
 
 ## Inside one step (Tank Arena)
 
@@ -87,8 +103,8 @@ radius `r` is the shared `MatchConfig::params.radius`.
    - otherwise remove it if `ttl <= 1`, else `ttl -= 1` and keep it.
 5. **Finish the tick.** Append this tick's new shots to the projectile list. Every living
    tank with `hp <= 0` becomes dead (`vel = 0`, `Event::Destroyed`). That ends
-   `TankRules::step`; the generic loop then pushes the recorded actions onto the history,
-   does `tick += 1`, and checks the end conditions with `TankRules::outcome`
+   `TankRules::step` (the generic loop recorded its actions in the history before calling
+   it), then the loop does `tick += 1`, and checks the end conditions with `TankRules::outcome`
    ([world](world.md#how-a-match-ends)).
 
 Consequences worth knowing:
@@ -98,6 +114,19 @@ Consequences worth knowing:
   on the same tick (`AllDestroyed`).
 - A projectile that lands its hit on its last `ttl` tick still counts: the hit test happens
   before the lifetime check.
+
+**Memory (game-system.md E2).** `TankRules::step` and `TankRules::outcome` make no heap
+allocation once their buffers have grown to the match's size (test
+`step_and_outcome_allocate_nothing_per_tick`):
+- the planned moves live in a scratch buffer inside `TankState` that is reused every tick
+  (it is not match state: it isn't hashed, a clone starts empty, and it is ignored by `==`
+  and `Debug`);
+- new shots are pushed straight onto the projectile list, and step 4 filters that list in
+  place;
+- `outcome` counts the teams still alive without collecting them.
+
+`TankRules::observe` still allocates, because the `Observation` it returns owns `Vec`s
+(`enemies`, `allies`, `projectiles`, `obstacles`).
 
 ## The viewer's frame loop
 

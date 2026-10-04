@@ -246,3 +246,40 @@ Recommendation: option 1. After Phase A, `engine-cli` and `engine-wasm` already 
 4. **`Outcome`/`EndReason`:** stay generic in `engine`.
 5. **Scope:** only B1 is approved (the generic core, with the tank rules still in `engine`). B2–B5 are deferred until a second Rust game actually exists. The next project, Saltmarsh, is Python/MuJoCo, so they may never be needed.
 6. **Replays and games:** replays don't record which game they belong to. Accepted as a known limit; revisit (format 5) only if a second game exists.
+
+## ADR-015 — Jev as an optional tool: outside the tick loop, logged, never a training source
+**Status:** Accepted (Nye's gate decision, 2026-10-03; #47). Docs only: no code, no dependencies, no account.
+**Source:** Reflector's findings on TypeSafe AI's Jev (2026-10-03), checked against TypeSafe's public docs and its Master Customer Agreement (MCA, updated 2026-09-23). The contract points are research, not legal advice.
+**Context:** Jev is TypeSafe AI's hosted "System One" model, in early access since 2026-09-15 ([announcement](https://typesafe.ai/blog/introducing-system-one-models-and-jev)). You send a text or JSON state plus typed questions and get typed answers: **Choice** (one of up to 255 options), **Score** (a rubric level) or **Noul** (a 0–1 truth value), with probabilities. It is closed, hosted only and not deterministic (TypeSafe's own repeat test shows small run-to-run noise). Its claimed 70–500 ms latency (not measured by us) is 4 to 30 ticks at 60 Hz, and its published limit is 80 requests/s. It is weak at numbers, so state goes in as words ("enemy 2: close, low HP"), not coordinates.
+
+**Decision:**
+1. **Optional tool, never in the tick loop.** Nothing in `engine/`, `games/*` or `engine-wasm` calls Jev or any network service; ADR-003 is unchanged. Jev may be used only outside the sim, for:
+   - **scoring replays after the fact** (rubrics such as "was this match a stalemate?"). Scores are reports, averaged over repeats with a human-review band, and never gate CI;
+   - **guardrails** around any LLM-generated content, such as user-written Nyborg personality text;
+   - **a slow "strategist" opponent in headless matches.** Every N ticks it picks a mode or a target, and a deterministic Rust controller turns that into actions on every tick. The harness waits for the answer between ticks (lockstep), so the sim never sees the clock. The browser viewer never calls Jev.
+2. **Every decision is logged.** Each call records `{tick, request hash, model id, response}`, with the model id pinned (`jev-1.13.0`, never `jev-latest`). The log goes with the match's replay. Replays, parity fixtures and CI read logs and **never** call the API.
+3. **Never a training source for imitation or distillation.** [MCA](https://typesafe.ai/legal/mca) section 2.3(b) forbids using the Services or Output "to perform model distillation, train a model to imitate the output of the Services, or develop (or to facilitate the development of) a similar or competing product or service". No policy, dataset or model of ours is trained on Jev output. **Jev scores as RL reward or evolution fitness are not allowed** until the company's attorney clears that use. A Jev strategist as an opponent or baseline is ordinary use. Published baselines never depend on Jev.
+4. **No API key required.** Arena, its CI and Saltmarsh core run without one. Jev sits behind a swappable interface (below), and the default backend uses no model.
+5. **Account and dependencies.** The company signs up for the account, not Nye personally, after reading the Order form and early-access terms (not public). No key goes into this repo or its CI secrets. No dependency (`typesafe-sdk`, Outlines, vLLM, llguidance or others) is added to arena or Saltmarsh until this ADR is accepted, and then only as an optional extra. Our designs never go into TypeSafe feedback or support tickets, which TypeSafe may use without restriction.
+
+**Interface shape** (a sketch, not code; Reflector calls it `Decider`):
+- **In:** a state as text, plus typed questions (Choice with its options, Score with its rubric, or Noul).
+- **Out:** one answer per question, probabilities when the backend has them, the backend name and version, and the request hash.
+- **Backends:** `jev` (needs a key); a local constrained-decoding model via Outlines, vLLM or llguidance (offline, no vendor terms, slower); a py_trees behavior tree (no model; the default); and `log`, which plays back a decision log for replays and CI.
+- **Where:** on the harness side, outside the engine. The engine only ever sees actions.
+
+**Determinism and replays** (per `docs/engine/determinism.md`):
+- The guarantee is unchanged: same config + seed + actions → same state hash. A replay stores actions, not policies, so a match with a Jev strategist re-simulates bit-identically from its replay alone, with no API call.
+- The decision log makes the policy side reproducible too: the controller plus the logged decisions must regenerate the replay's per-tick actions.
+- Until the replay format carries it, the log is a sidecar file next to the replay that names the replay's `setup_hash` and `final_hash` and carries its own hash. Putting it inside the replay is a `REPLAY_FORMAT` bump (it could ride with format 5) and a separate decision.
+- Re-running a match against the live API makes a new match, not a replay.
+
+**Why:** Jev may help with fuzzy judgments that hand-written rules handle badly. But its latency rules out the 16.7 ms tick, its noise would break "same seed → same match", and a closed paid service in the core would break the promise that anyone can reproduce our results. Throughput also keeps it out of training: one 1,000-seed FFA-4 generation at 4 decisions/s per tank is 1.92 million requests, about 6.7 hours at 80 requests/s.
+
+**Saltmarsh:** ADR-001 keeps its base install free of third-party dependencies, so the same rules carry over: no key in core, any Jev backend behind an optional extra, and py_trees (already pinned for `[gaming]`) as the no-model default. **Follow-up, not in this PR:** a matching Saltmarsh ADR in Coastal-Agentics/saltmarsh.
+
+**Open questions for Nye:**
+1. Approve this scope (replay scoring, guardrails, a headless strategist), or keep Jev out entirely for now?
+2. Sign up as the company now for a latency trial (p50/p95 over 1,000 calls), or wait for the attorney's read of MCA section 2.3(b) and its Telemetry clause?
+3. Where the interface lives: Saltmarsh `gaming`/`eval`, next to py_trees (recommended), or a Rust tool in arena?
+4. Decision log: a sidecar file for now (recommended), or wait and put it inside replay format 5?

@@ -55,7 +55,7 @@ Wanderer seeding: `seed ^ 0x5eed` on team 1 (so Chaser vs Wanderer equals
 | `await init()` (default export) | | Loads `engine_wasm_bg.wasm` from `new URL('engine_wasm_bg.wasm', import.meta.url)`, i.e. next to the JS file |
 | `initSync({ module })` | | Same, from bytes you already have (e.g. `readFileSync` in Node; `scripts/check-viewer.mjs` does this) |
 | `new WasmMatch(seed, team0, team1)` | `WasmMatch` | `MatchConfig::duel()`. `seed` is a **decimal string**; bots `"Chaser"`/`"Wanderer"`. Throws on bad input |
-| `WasmMatch.withConfig(configJson, seed, team0, team1)` | `WasmMatch` | Same, with a custom `MatchConfig` as a JSON string ([config](replay-format.md#config)), e.g. per-tank params. Throws `config json: …` on bad JSON or a missing field |
+| `WasmMatch.withConfig(configJson, seed, team0, team1)` | `WasmMatch` | Same, with a custom `MatchConfig` as a JSON string ([config](replay-format.md#config)), e.g. per-tank params. A tank's own `params` must be a valid build on the shared params (see [Builds](#builds-the-per-game-catalog)). Throws `config json: …` on bad JSON or a missing field, and `tanks[i].params is not a valid 9-point build on the shared params` otherwise |
 | `m.step(n)` | `boolean` | Advance up to `n` ticks; `true` once the match is over |
 | `m.tick()` | `number` | Ticks so far |
 | `m.isOver()` | `boolean` | |
@@ -66,6 +66,11 @@ Wanderer seeding: `seed ^ 0x5eed` on team 1 (so Chaser vs Wanderer equals
 | `m.free()` | | Release the Rust object |
 | `duelConfigJson()` | `string` | `MatchConfig::duel()` as JSON, a starting point for `withConfig` |
 | `WasmMatch.tank(query)` | `WasmMatch` | A Tank Arena duel from a URL query (see below). Throws on bad input |
+| `WasmMatch.fromBuilds(game, seed, blueBuildJson, orangeBuildJson)` | `WasmMatch` | A Tank Arena duel from two builds, each checked by `validateBuild`; plays exactly like `WasmMatch.tank` with the same seed, behaviors and levels. Throws `blue: invalid build [{"code":…,"key":…}]` (or `orange: …`), and for a champion behavior (the loader resolves those). Tank only: any other game, racing included, throws `wrong_game` |
+| `games()` | `string` | JSON `[{"game": "tank", "rules_version": 1}, {"game": "racing", "rules_version": 1}]` |
+| `catalogJson(game)` | `string` | JSON build catalog for a game (below). Throws `unknown game "…"` |
+| `defaultBuild(game)` | `string` | JSON default build (3/3/3, first scripted behavior: tank `charger`, racing `follower`). Throws for an unknown game |
+| `validateBuild(game, buildJson)` | `string` | JSON `{"ok": true, …}` with the normalized build, or `{"ok": false, "errors": […]}`. Never throws |
 | `tankCatalogJson()` | `string` | JSON `CatalogView`: the Customize tab's tables and lists (below) |
 | `snapLoadout(attack, speed, defense)` | `string` | Snap barycentric weights (Attack, Speed and Defense corners of the Customize triangle) to the nearest valid loadout, `"A-S-D"` (`tank::Loadout::snap`) |
 | `canonicalTankQuery(query)` | `string` | Canonical `seed=…&blue=…&orange=…` for a query; throws on invalid input |
@@ -74,15 +79,144 @@ Wanderer seeding: `seed ^ 0x5eed` on team 1 (so Chaser vs Wanderer equals
 
 `withConfig(duelConfigJson(), seed, a, b)` plays exactly like `new WasmMatch(seed, a, b)`
 (test `custom_config_with_per_tank_params`; checked in headless Chrome for six seeds). A
-loadout from JS:
+loadout from JS: a spawn's params replace the shared set as a whole, and must be exactly a
+valid build applied to the shared params (`tank::Loadout::apply`: Attack sets
+`projectile_damage`, Speed `max_speed`, `turn_rate` and `fire_cooldown`, Defense `max_hp`),
+or the shared params unchanged. Anything else throws, so a config can't hand a tank
+more than 9 points:
 
 ```js
 const cfg = JSON.parse(duelConfigJson());
-// A spawn's params replace the shared set as a whole: start from cfg.params.
-cfg.tanks[0].params = { ...cfg.params, projectile_damage: 28, max_hp: 60 };
-cfg.tanks[1].params = { ...cfg.params, projectile_damage: 24, max_speed: 90, turn_rate: 273, max_hp: 120 };
+const c = JSON.parse(catalogJson("tank"));
+const lv = (stat, level) => c.stats.find((s) => s.key === stat).values[level - 1];
+// Glass Cannon 5/3/1 for tank 0 and Brawler 4/1/4 for tank 1.
+cfg.tanks[0].params = { ...cfg.params, projectile_damage: lv("attack", 5).damage, ...lv("speed", 3), max_hp: lv("defense", 1).max_hp };
+cfg.tanks[1].params = { ...cfg.params, projectile_damage: lv("attack", 4).damage, ...lv("speed", 1), max_hp: lv("defense", 4).max_hp };
+for (const t of cfg.tanks) delete t.params.level;
 const m = WasmMatch.withConfig(JSON.stringify(cfg), "42", "Chaser", "Wanderer");
 ```
+
+### Builds: the per-game catalog
+
+A **build** is the per-game part of a Nyborg ([nyborg-library.md](../design/nyborg-library.md)):
+levels plus a behavior, with no resolved numbers. The shape and the validator are shared
+by every game, in the small `game-catalog` crate (`games/catalog`, outside `engine/`); each
+game crate fills it in from its own tables (`tank::catalog`, from `tank::loadout`). The
+engine never sees a Nyborg's `look`.
+
+```json
+{"rules_version": 1,
+ "levels": {"attack": 5, "speed": 3, "defense": 1},
+ "behavior": {"kind": "scripted", "id": "kiter"}}
+```
+
+`behavior` may instead be `{"kind": "champion", "ref": "tank/nightly/gen-99"}`; only its
+shape is checked (a non-empty string of at most 200 bytes), because the loader resolves the
+ref. Unknown top-level fields (a `look`, a `game: "tank"`) are ignored.
+
+- **`games()`**: `[{"game":"tank","rules_version":1},{"game":"racing","rules_version":1}]`.
+- **Racing** (since 2026-10-03): `catalogJson("racing")` is the committed
+  `games/racing/catalog.json` (budget 9; stats `power`, `top_speed`, `grip`, levels 1–5 at
+  one point each, resolving to `acceleration`, `top_speed` and `grip`; behaviors
+  `follower`, `cutter`, `blocker`; presets Balanced, Sprinter, Speedster, Carver).
+  `defaultBuild("racing")` is 3/3/3 `follower`. `validateBuild("racing", …)` uses the same
+  error codes and order as tank, with the car's params on success:
+  `{"ok":true,"game":"racing","rules_version":1,"levels":{"power":3,"top_speed":3,"grip":3},"behavior":{"kind":"scripted","id":"follower"},"points":9,"params":{"power":240.0,"top_speed":240.0,"grip":0.25}}`.
+  There is no race viewer yet (`WasmRace`), so a race can't be started from JS.
+  `scripts/catalog_racing.test.mjs` (`node --test`) and engine-wasm's
+  `build_exports_wrap_the_racing_catalog` cover every call and error code.
+- **`catalogJson("tank")`**: `game`, `rules_version`, `budget` (9), `stats` (Attack, Speed,
+  Defense, each `{key, label, min: 1, max: 5, cost_per_level: 1, values}` where `values[i]` is
+  level `i + 1` resolved: `damage`; `max_speed`, `turn_rate` and `fire_cooldown` (reload
+  ticks); `max_hp`), `behaviors` (`["charger","kiter","sniper"]`), `presets`
+  (`{id, label, levels}`: Balanced 3/3/3, Glass Cannon 5/3/1, Brawler 4/1/4, Scout 2/5/2) and
+  `default_build`. Abridged:
+
+  ```json
+  {"game":"tank","rules_version":1,"budget":9,
+   "stats":[{"key":"attack","label":"Attack","min":1,"max":5,"cost_per_level":1,
+             "values":[{"level":1,"damage":14},{"level":2,"damage":17},"…",{"level":5,"damage":29}]},
+            {"key":"speed","label":"Speed","min":1,"max":5,"cost_per_level":1,
+             "values":[{"level":1,"max_speed":90.0,"turn_rate":273,"fire_cooldown":64},"…"]},
+            {"key":"defense","label":"Defense","min":1,"max":5,"cost_per_level":1,
+             "values":[{"level":1,"max_hp":460},"…",{"level":5,"max_hp":940}]}],
+   "behaviors":["charger","kiter","sniper"],
+   "presets":[{"id":"balanced","label":"Balanced","levels":{"attack":3,"speed":3,"defense":3}},
+              {"id":"glass_cannon","label":"Glass Cannon","levels":{"attack":5,"speed":3,"defense":1}},
+              {"id":"brawler","label":"Brawler","levels":{"attack":4,"speed":1,"defense":4}},
+              {"id":"scout","label":"Scout","levels":{"attack":2,"speed":5,"defense":2}}],
+   "default_build":{"rules_version":1,"levels":{"attack":3,"speed":3,"defense":3},
+                    "behavior":{"kind":"scripted","id":"charger"}}}
+  ```
+- **`defaultBuild("tank")`**: the catalog's `default_build`.
+- **`validateBuild(game, buildJson)`**: each level must be an integer 1 to 5 and the levels
+  must spend exactly 9 points, which leaves 19 valid builds (tested). Success:
+
+  ```json
+  {"ok":true,"game":"tank","rules_version":1,
+   "levels":{"attack":5,"speed":3,"defense":1},"behavior":{"kind":"scripted","id":"kiter"},
+   "points":9,
+   "params":{"radius":16.0,"max_speed":120.0,"turn_rate":364,"turret_turn_rate":546,"max_hp":460,
+             "fire_cooldown":45,"projectile_speed":360.0,"projectile_ttl":120,
+             "projectile_damage":29,"projectile_spread":256}}
+  ```
+
+  `params` is what the tank plays with (`Loadout::params`, the duel's shared params with the
+  levels applied). Failure lists every error, each naming its key:
+
+  ```json
+  {"ok":false,"errors":[{"code":"unknown_key","key":"luck"},
+                        {"code":"out_of_range","key":"attack"},
+                        {"code":"unknown_behavior","key":"behavior"}]}
+  ```
+
+  | `code` | `key` | When |
+  | --- | --- | --- |
+  | `invalid_json` | `""` | The text doesn't parse, or isn't an object |
+  | `wrong_game` | `game` | `game` isn't a known game, or the build's own `game` field differs |
+  | `rules_version_mismatch` | `rules_version` | Missing, or not this game's `rules_version` |
+  | `unknown_key` | the key | A `levels` key that isn't a stat |
+  | `out_of_range` | the stat | Missing, not an integer, or outside 1 to 5 |
+  | `over_budget` / `under_budget` | `levels` | The levels spend more / fewer than 9 points (only checked once every level is in range) |
+  | `unknown_behavior` | `behavior` | Not a known scripted id (ids are lower case), or a champion without a usable `ref`, or another `kind` |
+
+  The first three stop the check, since the levels mean nothing without them; the rest are
+  all reported together.
+
+**Adding a game** (racing did, 2026-10-03). The game crate provides plain data and a few functions,
+no traits:
+
+```rust
+pub const GAME: &str = "racing";
+pub const RULES_VERSION: u64 = 1;
+/// Stat keys, ranges, costs, budget and behavior ids: what builds are checked against.
+pub const RULES: game_catalog::Rules = /* ... */;
+/// From the game's own level tables (stats power/top_speed/grip; behaviors
+/// follower/cutter/blocker), so no number is written twice. Not called in wasm.
+pub fn catalog() -> game_catalog::Catalog;
+/// catalog() and its default build as JSON, committed (games/racing/catalog.json) so wasm
+/// carries strings, not a JSON writer; a test keeps them equal and checks
+/// catalog().matches(&RULES).
+pub const CATALOG_JSON: &str = include_str!("../catalog.json");
+pub const DEFAULT_BUILD_JSON: &str = r#"{...}"#;
+/// game_catalog::validate(&RULES, json)?, then the game's resolved params.
+pub fn validate_build(json: &str) -> Result<game_catalog::Valid<RaceParams>, Vec<game_catalog::BuildError>>;
+```
+
+`engine-wasm` then gets one entry in its `GAMES` list (id, rules version, the two JSON
+strings, `validate_build`) plus the crate dependency; `games()`, `catalogJson`,
+`defaultBuild` and `validateBuild` need no other change. Tank's catalog is regenerated with
+`cargo run -q -p tank --example catalog_json > games/tank/catalog.json` (a test fails while it
+is stale). Starting a race from builds (`WasmRace.fromBuilds`) comes with `WasmRace`.
+
+**Enforcement.** Every JS path that starts a match obeys the same rule,
+`game_catalog::check_levels` on `tank::catalog::RULES`: `fromBuilds` validates each build
+with it (`tank::catalog::validate_build`); `WasmMatch.tank` and `withConfig` go through
+`tank::Loadout`, which accepts exactly those levels (a test checks every level from 0 to 6
+on each stat), and `withConfig` rejects per-tank params that aren't one of those loadouts
+applied to the shared params (`check_config`). An imported or edited profile can't beat
+the budget. Replays aren't builds: `checkReplayJson` still re-simulates whatever config a
+replay file records.
 
 ### Tank Arena duels (rules v1)
 
@@ -198,9 +332,21 @@ cargo install wasm-bindgen-cli --version 0.2.100 --locked
 
 1. sets `RUSTFLAGS` to remap `$CARGO_HOME` → `/cargo` and the repo root → `/src`, so paths
    embedded in panic messages don't depend on who built it;
-2. `cargo build -p engine-wasm --release --target wasm32-unknown-unknown`;
-3. `wasm-bindgen --target web --no-typescript --remove-name-section --remove-producers-section
-   --out-dir web/pkg target/wasm32-unknown-unknown/release/engine_wasm.wasm`. The two
+2. `cargo build -p engine-wasm --release --target wasm32-unknown-unknown` with one codegen
+   unit (`CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1`);
+3. finds the `.wasm` cargo actually built, so `CARGO_TARGET_DIR`, `CARGO_BUILD_TARGET_DIR` or
+   `build.target-dir` work (since 2026-10-03; it used to package `target/…` even when
+   cargo had built elsewhere, so it could ship a stale file). It reads the target
+   directory from `cargo metadata --format-version 1 --no-deps`, and the built file and
+   whether it was rebuilt from cargo's JSON messages (`--message-format=json-render-diagnostics`,
+   parsed with `grep`/`sed`, no `jq`). It fails loudly if cargo reports no `engine_wasm`
+   artifact, if the reported file isn't the expected one under that target directory, if
+   the file is missing, or if cargo rebuilt it but its mtime is older than the build start
+   (an up-to-date build, `"fresh": true`, is fine). `web/pkg` comes out byte-identical with
+   any target directory, because the paths are remapped in step 1 and the binary carries no
+   target-directory paths;
+4. `wasm-bindgen --target web --no-typescript --remove-name-section --remove-producers-section
+   --out-dir web/pkg <that .wasm>`. The two
    `--remove-*` flags (since 2026-09-30) drop the `name` custom section (Rust function names,
    about 71 KB, used only by profilers and stack traces) and the `producers` section
    (toolchain telemetry, 112 bytes). Code and data are unchanged.
@@ -227,7 +373,42 @@ comment-only changes.** Doc comments on `#[wasm_bindgen]` items are copied into 
 JSDoc. Panic locations (file:line) are compiled into the wasm, so moving code lines changes
 the bytes. PR #12 was an example: rustdoc-only edits changed both files.
 
-Size: `engine_wasm_bg.wasm` is 284,864 bytes (108,790 with `gzip -9 -n`) since
+Size: `engine_wasm_bg.wasm` is 307,335 bytes (120,393 with `gzip -9 -n`) since racing's
+`GAMES` entry (2026-10-03): +7,177 bytes (+2,418 gzipped). That includes racing's committed
+catalog JSON, its `validate_build` and params, and the validator moving out of line now
+that two games share it. `game_catalog::validate`, `check_levels` and `Build::points`
+take `&dyn RuleSet`, and `validation_json` hands its game-independent part to one
+non-generic function. With generics, each game crate compiled its own copy of the
+validator and parser: 316,666 bytes, +16,508.
+
+Before that: 300,158 bytes (117,975) since the slim
+catalog and the one-codegen-unit wasm build (2026-10-03), down from 338,099 (124,611) on
+main after #56: −37,941 bytes (−11.2%), −6,636 gzipped. Measured against the same tree
+without #51 (293,288 / 111,521; 276,151 / 109,750 with one codegen unit), the catalog's own
+cost drops from +44,811 bytes to +25,689 (+24,007 with one codegen unit), and one codegen
+unit wins back 17,137 bytes from the existing code; net, the file is 6,870 bytes (6,454
+gzipped) larger than without the catalog. Two changes, measured separately:
+- **Slim catalog** (318,977 / 119,787 alone): `catalogJson` and `defaultBuild` return
+  committed strings instead of serializing; validation checks a `const` `Rules` (any
+  `game_catalog::RuleSet`; a full `Catalog` checks the same, a test pins it); the `validateBuild` reply and error lists
+  are written by hand (tested byte for byte against `serde_json`); spec and config checks lean
+  on `Loadout`; no `core::fmt` or `Debug` on the catalog path. A hand-written JSON parser was
+  measured and dropped: it came out 1.8 KB *larger* than the `serde_json` visitor, whose
+  machinery the engine already carries.
+- **`CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1`** in `build-wasm.sh` (wasm only; native builds
+  keep 16): −18,819 bytes on top, −17,137 on the code without the catalog. Same hashes on every
+  parity fixture and in the JS export harness, and no slower in Node (median of 9 runs of 120
+  matches). Measured and not taken: `lto` (no further change), `opt-level = "s"`/`"z"` for
+  engine-wasm (−20 KB to −27 KB more, but the wasm sim runs 6% / 16% slower), and `wasm-opt`
+  (binaryen 120: −9% raw but +1% gzipped, and a new CI tool).
+
+Before that: 332,441 bytes (122,414) with the build catalog (#51), up from 286,828 (109,245) after the tank `Flat` view: +45,613 bytes
+(+15.9%), +13,169 gzipped (+12.1%). By `twiggy diff`, it is mostly `serde_json`
+serialization of the catalog and validation structs, the validator and the small build
+parser (`game_catalog::Loose`), plus the wasm wrappers and `fromBuilds`. A first draft with
+`serde_json::Value` grew the file by 79,191 bytes; a tank-only typed version by 36,937; the
+shared game-agnostic shape (stats and values as lists, so racing needs no new types) costs
+the remaining 8.7 KB. Before that, 284,864 bytes (108,790) since
 `build-wasm.sh` strips the `name` and `producers` sections (2026-09-30), down from 356,307
 (117,316): −71,443 bytes (−20.1%), −8,526 gzipped. (`gzip -n` leaves the file name out of the
 header. The older gzipped figures in this paragraph were measured with `gzip -9 -c <file>`,

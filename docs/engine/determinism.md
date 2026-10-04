@@ -148,12 +148,12 @@ check makes that a standing test on a fixed set of pinned replays (GATE-003 ask 
   | `cw-all-destroyed.json` | Chaser vs Wanderer, seed 2916: both die on one tick | 236 | `all_destroyed` |
   | `cw-per-tank-params.json` | Per-tank params, the documented Glass Cannon vs Brawler example | 385 | `last_standing` |
   | `cw-spread-still.json` | `projectile_spread_still: Some(0)`, so RNG draws depend on movement | 263 | `last_standing` |
-  | `arena-charger-mirror.json` | Tank Arena v1 via `MatchSpec` (loadouts, spawns, pillars), a draw | 818 | `all_destroyed` |
-  | `arena-sniper-vs-charger.json` | Tank Arena; the sniper fires only with line of sight past the pillars | 881 | `last_standing` |
+  | `arena-charger-mirror.json` | Tank Arena v1 via `MatchSpec` (loadouts, spawns, pillars), orange wins | 816 | `last_standing` |
+  | `arena-sniper-vs-charger.json` | Tank Arena; the sniper fires only with line of sight past the pillars, and wins | 1023 | `last_standing` |
   | `arena-2v2-tick-limit.json` | Tank Arena 2v2 (four tanks, teammates), all three policies, `max_ticks` cut to 360 | 360 | `tick_limit` |
 
 - **Native side:** `engine-wasm/tests/parity.rs`. It runs in `cargo test --workspace`, so
-  the CI `test` job already runs it. Every fixture must load as the current `REPLAY_FORMAT`,
+  the CI `test` job already runs it. Every fixture must load as the format Tank Arena writes (`TankRules::WRITES_FORMAT`, 4),
   pass `Replay::verify`, and match the manifest field by field. It also checks that the
   manifest lists every fixture file, and that a tampered fixture fails.
 - **Wasm side:** `node scripts/check-parity.mjs`. It loads the committed `web/pkg` with
@@ -173,8 +173,8 @@ check makes that a standing test on a fixed set of pinned replays (GATE-003 ask 
   check-parity: FAILED, 1 fixture(s) differ between native (manifest) and wasm (web/pkg).
   ```
 
-  (That output is from a deliberate local edit: tank 0's throttle on tick 100 went from 1.0
-  to 0.5.) The script exports `checkFixtures(manifest, texts, checkReplayJson)`, so the same
+  (That output is from a deliberate local edit, made before the 2026-10-03 refresh below:
+  tank 0's throttle on tick 100 went from 1.0 to 0.5.) The script exports `checkFixtures(manifest, texts, checkReplayJson)`, so the same
   comparison runs in a browser page. On 2026-09-30 headless Chrome 154 and Node 20 gave
   identical `checkReplayJson` output for all seven fixtures.
 - **CI:** the native side runs in the `test` job, and the Node script in the `wasm` job
@@ -185,11 +185,20 @@ and the manifest. It's deterministic: two runs give byte-identical files. The re
 actions, not policies, so they stay valid when a `games/tank` policy changes (a regenerated
 file would just differ).
 
-**When a fixture change is legitimate:** only with a `REPLAY_FORMAT` bump or a deliberate
+**When a fixture change is legitimate:** only with a bump of the format Tank Arena writes or a deliberate
 change to the sim rules (movement, firing, hits, end conditions, the state hash or the
-setup hash), and the PR must say so and why. Any other reason to touch these files means
-native and wasm, or old and new, disagree, and that is the bug to find. Adding a new
-fixture for new coverage is fine; say which case it adds.
+setup hash), and the PR must say so and why. A **policy refresh** is also allowed: after
+scripted-policy changes, regenerating the `arena-*` files so they show what today's
+policies play. That PR must name the policy commits that caused the drift, show that
+each file's `seed`, `config` and `setup_hash` are unchanged (only `actions`, `outcome`,
+`final_hash` and `bytes` move), and show that the old files still verified. Any other
+reason to touch these files means native and wasm, or old and new, disagree, and that is
+the bug to find. Adding a new fixture for new coverage is fine; say which case it adds.
+
+Refreshed on 2026-10-03: the three `arena-*` files had drifted since #31 because of #37
+(`7d4d44b`, every scripted policy dodges, plus the retuned charger weave and aim
+tolerances); regenerating at `804474e`, just before #37, still gives the old files byte
+for byte.
 
 ## JS-safe seeds
 

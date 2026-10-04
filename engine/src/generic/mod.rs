@@ -12,12 +12,14 @@
 //! [`crate::ReplayPlayer`] likewise, and [`Policy`] defaults its rules parameter to
 //! `TankRules`, so `impl Policy for MyBot` and `&mut dyn Policy` mean the tank policy.
 
+mod flat;
 mod match_loop;
 mod replay;
 #[cfg(test)]
 mod tests;
 
-pub use match_loop::{EndReason, Match, Outcome};
+pub use flat::Flat;
+pub use match_loop::{EndReason, History, Match, Outcome};
 pub use replay::{
     setup_hash, Replay, ReplayError, ReplayPlayer, OLDEST_READABLE_FORMAT, REPLAY_FORMAT,
 };
@@ -43,6 +45,13 @@ use serde::Serialize;
 /// result in the history, calls [`step`](Rules::step), increments the tick and asks
 /// [`outcome`](Rules::outcome) whether the match is over. [`Match::step_policies`] calls
 /// a policy only for agents that are [`is_active`](Rules::is_active).
+///
+/// Two optional surfaces for training tools sit next to this trait and are never called
+/// by the loop: [`reward`](Rules::reward) (defaults to 0.0) and the [`Flat`] f32 view.
+///
+/// Three constants identify the game in replays and are never read by the loop:
+/// [`GAME`](Rules::GAME), [`RULES_VERSION`](Rules::RULES_VERSION) and
+/// [`WRITES_FORMAT`](Rules::WRITES_FORMAT).
 pub trait Rules {
     /// Everything (with the seed) needed to reproduce a match. Stored in replays and
     /// hashed by [`setup_hash`] in its `serde_json` form.
@@ -56,10 +65,29 @@ pub trait Rules {
     /// Something that happened during the last step, for viewers and rule layers.
     type Event;
 
+    /// The game's id, written as `game` in format 5 replays and checked when one loads
+    /// (e.g. `"racing"`). Never changes once replays exist.
+    const GAME: &'static str;
+    /// The version of this game's rules, written as `rules_version` in format 5
+    /// replays. [`Replay::from_json`] rejects a format 5 file with any other value, so
+    /// bump it whenever the same config, seed and actions would play out differently.
+    /// `u64` like a game crate's catalog `RULES_VERSION` (`games/catalog`), so a game
+    /// can use one constant for both.
+    const RULES_VERSION: u64;
+    /// The replay format [`Replay::from_match`] writes for this game: 4 or 5. Defaults to
+    /// [`REPLAY_FORMAT`] (5): a new game writes format 5 and reads only format 5 files
+    /// of its own `game` and `rules_version`. A game whose replays predate format 5 sets
+    /// 4 (Tank Arena): it keeps writing the format 4 envelope byte for byte (no `game`
+    /// or `rules_version`), still reads formats [`OLDEST_READABLE_FORMAT`] to 4 as its
+    /// own, and also reads format 5 files that name it.
+    const WRITES_FORMAT: u32 = REPLAY_FORMAT;
+
     /// The state at tick 0. May draw from `rng` (e.g. random spawns), in a documented
     /// order.
     fn init(config: &Self::Config, rng: &mut MatchRng) -> Self::State;
-    /// Number of agents: the length of every tick's action list.
+    /// Number of agents: the length of every tick's action list. Fixed for the whole
+    /// match (read once in [`Match::new`]; the history is one flat buffer with this
+    /// stride).
     fn agents(state: &Self::State) -> usize;
     /// Whether `agent` takes part this tick. For an inactive agent the policy isn't
     /// called and the default action is recorded.
@@ -92,6 +120,19 @@ pub trait Rules {
     /// the field (reported as [`ReplayError::FieldNotInFormat`]). Called by
     /// [`Replay::from_json`] after the format range and `setup_hash` checks.
     fn check_format(config: &Self::Config, format: u32) -> Result<(), &'static str>;
+
+    /// Reward for `agent` on the tick just stepped, for training tools ([`Match::reward`]).
+    /// Computed from the state and that step's events only, so it is deterministic; it
+    /// is never recorded in the history or in replays, and the loop never calls it.
+    /// Defaults to 0.0. Evolution scores match results instead.
+    fn reward(
+        _config: &Self::Config,
+        _state: &Self::State,
+        _events: &[Self::Event],
+        _agent: usize,
+    ) -> f32 {
+        0.0
+    }
 }
 
 /// The match's seeded random number generator: `ChaCha8Rng::seed_from_u64(seed)`.

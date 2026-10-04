@@ -35,6 +35,7 @@ pub mod json_u64;
 pub mod policy;
 pub mod replay;
 pub mod sim;
+pub mod tank_flat;
 #[cfg(test)]
 mod testing;
 
@@ -64,6 +65,8 @@ pub fn version() -> &'static str {
 mod tests {
     use super::*;
     use replay::REPLAY_FORMAT;
+    /// Tank Arena keeps writing format 4 ([`Rules::WRITES_FORMAT`]).
+    const TANK_FORMAT: u32 = <crate::sim::TankRules as Rules>::WRITES_FORMAT;
     use serde_json::json;
     use testing::{play, play_config};
 
@@ -231,7 +234,7 @@ mod tests {
         assert!(Replay::from_json(&v2_edited).unwrap().verify().is_ok());
         // Upgrade: verify, then re-record.
         let up = back.replay();
-        assert_eq!(up.format, REPLAY_FORMAT);
+        assert_eq!(up.format, TANK_FORMAT);
         assert_eq!(up.setup_hash, m.replay().setup_hash);
     }
 
@@ -245,7 +248,7 @@ mod tests {
             Replay::from_json(&missing),
             Err(ReplayError::MissingSetupHash)
         );
-        for f in [0, 1, 5] {
+        for f in [0, 1, 6] {
             let other = edit(&json, |v| v["format"] = json!(f));
             assert_eq!(Replay::from_json(&other), Err(ReplayError::Format(f)));
         }
@@ -452,7 +455,7 @@ mod tests {
         assert!(r.to_json().contains(r#""format":3"#));
         let back = r.verify().expect("format 3 verifies, setup hash included");
         assert_eq!(back.state_hash(), m.state_hash());
-        assert_eq!(back.replay().format, REPLAY_FORMAT);
+        assert_eq!(back.replay().format, TANK_FORMAT);
         // Formats 2 and 3 have no per-tank params or stationary accuracy.
         let v4 = play_config(loadout_config(), 7).replay().to_json();
         for format in [2, 3] {
@@ -476,6 +479,43 @@ mod tests {
                 })
             );
         }
+    }
+
+    #[test]
+    fn tank_writes_format_4_and_never_finishes() {
+        assert_eq!((TANK_FORMAT, REPLAY_FORMAT), (4, 5));
+        for seed in 0..20 {
+            let m = play(seed);
+            assert_ne!(
+                m.outcome().unwrap().reason,
+                EndReason::Finished,
+                "seed {seed}"
+            );
+            let r = m.replay();
+            assert_eq!((r.format, r.game.clone(), r.rules_version), (4, None, None));
+            let json = r.to_json();
+            assert!(
+                json.starts_with(r#"{"format":4,"engine_version":"#),
+                "{json}"
+            );
+            assert!(!json.contains(r#""game""#) && !json.contains("rules_version"));
+        }
+        // A format 5 file naming Tank Arena and its rules version also loads.
+        let m = play(7);
+        let v5 = m.replay().to_json().replace(
+            r#""format":4"#,
+            r#""format":5,"game":"tank","rules_version":1"#,
+        );
+        let r = Replay::from_json(&v5).expect("format 5 tank file loads");
+        assert_eq!(r.verify().unwrap().state_hash(), m.state_hash());
+        assert_eq!(
+            Replay::from_json(&v5.replace(r#""rules_version":1"#, r#""rules_version":2"#)),
+            Err(ReplayError::RulesVersionMismatch {
+                game: "tank",
+                expected: 1,
+                got: Some(2)
+            })
+        );
     }
 
     #[test]
