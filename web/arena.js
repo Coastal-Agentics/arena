@@ -3,17 +3,21 @@
 // Engine coordinates are Y-up with angles counter-clockwise; the canvas is Y-down,
 // so we flip Y and negate angles when drawing.
 //
-// Two tabs: Watch (play a match) and Customize (each tank's behavior and 9-point build).
-// The match lives in the URL: ?seed=42&blue=kiter-5-3-1&orange=charger-4-1-4 (Tank Arena)
-// or the legacy ?seed=42&a=Chaser&b=Wanderer (built-in bots, same as engine-cli).
+// Games: Tank (default) and Racing (?game=racing). Tank has Watch + Customize tabs.
+// Tank URL: ?seed=42&blue=kiter-5-3-1&orange=charger-4-1-4 (or legacy ?a=&b=).
+// Racing URL: ?game=racing&seed=42 — four Nyborgs on the Ring (follower/cutter/blocker/follower).
 // Viewer extras: tab=customize, speed=1|2|4, paused=1, t=<ticks to skip on load>,
-// sprites=nyborg|classic (Nyborgs are the default agent sprites).
-import init, { WasmMatch, tankCatalogJson, snapLoadout, canonicalTankQuery } from "./pkg/engine_wasm.js";
+// sprites=nyborg|classic (Nyborgs are the default tank sprites).
+import init, { WasmMatch, WasmRace, tankCatalogJson, snapLoadout, canonicalTankQuery } from "./pkg/engine_wasm.js";
 import {
   PLACEHOLDER_BOTS, TRI, specFromQuery, queryFromSpec, pointToWeights, weightsToPoint,
   loadoutWeights, readout, presetName,
 } from "./tank-ui.js";
 import { drawNyborg, hairColor, idleBob, facingFromHeading } from "./nyborg.js";
+import {
+  defaultRaceBuilds, raceSpecFromQuery, queryFromRaceSpec,
+  drawTrack, drawRaceCar, drawFinishBanner, hairForCar, RACE_HAIR,
+} from "./race-ui.js";
 
 const TICK_HZ = 60;
 const TEAM_COLORS = ["#4da3ff", "#ff6b3d"];
@@ -42,15 +46,20 @@ let runningQuery = null; // queryFromSpec of the match on the Watch tab
 let running = null;
 // Agent sprite mode: Nyborgs are the default (M5 first slice). Classic tanks via ?sprites=classic.
 let spriteMode = "nyborg";
-// Last facing (+1/-1) per tank id so flips stay stable near vertical headings.
+// Last facing (+1/-1) per agent id so flips stay stable near vertical headings.
 const facingById = new Map();
+// Racing: static track geometry + setup for HUD / finish banner.
+let track = null;
+let raceSetup = null;
 
 const behaviorName = (key) => (catalog.behaviors.find(([k]) => k === key) || [key, key])[1];
 const pretty = (l) => l.replaceAll("-", "/");
+const isRacing = () => spec?.game === "racing";
 
 function setSpeed(s) {
   speed = s;
   document.querySelectorAll(".speed").forEach((b) => b.classList.toggle("on", Number(b.dataset.speed) === s));
+  if (isRacing()) syncUrl();
 }
 
 function setPlaying(p) {
@@ -60,6 +69,7 @@ function setPlaying(p) {
 }
 
 function setTab(t) {
+  if (isRacing() && t === "customize") t = "watch";
   tab = t;
   for (const name of ["watch", "customize"]) {
     $(`tab-${name}`).setAttribute("aria-selected", String(name === t));
@@ -67,14 +77,42 @@ function setTab(t) {
   }
   if (t === "customize") renderCustomize();
   // Builds edited in Customize take effect when you come back to Watch.
-  if (t === "watch" && spec && queryFromSpec(spec) !== runningQuery) restart();
+  if (t === "watch" && spec && !isRacing() && queryFromSpec(spec) !== runningQuery) restart();
   syncUrl();
+}
+
+function setGame(g) {
+  const next = g === "racing" ? "racing" : "tank";
+  document.querySelectorAll(".game").forEach((b) => b.classList.toggle("on", b.dataset.game === next));
+  $("tank-bots").hidden = next === "racing";
+  $("tank-sprites").hidden = next === "racing";
+  $("tank-tabs").hidden = next === "racing";
+  $("race-hud").hidden = next !== "racing";
+  $("blurb").textContent = next === "racing"
+    ? "The deterministic Rust engine, compiled to WebAssembly, running a Ring race with Nyborg drivers. Same link, same race, every time."
+    : "The deterministic Rust engine, compiled to WebAssembly, running a Tank Arena duel live at 60 ticks per second. Same link, same match, every time.";
+  $("arena").setAttribute("aria-label", next === "racing" ? "Ring race with Nyborg drivers" : "Tank Arena match with Nyborg agents");
+  if (next === "racing") {
+    if (!isRacing()) spec = { game: "racing", seed: (spec?.seed || "42"), builds: defaultRaceBuilds() };
+    setTab("watch");
+  } else if (isRacing()) {
+    try { spec = defaultSpec(); }
+    catch { spec = { mode: "tank", seed: "42", tanks: [{ behavior: "kiter", loadout: "5-3-1" }, { behavior: "charger", loadout: "4-1-4" }] }; }
+  }
+  restart();
 }
 
 function syncUrl() {
   if (!spec) return;
-  history.replaceState(null, "", "?" + queryFromSpec(spec, { tab: tab === "customize" ? "customize" : "" }));
-  $("cz-link").textContent = $("cz-link").href = location.href.replace(/[?&]tab=customize/, "");
+  if (isRacing()) {
+    history.replaceState(null, "", "?" + queryFromRaceSpec(spec, {
+      speed: speed !== 1 ? speed : 0,
+      paused: playing ? 0 : 1,
+    }));
+  } else {
+    history.replaceState(null, "", "?" + queryFromSpec(spec, { tab: tab === "customize" ? "customize" : "" }));
+    $("cz-link").textContent = $("cz-link").href = location.href.replace(/[?&]tab=customize/, "");
+  }
 }
 
 // --- match lifecycle -------------------------------------------------------------------
@@ -84,7 +122,14 @@ function restart() {
   try {
     match?.free();
     match = null;
-    if (spec.mode === "tank") {
+    track = null;
+    raceSetup = null;
+    if (isRacing()) {
+      match = WasmRace.fromBuilds(spec.seed, JSON.stringify(spec.builds || defaultRaceBuilds()));
+      track = JSON.parse(match.trackJson());
+      raceSetup = JSON.parse(match.setupJson());
+      setup = raceSetup;
+    } else if (spec.mode === "tank") {
       match = WasmMatch.tank(queryFromSpec(spec));
       setup = JSON.parse(match.setupJson());
     } else {
@@ -97,6 +142,8 @@ function restart() {
     match = null;
     state = null;
     setup = null;
+    track = null;
+    raceSetup = null;
     running = null;
     runningQuery = null;
     $("clock").textContent = "No match";
@@ -107,7 +154,7 @@ function restart() {
     return;
   }
   running = JSON.parse(JSON.stringify(spec));
-  runningQuery = queryFromSpec(spec);
+  runningQuery = isRacing() ? queryFromRaceSpec(spec) : queryFromSpec(spec);
   carry = 0;
   lastTime = null;
   $("result").textContent = "";
@@ -119,6 +166,10 @@ function restart() {
 
 function refresh() {
   state = JSON.parse(match.stateJson());
+  if (isRacing()) {
+    refreshRace();
+    return;
+  }
   const secs = (state.tick / TICK_HZ).toFixed(1);
   const limit = (state.max_ticks / TICK_HZ).toFixed(0);
   $("clock").textContent = `Tick ${state.tick} · ${secs}s / ${limit}s`;
@@ -135,6 +186,39 @@ function refresh() {
   }
 }
 
+function refreshRace() {
+  const hz = track?.tick_hz || TICK_HZ;
+  const secs = (state.tick / hz).toFixed(1);
+  const limit = (state.max_ticks / hz).toFixed(0);
+  const lapsTotal = state.cars?.[0]?.laps_total ?? track?.laps ?? 3;
+  // Show the leader's completed laps (max among cars).
+  const lapDone = Math.max(0, ...(state.cars || []).map((c) => c.lap || 0));
+  $("clock").textContent = `Lap ${Math.min(lapDone + 1, lapsTotal)}/${lapsTotal} · ${secs}s / ${limit}s`;
+  renderRaceHud();
+  const o = state.outcome || (state.over ? JSON.parse(match.outcomeJson()) : null);
+  if (o && o !== null) {
+    const winner = o.winner == null ? null : (raceSetup?.cars?.[o.winner]?.name || `Car ${o.winner}`);
+    const at = `${(o.ticks / hz).toFixed(1)}s`;
+    $("result").textContent = winner == null
+      ? `Race over (${o.reason}) at ${at}`
+      : `${winner} wins — ${o.reason}, ${at}`;
+  }
+}
+
+function renderRaceHud() {
+  const el = $("race-hud");
+  if (!el || !state?.cars) { if (el) el.innerHTML = ""; return; }
+  const order = [...state.cars].sort((a, b) => (a.placing ?? 99) - (b.placing ?? 99));
+  const places = order.map((c) => {
+    const name = raceSetup?.cars?.[c.id]?.name || `Car ${c.id}`;
+    const beh = raceSetup?.cars?.[c.id]?.behavior || "";
+    const hair = hairForCar(c.id);
+    const done = c.finished ? " · finished" : "";
+    return `<span class="place"><span class="swatch" style="background:${hair}"></span><strong>${c.placing}.</strong> ${name} <span class="muted">(${beh}${done})</span></span>`;
+  }).join("");
+  el.innerHTML = places;
+}
+
 // --- Watch tab controls ------------------------------------------------------------------
 
 function fillBotSelect(sel) {
@@ -148,12 +232,15 @@ function fillBotSelect(sel) {
 
 function syncControls() {
   $("seed").value = spec.seed;
-  $("cz-seed").value = spec.seed;
-  for (const i of [0, 1]) $(`bot${i}`).value = spec.mode === "tank" ? spec.tanks[i].behavior : spec.bots[i];
+  if (!isRacing()) {
+    $("cz-seed").value = spec.seed;
+    for (const i of [0, 1]) $(`bot${i}`).value = spec.mode === "tank" ? spec.tanks[i].behavior : spec.bots[i];
+  }
   renderWatchCards();
 }
 
 function onBotChange(i) {
+  if (isRacing()) return;
   const v = $(`bot${i}`).value;
   const isBot = PLACEHOLDER_BOTS.includes(v);
   if (isBot) {
@@ -185,6 +272,21 @@ function trainingBadge() {
 function renderWatchCards() {
   const el = $("watch-cards");
   const shown = running || spec; // the running match; the request if none could start
+  if (shown.game === "racing") {
+    const cars = raceSetup?.cars || shown.builds.map((b, i) => ({
+      behavior: b.behavior?.id || "follower",
+      name: (b.behavior?.id || "follower")[0].toUpperCase() + (b.behavior?.id || "follower").slice(1),
+      setup: "3-3-3",
+      training: "Scripted",
+    }));
+    el.innerHTML = cars.map((c, i) => {
+      const hair = hairForCar(i);
+      return `<div class="tankcard"><h3><span style="color:${hair}">${c.name}</span>${trainingBadge()}</h3>
+        <div>Build ${c.setup} (P/T/G) · yarn ${RACE_HAIR[i % RACE_HAIR.length]} · ${c.behavior}</div></div>`;
+    }).join("");
+    $("watch-note").innerHTML = "<strong>Follower</strong> tracks the racing line; <strong>Cutter</strong> dives inside; <strong>Blocker</strong> sits wide and disrupts. Finished Nyborgs coast as ghosts.";
+    return;
+  }
   if (shown.mode !== "tank") {
     el.innerHTML = [0, 1].map((i) => `<div class="tankcard"><h3><span class="team${i}">${TEAM_NAMES[i]}: ${shown.bots[i]}</span><span class="badge">Placeholder</span></h3>
       <div class="muted">Engine built-in bot on the engine's random-spawn duel, default stats.</div></div>`).join("");
@@ -310,6 +412,7 @@ function watchThis() {
 // --- drawing -------------------------------------------------------------------------
 
 function draw() {
+  if (isRacing()) { drawRace(); return; }
   if (!state) {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     return;
@@ -344,6 +447,28 @@ function draw() {
   }
 
   for (const t of state.tanks) drawTank(t, Y);
+}
+
+function drawRace() {
+  if (!track) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    return;
+  }
+  const W = track.width, H = track.height;
+  if (canvas.width !== W || canvas.height !== H) { canvas.width = W; canvas.height = H; }
+  drawTrack(ctx, track);
+  if (!state?.cars) return;
+  // Draw finished (ghost) cars first so live leaders paint on top.
+  const order = [...state.cars].sort((a, b) => Number(a.finished) - Number(b.finished));
+  for (const c of order) {
+    const prev = facingById.get(c.id) ?? 1;
+    const facing = drawRaceCar(ctx, track, c, { facingPrev: prev, tick: state.tick });
+    facingById.set(c.id, facing);
+  }
+  if (state.over || state.outcome) {
+    const outcome = state.outcome || JSON.parse(match.outcomeJson());
+    drawFinishBanner(ctx, track, raceSetup, outcome);
+  }
 }
 
 function setSpriteMode(mode) {
@@ -437,7 +562,8 @@ function drawHpOrX(t, r) {
 // --- loop ----------------------------------------------------------------------------
 
 function frame(now) {
-  if (match && playing && !state?.outcome) {
+  const racingOver = isRacing() && (state?.over || state?.outcome);
+  if (match && playing && !state?.outcome && !racingOver) {
     if (lastTime !== null) {
       // Cap the catch-up so a backgrounded tab doesn't fast-forward the whole match.
       carry += Math.min((now - lastTime) / 1000, 0.1) * TICK_HZ * speed;
@@ -461,24 +587,37 @@ $("watch-this").addEventListener("click", watchThis);
 $("cz-seed").addEventListener("input", (e) => { spec = { ...spec, seed: e.target.value.trim() || "0" }; syncUrl(); });
 document.querySelectorAll(".speed").forEach((b) => b.addEventListener("click", () => setSpeed(Number(b.dataset.speed))));
 document.querySelectorAll(".sprites").forEach((b) => b.addEventListener("click", () => setSpriteMode(b.dataset.sprites)));
+document.querySelectorAll(".game").forEach((b) => b.addEventListener("click", () => setGame(b.dataset.game)));
 
 await init();
 catalog = JSON.parse(tankCatalogJson());
 fillBotSelect($("bot0"));
 fillBotSelect($("bot1"));
 const params = new URLSearchParams(location.search);
+const wantRacing = params.get("game") === "racing";
 try {
-  spec = specFromQuery(location.search, canonicalTankQuery);
+  if (wantRacing) spec = raceSpecFromQuery(location.search);
+  else spec = specFromQuery(location.search, canonicalTankQuery);
 } catch (e) {
-  spec = defaultSpec();
+  spec = wantRacing ? raceSpecFromQuery("?game=racing&seed=42") : defaultSpec();
   queueMicrotask(() => { $("result").textContent = `Bad link (${e.message || e}); showing the default match.`; });
+}
+// Sync game chrome without restarting twice.
+document.querySelectorAll(".game").forEach((b) => b.classList.toggle("on", b.dataset.game === (wantRacing ? "racing" : "tank")));
+$("tank-bots").hidden = wantRacing;
+$("tank-sprites").hidden = wantRacing;
+$("tank-tabs").hidden = wantRacing;
+$("race-hud").hidden = !wantRacing;
+if (wantRacing) {
+  $("blurb").textContent = "The deterministic Rust engine, compiled to WebAssembly, running a Ring race with Nyborg drivers. Same link, same race, every time.";
+  $("arena").setAttribute("aria-label", "Ring race with Nyborg drivers");
 }
 if (params.has("speed")) setSpeed(Number(params.get("speed")) || 1);
 if (params.get("paused") === "1") setPlaying(false);
 if (params.get("sprites") === "classic") setSpriteMode("classic");
 else setSpriteMode("nyborg");
 restart();
-if (params.get("tab") === "customize") setTab("customize");
+if (!wantRacing && params.get("tab") === "customize") setTab("customize");
 // Optional: jump ahead N ticks on load (?t=600), handy for sharing a moment of a match.
 const skip = Number(params.get("t") || 0);
 if (skip > 0 && match) { match.step(skip); refresh(); }
@@ -490,5 +629,7 @@ window.__arena = {
   get spec() { return spec; },
   get running() { return running; },
   get sprites() { return spriteMode; },
-  hash: () => match?.stateHash(),
+  get track() { return track; },
+  get game() { return isRacing() ? "racing" : "tank"; },
+  hash: () => (match && typeof match.stateHash === 'function' ? match.stateHash() : undefined),
 };

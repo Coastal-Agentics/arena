@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Arena viewer — Coastal Agentics</title>
-  <meta name="description" content="Watch Tank Arena bots fight live in your browser, or customize each tank's behavior and build: our deterministic Rust engine compiled to WebAssembly. Coastal Agentics: we train robots, with open tools, on the Georgia coast.">
+  <meta name="description" content="Watch Tank Arena bots fight or Nyborgs race live in your browser: our deterministic Rust engine compiled to WebAssembly. Coastal Agentics: we train robots, with open tools, on the Georgia coast.">
   <link rel="icon" href="./favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="./style.css">
   <style>
@@ -33,6 +33,12 @@
     .readout { display:grid; grid-template-columns:auto 1fr; gap:2px 12px; margin:0; }
     .readout dt { color:var(--muted); } .readout dd { margin:0; font-variant-numeric:tabular-nums; }
     .muted { color:var(--muted); font-size:.85rem; }
+    .games { display:flex; gap:6px; margin:12px 0 0; }
+    .games button { background:var(--panel); color:var(--muted); border:1px solid #2a3244; border-radius:6px; padding:6px 12px; font:inherit; font-weight:700; }
+    .games button.on { border-color:var(--accent); color:var(--accent); }
+    #race-hud { display:flex; flex-wrap:wrap; gap:10px 18px; align-items:center; margin:8px 0; font-size:.9rem; color:var(--muted); }
+    #race-hud .place { display:inline-flex; align-items:center; gap:6px; margin-right:10px; }
+    #race-hud .swatch { width:10px; height:10px; border-radius:50%; display:inline-block; }
     [hidden] { display:none !important; }
   </style>
 </head>
@@ -40,9 +46,14 @@
   <main class="wide">
     <header><a class="mark" href="./index.html">← Coastal Agentics</a></header>
     <h1>Arena viewer</h1>
-    <p>The deterministic Rust engine, compiled to WebAssembly, running a Tank Arena duel live at 60 ticks per second. Same link, same match, every time.</p>
+    <p id="blurb">The deterministic Rust engine, compiled to WebAssembly, running a Tank Arena duel live at 60 ticks per second. Same link, same match, every time.</p>
 
-    <nav class="tabs" role="tablist">
+    <div class="games" role="group" aria-label="Game">
+      <button type="button" class="game on" data-game="tank">Tank</button>
+      <button type="button" class="game" data-game="racing">Racing</button>
+    </div>
+
+    <nav class="tabs" role="tablist" id="tank-tabs">
       <button type="button" role="tab" id="tab-watch" aria-controls="panel-watch" aria-selected="true">Watch</button>
       <button type="button" role="tab" id="tab-customize" aria-controls="panel-customize" aria-selected="false">Customize</button>
     </nav>
@@ -50,8 +61,10 @@
     <section id="panel-watch" role="tabpanel" aria-labelledby="tab-watch">
       <form class="controls" id="controls" onsubmit="return false">
         <label>Seed <input id="seed" value="42" inputmode="numeric" pattern="[0-9]+" title="Decimal integer, 0 to 18446744073709551615"></label>
-        <label><span class="team0">Blue</span> <select id="bot0"></select></label>
-        <label>vs <span class="team1">Orange</span> <select id="bot1"></select></label>
+        <span id="tank-bots">
+          <label><span class="team0">Blue</span> <select id="bot0"></select></label>
+          <label>vs <span class="team1">Orange</span> <select id="bot1"></select></label>
+        </span>
         <button type="button" id="play">Pause</button>
         <span>Speed
           <button type="button" class="speed on" data-speed="1">1x</button>
@@ -59,17 +72,18 @@
           <button type="button" class="speed" data-speed="4">4x</button>
         </span>
         <button type="button" id="restart">Restart</button>
-        <span>Sprites
+        <span id="tank-sprites">Sprites
           <button type="button" class="sprites on" data-sprites="nyborg">Nyborgs</button>
           <button type="button" class="sprites" data-sprites="classic">Classic</button>
         </span>
       </form>
 
-      <canvas id="arena" width="800" height="600" aria-label="Tank Arena match with Nyborg agents"></canvas>
+      <canvas id="arena" width="800" height="600" aria-label="Arena match"></canvas>
       <div class="status">
         <span id="clock">Loading engine…</span>
         <span id="result"></span>
       </div>
+      <div id="race-hud" hidden></div>
       <div class="cards" id="watch-cards"></div>
       <p class="muted" id="watch-note"></p>
     </section>
