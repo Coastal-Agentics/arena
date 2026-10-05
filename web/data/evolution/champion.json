@@ -1,5 +1,5 @@
 {
-  "commit": "493534514149885f404267335eea9bd97a364583",
+  "commit": "2dad8103ff477d8c024c58707f1a429ef4d63195",
   "config": {
     "elite": 4,
     "gene_rate": 0.25,
@@ -13,60 +13,60 @@
   },
   "fitness_function": "mean over matches of (win 1, draw 0.25, loss 0); opponents: Charger, Kiter and Sniper at defaults and 3/3/3, plus the last 8 champions; fixed training seeds, both spawn sides; ties: more damage dealt, then lower population index",
   "format": 1,
-  "generation": 299,
+  "generation": 399,
   "genome": {
     "behavior": "charger",
     "loadout": "2-4-3",
     "params": {
-      "aim_tol": 0.158,
+      "aim_tol": 0.174,
       "dodge_chance": 0.65,
-      "dodge_horizon": 26.543,
-      "dodge_margin": 6.231,
-      "route_margin": 21.26,
-      "stall.min_speed": 1.0,
+      "dodge_horizon": 49.256,
+      "dodge_margin": 20.0,
+      "route_margin": 7.034,
+      "stall.min_speed": 0.808,
       "stall.reverse_ticks": 5,
       "stall.stuck_ticks": 3,
-      "steer_tol": 0.571,
-      "stop_dist": 20.0,
-      "weave_deg": 9.098,
-      "weave_jitter": 5,
-      "weave_period": 106,
-      "weave_until": 91.25
+      "steer_tol": 0.6,
+      "stop_dist": 27.967,
+      "weave_deg": 11.532,
+      "weave_jitter": 0,
+      "weave_period": 102,
+      "weave_until": 10.425
     }
   },
   "held_out": {
-    "digest": "b59164166c1de0ac",
+    "digest": "5e4b79cb74a97f07",
     "matches": 6000,
     "seed_base": "9000000000",
     "seeds": 1000,
     "status": "experimental",
     "vs_wdl": {
       "charger": [
-        1993,
+        1998,
         0,
-        7
+        2
       ],
       "kiter": [
-        1548,
-        216,
-        236
+        1594,
+        57,
+        349
       ],
       "sniper": [
-        1572,
-        158,
-        270
+        1465,
+        145,
+        390
       ]
     },
-    "win_rate": 0.8522,
-    "wins": 5113
+    "win_rate": 0.8428,
+    "wins": 5057
   },
   "label": "charger-2-4-3",
   "promotion": "win rate vs Gen 0 >= 65% to promote; above 70% the champion is held from promotion and labeled experimental, and the CoS tells Nye",
   "training": {
-    "damage": 0.9845,
-    "fitness": 0.7571,
+    "damage": 0.9902,
+    "fitness": 0.7614,
     "matches": 176,
     "seed_base": "1000000",
-    "vs_scripted": 0.9375
+    "vs_scripted": 0.8542
   }
 }
