@@ -1,0 +1,71 @@
+{
+  "commit": "32f9fc09f2e5015788a49288d96f6425606fd831",
+  "config": {
+    "elite": 4,
+    "gene_rate": 0.25,
+    "hall_of_fame": 8,
+    "loadout_rate": 0.3,
+    "population": 32,
+    "seed": "1",
+    "sigma": 0.1,
+    "tournament": 3,
+    "train_seeds": 8
+  },
+  "fitness_function": "mean over matches of (win 1, draw 0.25, loss 0); opponents: Charger, Kiter and Sniper at defaults and 3/3/3, plus the last 8 champions; fixed training seeds, both spawn sides; ties: more damage dealt, then lower population index",
+  "format": 1,
+  "generation": 399,
+  "genome": {
+    "behavior": "charger",
+    "loadout": "5-3-1",
+    "params": {
+      "aim_tol": 0.2,
+      "dodge_horizon": 15.1,
+      "dodge_margin": 12.623,
+      "route_margin": 0.0,
+      "stall.min_speed": 0.942,
+      "stall.reverse_ticks": 5,
+      "stall.stuck_ticks": 45,
+      "steer_tol": 0.05,
+      "stop_dist": 20.0,
+      "weave_deg": 60.0,
+      "weave_jitter": 9,
+      "weave_period": 120,
+      "weave_until": 0.0
+    }
+  },
+  "held_out": {
+    "digest": "0be1fd49d1a6eee9",
+    "matches": 6000,
+    "seed_base": "9000000000",
+    "seeds": 1000,
+    "status": "experimental",
+    "vs_wdl": {
+      "charger": [
+        1998,
+        1,
+        1
+      ],
+      "kiter": [
+        1949,
+        51,
+        0
+      ],
+      "sniper": [
+        1628,
+        367,
+        5
+      ]
+    },
+    "win_rate": 0.9292,
+    "wins": 5575
+  },
+  "label": "charger-5-3-1",
+  "promotion": "win rate vs Gen 0 >= 65% to promote; above 70% the champion is held from promotion and labeled experimental, and the CoS tells Nye",
+  "training": {
+    "damage": 0.9664,
+    "fitness": 0.6875,
+    "matches": 176,
+    "seed_base": "1000000",
+    "vs_scripted": 1.0
+  }
+}
