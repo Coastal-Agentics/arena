@@ -6,7 +6,7 @@ export const NYBORG = {
   head: "#EADFCB",
   outline: "#5E544B",
   eyes: "#2F2A26",
-  // Distinct primary yarn per team (Blue → Cobalt, Orange → Yarn Red).
+  // Distinct primary yarn: tank teams use Cobalt / Yarn Red; racing uses RACE_HAIR in race-ui.js.
   hair: ["#3F6FD8", "#D9534F"],
 };
 
