@@ -6,12 +6,14 @@
 // Two tabs: Watch (play a match) and Customize (each tank's behavior and 9-point build).
 // The match lives in the URL: ?seed=42&blue=kiter-5-3-1&orange=charger-4-1-4 (Tank Arena)
 // or the legacy ?seed=42&a=Chaser&b=Wanderer (built-in bots, same as engine-cli).
-// Viewer extras: tab=customize, speed=1|2|4, paused=1, t=<ticks to skip on load>.
+// Viewer extras: tab=customize, speed=1|2|4, paused=1, t=<ticks to skip on load>,
+// sprites=nyborg|classic (Nyborgs are the default agent sprites).
 import init, { WasmMatch, tankCatalogJson, snapLoadout, canonicalTankQuery } from "./pkg/engine_wasm.js";
 import {
   PLACEHOLDER_BOTS, TRI, specFromQuery, queryFromSpec, pointToWeights, weightsToPoint,
   loadoutWeights, readout, presetName,
 } from "./tank-ui.js";
+import { drawNyborg, hairColor, idleBob, facingFromHeading } from "./nyborg.js";
 
 const TICK_HZ = 60;
 const TEAM_COLORS = ["#4da3ff", "#ff6b3d"];
@@ -38,6 +40,10 @@ let runningQuery = null; // queryFromSpec of the match on the Watch tab
 // Copy of `spec` for the match that is actually running. The Watch tab's cards and result
 // line describe this, never `spec`, which Customize edits before the match restarts.
 let running = null;
+// Agent sprite mode: Nyborgs are the default (M5 first slice). Classic tanks via ?sprites=classic.
+let spriteMode = "nyborg";
+// Last facing (+1/-1) per tank id so flips stay stable near vertical headings.
+const facingById = new Map();
 
 const behaviorName = (key) => (catalog.behaviors.find(([k]) => k === key) || [key, key])[1];
 const pretty = (l) => l.replaceAll("-", "/");
@@ -74,6 +80,7 @@ function syncUrl() {
 // --- match lifecycle -------------------------------------------------------------------
 
 function restart() {
+  facingById.clear();
   try {
     match?.free();
     match = null;
@@ -339,7 +346,45 @@ function draw() {
   for (const t of state.tanks) drawTank(t, Y);
 }
 
+function setSpriteMode(mode) {
+  spriteMode = mode === "classic" ? "classic" : "nyborg";
+  document.querySelectorAll(".sprites").forEach((b) => b.classList.toggle("on", b.dataset.sprites === spriteMode));
+}
+
 function drawTank(t, Y) {
+  if (spriteMode === "classic") drawClassicTank(t, Y);
+  else drawNyborgTank(t, Y);
+}
+
+function drawNyborgTank(t, Y) {
+  const color = TEAM_COLORS[t.team] || "#ccc";
+  const r = TANK_RADIUS;
+  const prev = facingById.get(t.id) ?? 1;
+  const facing = facingFromHeading(t.heading, prev);
+  facingById.set(t.id, facing);
+  const bob = t.alive ? idleBob(state?.tick) : 0;
+
+  ctx.save();
+  ctx.translate(t.x, Y(t.y));
+  ctx.globalAlpha = t.alive ? 1 : 0.3;
+
+  // Nyborg body (replaces the classic hull). Hair colour is team-primary; flip on heading x.
+  drawNyborg(ctx, { hair: hairColor(t.team), facing, bob, scale: 0.72 });
+
+  // Compact aim indicator (turret barrel) so aim direction stays readable.
+  ctx.save();
+  ctx.rotate(-t.turret);
+  ctx.fillStyle = "#e6e8ee";
+  ctx.fillRect(4, -2, r + 6, 4);
+  ctx.fillStyle = color;
+  ctx.beginPath(); ctx.arc(0, 0, 4.5, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+
+  drawHpOrX(t, r);
+  ctx.restore();
+}
+
+function drawClassicTank(t, Y) {
   const color = TEAM_COLORS[t.team] || "#ccc";
   const r = TANK_RADIUS;
   ctx.save();
@@ -370,19 +415,23 @@ function drawTank(t, Y) {
   ctx.beginPath(); ctx.arc(0, 0, r * 0.28, 0, Math.PI * 2); ctx.fill();
   ctx.restore();
 
-  // HP bar (screen-aligned, above the tank).
+  drawHpOrX(t, r);
+  ctx.restore();
+}
+
+function drawHpOrX(t, r) {
+  // HP bar (screen-aligned, above the agent).
   if (t.alive) {
     const w = 36, frac = Math.max(0, t.hp / t.max_hp);
     ctx.fillStyle = "#000a";
-    ctx.fillRect(-w / 2, -r - 12, w, 5);
+    ctx.fillRect(-w / 2, -r - 14, w, 5);
     ctx.fillStyle = frac > 0.5 ? "#3ddc84" : frac > 0.25 ? "#ffcc33" : "#ff4d4d";
-    ctx.fillRect(-w / 2, -r - 12, w * frac, 5);
+    ctx.fillRect(-w / 2, -r - 14, w * frac, 5);
   } else {
     ctx.strokeStyle = "#fff";
     ctx.lineWidth = 3;
     ctx.beginPath(); ctx.moveTo(-8, -8); ctx.lineTo(8, 8); ctx.moveTo(8, -8); ctx.lineTo(-8, 8); ctx.stroke();
   }
-  ctx.restore();
 }
 
 // --- loop ----------------------------------------------------------------------------
@@ -411,6 +460,7 @@ $("tab-customize").addEventListener("click", () => setTab("customize"));
 $("watch-this").addEventListener("click", watchThis);
 $("cz-seed").addEventListener("input", (e) => { spec = { ...spec, seed: e.target.value.trim() || "0" }; syncUrl(); });
 document.querySelectorAll(".speed").forEach((b) => b.addEventListener("click", () => setSpeed(Number(b.dataset.speed))));
+document.querySelectorAll(".sprites").forEach((b) => b.addEventListener("click", () => setSpriteMode(b.dataset.sprites)));
 
 await init();
 catalog = JSON.parse(tankCatalogJson());
@@ -425,6 +475,8 @@ try {
 }
 if (params.has("speed")) setSpeed(Number(params.get("speed")) || 1);
 if (params.get("paused") === "1") setPlaying(false);
+if (params.get("sprites") === "classic") setSpriteMode("classic");
+else setSpriteMode("nyborg");
 restart();
 if (params.get("tab") === "customize") setTab("customize");
 // Optional: jump ahead N ticks on load (?t=600), handy for sharing a moment of a match.
@@ -437,5 +489,6 @@ window.__arena = {
   get setup() { return setup; },
   get spec() { return spec; },
   get running() { return running; },
+  get sprites() { return spriteMode; },
   hash: () => match?.stateHash(),
 };
