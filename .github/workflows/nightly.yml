@@ -7,10 +7,13 @@ name: Nightly self-play
 #   - the site reads live nightly data from `nightly-data`; the CoS folds it into main by PR
 on:
   schedule:
-    # 06:37 UTC = 2:37 AM America/New_York in summer (EDT), 1:37 AM in winter (EST).
+    # 23:37 UTC = 7:37 PM America/New_York in summer (EDT), 6:37 PM in winter (EST).
+    # Evening on purpose: GitHub has been delaying this cron 5-9 hours, so the old 2:37 AM
+    # slot landed mid-morning (Oct 5: 11:11 AM ET), inside the founder's quiet window. An
+    # evening start leaves room for long delays. The `hours` job below is the hard rule.
     # Off the top of the hour on purpose: GitHub delays congested round-hour crons by hours.
     # Late or manual runs queue behind each other via `concurrency` below (never cancelled).
-    - cron: "37 6 * * *"
+    - cron: "37 23 * * *"
   workflow_dispatch:
     inputs:
       probe:
@@ -29,7 +32,31 @@ env:
   DATA_BRANCH: nightly-data
 
 jobs:
+  # Founder rule (2026-10-03): no runs or commits on weekdays 8 AM-5 PM America/New_York
+  # (the founder's quiet window). A run may take up to an hour,
+  # so nothing starts on a weekday from 7:00 AM to 4:59 PM ET. This applies to every event,
+  # manual dispatch included. A skipped run is not a failure; the CoS dispatches it after 5 PM.
+  hours:
+    runs-on: ubuntu-24.04
+    outputs:
+      ok: ${{ steps.check.outputs.ok }}
+    steps:
+      - id: check
+        run: |
+          dow=$(TZ=America/New_York date +%u)
+          hr=$((10#$(TZ=America/New_York date +%H)))
+          now=$(TZ=America/New_York date '+%a %Y-%m-%d %H:%M %Z')
+          if [ "$dow" -le 5 ] && [ "$hr" -ge 7 ] && [ "$hr" -lt 17 ]; then
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+            echo "Skipped: $now is inside the weekday 7 AM-5 PM ET quiet window (founder rule)." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+            echo "Allowed: $now is outside the weekday quiet window." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
   self-play:
+    needs: hours
+    if: needs.hours.outputs.ok == 'true'
     # Pinned, not ubuntu-latest: evolution results are only byte-identical on the same
     # platform (ADR-003), and each night resumes the last night's state.json.
     runs-on: ubuntu-24.04
