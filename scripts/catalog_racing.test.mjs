@@ -3,11 +3,15 @@
 //   node --test scripts/catalog_racing.test.mjs
 // The same cases run natively in engine-wasm's `build_exports_wrap_the_racing_catalog`
 // (cargo test). No npm dependencies.
+// It also runs scripts/race_wasm.test.mjs (WasmRace, checkRaceReplayJson), imported
+// below so the CI step that runs this file covers both.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 const path = (p) => new URL(p, import.meta.url);
+import "./race_wasm.test.mjs";
+
 const m = await import("../web/pkg/engine_wasm.js");
 m.initSync({ module: readFileSync(path("../web/pkg/engine_wasm_bg.wasm")) });
 

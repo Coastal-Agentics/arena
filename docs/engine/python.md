@@ -119,7 +119,8 @@ observation so it stays valid after the next step. `FlatEnv` is the zero-copy pa
   `final_hash` must equal the pin and `verify_replay`.
 - `examples/verify_replay.rs` re-verifies the replays the Python tests write
   (`SALTMARSH_ARENA_REPLAY_DIR`) in a binary with no Python in it. Tank replays from Python
-  also verify in wasm (`checkReplayJson`). Racing replays will too once `WasmRace` lands (M5).
+  also verify in wasm (`checkReplayJson`), and racing replays too (`checkRaceReplayJson`,
+  `scripts/race_wasm.test.mjs`).
 - `python/tests/test_envs.py` runs PettingZoo's `parallel_api_test` and `parallel_seed_test`
   and Gymnasium's `check_env` for both games.
 

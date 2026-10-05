@@ -13,7 +13,7 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 engine = { path = "../engine" }
 tank = { path = "../games/tank" }
-# Racing's build catalog only (games(), catalogJson, defaultBuild, validateBuild); no race viewer yet.
+# Racing: build catalog (games(), catalogJson, defaultBuild, validateBuild) and WasmRace.
 racing = { path = "../games/racing" }
 game-catalog = { path = "../games/catalog" }
 serde = { version = "1", features = ["derive"] }
