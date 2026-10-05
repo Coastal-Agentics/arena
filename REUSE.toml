@@ -1,0 +1,21 @@
+# SPDX-FileCopyrightText: 2026 Nye Warburton
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+version = 1
+SPDX-PackageName = "arena"
+SPDX-PackageSupplier = "Nye Warburton"
+SPDX-PackageDownloadLocation = "https://github.com/starscream-agentics/arena"
+
+# Default: everything is code under MIT OR Apache-2.0. In-file SPDX headers win ("closest").
+[[annotations]]
+path = ["**"]
+precedence = "closest"
+SPDX-FileCopyrightText = "2026 Nye Warburton"
+SPDX-License-Identifier = "MIT OR Apache-2.0"
+
+# Art, characters and logos: all rights reserved (ASSETS-LICENSE.md). "override" beats any header.
+[[annotations]]
+path = ["assets/**", "docs/design/*.png", "docs/design/*.svg", "web/favicon.svg"]
+precedence = "override"
+SPDX-FileCopyrightText = "2026 Nye Warburton"
+SPDX-License-Identifier = "LicenseRef-Coastal-Assets"

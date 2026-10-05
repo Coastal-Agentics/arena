@@ -9,7 +9,7 @@ Every shipped artifact (site build, wasm, dataset, replay set, trained policy, r
 - **From:** inputs <files, datasets, specs> · seeds <list or range> · commit <sha or PR>
 - **Hours / compute:** <wall-clock hours; hardware (e.g. GitHub Actions ubuntu-latest, CPU only); runs or matches>
 - **Reward or fitness function:** <the exact function or a link to it; "n/a" if none>
-- **License:** <e.g. MIT>
+- **License:** <code: MIT OR Apache-2.0 · assets: LicenseRef-Coastal-Assets>
 ```
 
 Why: reward and fitness functions determine what an agent does, and every dataset should record who made it. The card makes both visible.
