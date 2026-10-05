@@ -36,6 +36,13 @@ use tank::catalog;
 use tank::{loadout, Behavior, Chaser, Loadout, MatchSpec, Preset, TankSpec, Wanderer};
 use wasm_bindgen::prelude::*;
 
+mod race;
+pub use race::{
+    check_race_replay, check_race_replay_json, CarSetupView, CarView, GateView, PointView,
+    RaceOutcomeView, RaceReplayCheck, RaceSetupView, RaceStateView, RaceViewer, TrackView,
+    WasmRace,
+};
+
 /// Built-in bots the viewer can pit against each other.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BotKind {

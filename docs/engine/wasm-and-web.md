@@ -7,7 +7,8 @@ Source: `engine-wasm/` (`Cargo.toml`, `src/lib.rs`), `scripts/build-wasm.sh`,
 
 The viewer landed on `main` in PR #8. It plays **live** matches: between the placeholder bots
 (`tank::Chaser`, `tank::Wanderer`), or Tank Arena duels (rules v1, #18). It doesn't load
-replay files.
+replay files. Racing has a live step-and-state API too, `WasmRace` ([below](#racing-wasmrace-m5)),
+for the race viewer.
 
 ## How the pieces plug together
 
@@ -308,6 +309,75 @@ catalog/snap/query checks in `scripts/check-viewer.mjs`.
 Coordinates are the engine's (Y-up). `arena.js` flips Y and negates angles to draw on the
 Y-down canvas. It draws with the Canvas 2D API from plain JavaScript; no `web-sys` is used
 (ADR-002, corrected 2026-09-30).
+
+### Racing: `WasmRace` (M5)
+
+Source: `engine-wasm/src/race.rs`. It has the same two layers as tanks: `RaceViewer` (plain
+Rust, unit-tested natively) and its `#[wasm_bindgen]` handle `WasmRace`. A viewer loop
+written for `WasmMatch` works unchanged: `step(n)` until it returns true, then
+`stateJson()` each frame. It uses only what `games/racing` already exposes; there are no
+new accessors in racing.
+
+| JS | Returns | Notes |
+| --- | --- | --- |
+| `WasmRace.fromBuilds(seed, buildsJson)` | `WasmRace` | A Ring race. `seed` is a decimal string; `buildsJson` is a JSON array of 1–4 racing builds (`{rules_version, levels, behavior}`), and car `i` drives `builds[i]`. Each build is checked with the same validator as `validateBuild("racing", …)`. Throws `car 1: invalid build [{"code":…,"key":…}]`, `a race takes 1 to 4 builds, got 5`, `builds must be a JSON array…`, and `car 0: a champion behavior needs its genome…` for a champion (the loader resolves those). The grid is shuffled by the seed (`slot`). Same race as `racing::balance::run` and engine-py with the same seed and builds |
+| `r.step(n)` | `boolean` | Up to `n` ticks; stops at the end; true once over. Finished cars get no throttle and coast to a stop as ghosts (they hit walls, not cars). No allocation per tick, beyond the replay's action log doubling (`tests/race_alloc.rs`) |
+| `r.tick()` / `r.isOver()` | `number` / `boolean` | |
+| `r.stateJson()` | JSON | Per frame, below |
+| `r.trackJson()` | JSON | Static geometry, below; draw it once |
+| `r.outcomeJson()` | JSON | `"null"` while racing, else `{"winner", "ticks", "reason", "placings", "finish_ticks"}`. `reason` is `"finished"` (every car finished) or `"tick_limit"`. `winner` is the first finisher, or null if nobody finished |
+| `r.setupJson()` | JSON | `{"seed", "cars": [{"behavior", "name", "training": "Scripted", "setup": "3-3-3"}]}` (setup = power-top_speed-grip) |
+| `r.stateHash()` | 16 hex digits | Equals the replay's `final_hash` at the end |
+| `r.replayJson()` | JSON | The race so far as a [format 5](replay-format.md) racing replay; the same bytes engine-py writes for the same race |
+| `checkRaceReplayJson(json)` | JSON | Re-simulates a racing replay (from wasm, Rust or Python): `{"format", "game": "racing", "seed", "cars", "ticks", "outcome", "final_hash", "setup_hash", "verify_error"}`. `verify_error` is null when it verifies. Throws if it doesn't load as a racing replay. Tank replays still go to `checkReplayJson` |
+
+Coordinates and angles follow the tank convention: Y-up, origin bottom-left, world units,
+radians counter-clockwise from +X. The Ring runs counter-clockwise. `stateJson()`, with
+`cars` in build order:
+
+```json
+{"tick":600,"max_ticks":3600,"over":false,
+ "cars":[{"id":0,"pos":{"x":568.7607,"y":99.17433},"heading":0.74340546,"speed":153.28816,
+          "lap":1,"laps_total":3,"next_gate":2,"started":true,"finished":false,
+          "finish_tick":null,"placing":3,"slot":1}, …],
+ "outcome":null}
+```
+
+- `speed` is in units per second.
+- `lap` counts completed laps.
+- `next_gate` indexes `trackJson().gates`.
+- `started` is false until the car first crosses the start line.
+- `placing` is the current place (1 = leading), final once the car has finished.
+- At the end, `outcome` is the `outcomeJson()` object.
+
+`trackJson()`:
+
+```json
+{"name":"Ring","width":800.0,"height":600.0,
+ "centreline":[[400.0,100.0],[550.0,100.0],[700.0,250.0], …],
+ "half_width":60.0,
+ "inner":[[400.0,160.0],[525.1472,160.0], …],
+ "outer":[[400.0,40.0],[574.8528,40.0], …],
+ "gates":[{"inner":[400.0,160.0],"outer":[400.0,40.0],"start_finish":true},
+          {"inner":[525.1472,160.0],"outer":[574.8528,40.0],"start_finish":false}, …],
+ "start_finish_gate":0,"car_radius":12.0,"laps":3,"max_ticks":3600,
+ "tick_hz":60,"seconds_per_tick":0.016666668}
+```
+
+- World bounds are `0..width` × `0..height`.
+- `centreline`, `inner` and `outer` are closed polylines: the last point joins the first,
+  which is not repeated.
+- Vertex `i` of `inner` and `outer` is gate `i`'s endpoint (the walls are the road edges,
+  offset `half_width` from the centreline).
+- `gates` are in race order; gate 0 is the start/finish line.
+- Race time is `tick / tick_hz` seconds.
+
+Tests: `race.rs`'s unit tests (the same results as `racing::balance::run`, engine-py's
+native fixture, shapes, bad input, replay round trip) and `scripts/race_wasm.test.mjs`
+(Node, on the committed `web/pkg`). That test covers native `final_hash` parity, plus two
+racing replays written from Python (`scripts/fixtures/python-racing/`, from engine-py's
+`test_determinism.py` with `SALTMARSH_ARENA_REPLAY_DIR`) that verify in wasm. CI runs it
+through `scripts/catalog_racing.test.mjs`, which imports it.
 
 ### Viewer URL parameters (`web/arena.js`, `web/tank-ui.js`)
 

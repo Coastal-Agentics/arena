@@ -303,6 +303,33 @@ export function canonicalTankQuery(query) {
     }
 }
 
+/**
+ * Re-simulate a racing replay's JSON and return a JSON `RaceReplayCheck`. Throws if
+ * it doesn't load as a racing replay (a tank replay names its game).
+ * @param {string} json
+ * @returns {string}
+ */
+export function checkRaceReplayJson(json) {
+    let deferred3_0;
+    let deferred3_1;
+    try {
+        const ptr0 = passStringToWasm0(json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.checkRaceReplayJson(ptr0, len0);
+        var ptr2 = ret[0];
+        var len2 = ret[1];
+        if (ret[3]) {
+            ptr2 = 0; len2 = 0;
+            throw takeFromExternrefTable0(ret[2]);
+        }
+        deferred3_0 = ptr2;
+        deferred3_1 = len2;
+        return getStringFromWasm0(ptr2, len2);
+    } finally {
+        wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
+    }
+}
+
 const WasmMatchFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_wasmmatch_free(ptr >>> 0, 1));
@@ -505,6 +532,177 @@ export class WasmMatch {
      */
     isOver() {
         const ret = wasm.wasmmatch_isOver(this.__wbg_ptr);
+        return ret !== 0;
+    }
+}
+
+const WasmRaceFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_wasmrace_free(ptr >>> 0, 1));
+/**
+ * JS handle: `WasmRace.fromBuilds("42", JSON.stringify([build, build]))`.
+ */
+export class WasmRace {
+
+    static __wrap(ptr) {
+        ptr = ptr >>> 0;
+        const obj = Object.create(WasmRace.prototype);
+        obj.__wbg_ptr = ptr;
+        WasmRaceFinalization.register(obj, obj.__wbg_ptr, obj);
+        return obj;
+    }
+
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        WasmRaceFinalization.unregister(this);
+        return ptr;
+    }
+
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_wasmrace_free(ptr, 0);
+    }
+    /**
+     * Setup as JSON (see `RaceSetupView`).
+     * @returns {string}
+     */
+    setupJson() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.wasmrace_setupJson(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * Current state hash, 16 hex digits (the replay's `final_hash` at the end).
+     * @returns {string}
+     */
+    stateHash() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.wasmrace_stateHash(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * Per-frame state as JSON (see `RaceStateView`).
+     * @returns {string}
+     */
+    stateJson() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.wasmrace_stateJson(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * Static track geometry as JSON (see `TrackView`); draw once.
+     * @returns {string}
+     */
+    trackJson() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.wasmrace_trackJson(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * A Ring race: `seed` as a decimal string, `builds_json` a JSON array of 1–4
+     * racing builds (`{rules_version, levels, behavior}`), car `i` = `builds[i]`.
+     * Each is checked with the same validator as `validateBuild("racing", ...)`; an
+     * invalid build (`car 1: invalid build [{"code","key"}]`) or a champion behavior
+     * throws.
+     * @param {string} seed
+     * @param {string} builds_json
+     * @returns {WasmRace}
+     */
+    static fromBuilds(seed, builds_json) {
+        const ptr0 = passStringToWasm0(seed, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passStringToWasm0(builds_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        const ret = wasm.wasmrace_fromBuilds(ptr0, len0, ptr1, len1);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return WasmRace.__wrap(ret[0]);
+    }
+    /**
+     * The race so far as replay JSON (format 5, `game: "racing"`).
+     * @returns {string}
+     */
+    replayJson() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.wasmrace_replayJson(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * Outcome as JSON, or `"null"` while racing.
+     * @returns {string}
+     */
+    outcomeJson() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.wasmrace_outcomeJson(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * Advance up to `n` ticks; returns true once the race is over.
+     * @param {number} n
+     * @returns {boolean}
+     */
+    step(n) {
+        const ret = wasm.wasmrace_step(this.__wbg_ptr, n);
+        return ret !== 0;
+    }
+    /**
+     * Ticks simulated so far.
+     * @returns {number}
+     */
+    tick() {
+        const ret = wasm.wasmrace_tick(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+    /**
+     * True once the race has ended.
+     * @returns {boolean}
+     */
+    isOver() {
+        const ret = wasm.wasmrace_isOver(this.__wbg_ptr);
         return ret !== 0;
     }
 }
