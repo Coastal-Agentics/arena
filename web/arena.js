@@ -6,17 +6,23 @@
 // Games: Tank (default) and Racing (?game=racing). Tank has Watch + Customize tabs.
 // Tank URL: ?seed=42&blue=kiter-5-3-1&orange=charger-4-1-4 (or legacy ?a=&b=).
 // Racing URL: ?game=racing&seed=42 — four Nyborgs on the Ring (follower/cutter/blocker/follower).
+// Your own Nyborgs: &cars=cutter-5-2-2,follower-2-2-5 (1–4 builds, each checked by validateBuild),
+// plus optional looks/names for the drawing only: &looks=D9534F-3-g,3F6FD8-2&name1=Pip (nyborg-link.js).
 // Viewer extras: tab=customize, speed=1|2|4, paused=1, t=<ticks to skip on load>,
 // sprites=nyborg|classic (Nyborgs are the default tank sprites).
-import init, { WasmMatch, WasmRace, tankCatalogJson, snapLoadout, canonicalTankQuery } from "./pkg/engine_wasm.js";
+// Tank links may carry looks/names too (slot 1 = blue, 2 = orange): &looks=…&name1=…; drawing only.
+import init, {
+  WasmMatch, WasmRace, tankCatalogJson, snapLoadout, canonicalTankQuery, catalogJson, defaultBuild, validateBuild,
+} from "./pkg/engine_wasm.js";
 import {
   PLACEHOLDER_BOTS, TRI, specFromQuery, queryFromSpec, pointToWeights, weightsToPoint,
   loadoutWeights, readout, presetName,
 } from "./tank-ui.js";
 import { drawNyborg, hairColor, idleBob, facingFromHeading } from "./nyborg.js";
+import { parseCosmetics, cosmeticsQuery } from "./nyborg-link.js";
 import {
   defaultRaceBuilds, raceSpecFromQuery, queryFromRaceSpec,
-  drawTrack, drawRaceCar, drawFinishBanner, hairForCar, RACE_HAIR,
+  drawTrack, drawRaceCar, drawFinishBanner, lookForCar,
 } from "./race-ui.js";
 
 const TICK_HZ = 60;
@@ -50,11 +56,17 @@ let spriteMode = "nyborg";
 const facingById = new Map();
 // Racing: static track geometry + setup for HUD / finish banner.
 let track = null;
-let raceSetup = null;
+let raceSetup = null; // WasmRace.setupJson(), as the engine reports it
+let raceEngine = null; // racing catalog + defaultBuild/validateBuild, for links
+let raceCars = []; // per car: engine setup plus the link's display name and look (viewer only)
+// Tank Nyborgs' looks and names from the link (per team slot); never part of the tank query.
+const NO_TANK_COSMETICS = { looks: [null, null], names: [null, null], notes: [] };
+let tankCosmetics = NO_TANK_COSMETICS;
 
 const behaviorName = (key) => (catalog.behaviors.find(([k]) => k === key) || [key, key])[1];
 const pretty = (l) => l.replaceAll("-", "/");
 const isRacing = () => spec?.game === "racing";
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 
 function setSpeed(s) {
   speed = s;
@@ -93,9 +105,10 @@ function setGame(g) {
     : "The deterministic Rust engine, compiled to WebAssembly, running a Tank Arena duel live at 60 ticks per second. Same link, same match, every time.";
   $("arena").setAttribute("aria-label", next === "racing" ? "Ring race with Nyborg drivers" : "Tank Arena match with Nyborg agents");
   if (next === "racing") {
-    if (!isRacing()) spec = { game: "racing", seed: (spec?.seed || "42"), builds: defaultRaceBuilds() };
+    if (!isRacing()) spec = { game: "racing", seed: (spec?.seed || "42"), builds: defaultRaceBuilds(), custom: false, looks: [], names: [], notes: [] };
     setTab("watch");
   } else if (isRacing()) {
+    tankCosmetics = NO_TANK_COSMETICS;
     try { spec = defaultSpec(); }
     catch { spec = { mode: "tank", seed: "42", tanks: [{ behavior: "kiter", loadout: "5-3-1" }, { behavior: "charger", loadout: "4-1-4" }] }; }
   }
@@ -108,9 +121,10 @@ function syncUrl() {
     history.replaceState(null, "", "?" + queryFromRaceSpec(spec, {
       speed: speed !== 1 ? speed : 0,
       paused: playing ? 0 : 1,
-    }));
+    }, raceEngine.catalog));
   } else {
-    history.replaceState(null, "", "?" + queryFromSpec(spec, { tab: tab === "customize" ? "customize" : "" }));
+    const cos = cosmeticsQuery([0, 1].map((i) => ({ look: tankCosmetics.looks[i], name: tankCosmetics.names[i] })));
+    history.replaceState(null, "", "?" + queryFromSpec(spec, { tab: tab === "customize" ? "customize" : "" }) + (cos ? `&${cos}` : ""));
     $("cz-link").textContent = $("cz-link").href = location.href.replace(/[?&]tab=customize/, "");
   }
 }
@@ -124,11 +138,17 @@ function restart() {
     match = null;
     track = null;
     raceSetup = null;
+    raceCars = [];
     if (isRacing()) {
+      // Only the seed and the builds reach the engine; names and looks stay in the viewer.
       match = WasmRace.fromBuilds(spec.seed, JSON.stringify(spec.builds || defaultRaceBuilds()));
       track = JSON.parse(match.trackJson());
       raceSetup = JSON.parse(match.setupJson());
       setup = raceSetup;
+      raceCars = raceSetup.cars.map((c, i) => {
+        const look = lookForCar(spec, i);
+        return { ...c, name: spec.names?.[i] || c.name, hair: look.hair, look };
+      });
     } else if (spec.mode === "tank") {
       match = WasmMatch.tank(queryFromSpec(spec));
       setup = JSON.parse(match.setupJson());
@@ -154,7 +174,7 @@ function restart() {
     return;
   }
   running = JSON.parse(JSON.stringify(spec));
-  runningQuery = isRacing() ? queryFromRaceSpec(spec) : queryFromSpec(spec);
+  runningQuery = isRacing() ? queryFromRaceSpec(spec, {}, raceEngine.catalog) : queryFromSpec(spec);
   carry = 0;
   lastTime = null;
   $("result").textContent = "";
@@ -197,7 +217,7 @@ function refreshRace() {
   renderRaceHud();
   const o = state.outcome || (state.over ? JSON.parse(match.outcomeJson()) : null);
   if (o && o !== null) {
-    const winner = o.winner == null ? null : (raceSetup?.cars?.[o.winner]?.name || `Car ${o.winner}`);
+    const winner = o.winner == null ? null : (raceCars[o.winner]?.name || `Car ${o.winner}`);
     const at = `${(o.ticks / hz).toFixed(1)}s`;
     $("result").textContent = winner == null
       ? `Race over (${o.reason}) at ${at}`
@@ -210,9 +230,9 @@ function renderRaceHud() {
   if (!el || !state?.cars) { if (el) el.innerHTML = ""; return; }
   const order = [...state.cars].sort((a, b) => (a.placing ?? 99) - (b.placing ?? 99));
   const places = order.map((c) => {
-    const name = raceSetup?.cars?.[c.id]?.name || `Car ${c.id}`;
-    const beh = raceSetup?.cars?.[c.id]?.behavior || "";
-    const hair = hairForCar(c.id);
+    const name = esc(raceCars[c.id]?.name || `Car ${c.id}`);
+    const beh = esc(raceCars[c.id]?.behavior || "");
+    const hair = raceCars[c.id]?.hair || lookForCar(null, c.id).hair;
     const done = c.finished ? " · finished" : "";
     return `<span class="place"><span class="swatch" style="background:${hair}"></span><strong>${c.placing}.</strong> ${name} <span class="muted">(${beh}${done})</span></span>`;
   }).join("");
@@ -273,18 +293,20 @@ function renderWatchCards() {
   const el = $("watch-cards");
   const shown = running || spec; // the running match; the request if none could start
   if (shown.game === "racing") {
-    const cars = raceSetup?.cars || shown.builds.map((b, i) => ({
+    const cars = raceCars.length ? raceCars : shown.builds.map((b, i) => ({
       behavior: b.behavior?.id || "follower",
-      name: (b.behavior?.id || "follower")[0].toUpperCase() + (b.behavior?.id || "follower").slice(1),
-      setup: "3-3-3",
+      name: shown.names?.[i] || (b.behavior?.id || "follower")[0].toUpperCase() + (b.behavior?.id || "follower").slice(1),
+      setup: raceEngine.catalog.stats.map((s) => b.levels?.[s.key]).join("-"),
       training: "Scripted",
+      hair: lookForCar(shown, i).hair,
     }));
-    el.innerHTML = cars.map((c, i) => {
-      const hair = hairForCar(i);
-      return `<div class="tankcard"><h3><span style="color:${hair}">${c.name}</span>${trainingBadge()}</h3>
-        <div>Build ${c.setup} (P/T/G) · yarn ${RACE_HAIR[i % RACE_HAIR.length]} · ${c.behavior}</div></div>`;
+    el.innerHTML = cars.map((c) => {
+      return `<div class="tankcard"><h3><span style="color:${c.hair}">${esc(c.name)}</span>${trainingBadge()}</h3>
+        <div>Build ${esc(c.setup)} (P/T/G) · yarn ${c.hair} · ${esc(c.behavior)}</div></div>`;
     }).join("");
-    $("watch-note").innerHTML = "<strong>Follower</strong> tracks the racing line; <strong>Cutter</strong> dives inside; <strong>Blocker</strong> sits wide and disrupts. Finished Nyborgs coast as ghosts.";
+    // Notes about the link (a build that fell back to the default, an unreadable look).
+    const notes = (shown.notes || []).map((n) => `<br><span class="link-note">${esc(n)}</span>`).join("");
+    $("watch-note").innerHTML = "<strong>Follower</strong> tracks the racing line; <strong>Cutter</strong> dives inside; <strong>Blocker</strong> sits wide and disrupts. Finished Nyborgs coast as ghosts." + notes;
     return;
   }
   if (shown.mode !== "tank") {
@@ -297,10 +319,12 @@ function renderWatchCards() {
     const t = shown.tanks[i], opp = shown.tanks[1 - i];
     const r = readout(catalog, t.loadout, opp.loadout);
     const preset = presetName(catalog, t.loadout);
-    return `<div class="tankcard"><h3><span class="team${i}">${TEAM_NAMES[i]}: ${behaviorName(t.behavior)}</span>${trainingBadge()}</h3>
+    const nm = tankCosmetics.names[i] ? `${esc(tankCosmetics.names[i])} · ` : "";
+    return `<div class="tankcard"><h3><span class="team${i}">${TEAM_NAMES[i]}: ${nm}${behaviorName(t.behavior)}</span>${trainingBadge()}</h3>
       <div>Build ${pretty(t.loadout)}${preset ? ` (${preset})` : ""} · ${r.damage} dmg · reload ${r.reloadSec} s · ${r.speed} u/s · ${r.hp} HP · kills in ${r.hitsToKill}</div></div>`;
   }).join("");
-  $("watch-note").innerHTML = "<strong>Charger</strong> rushes and trades up close; <strong>Kiter</strong> circle-strafes at 250–350 u; <strong>Sniper</strong> holds a far spot with a sight line and fires only when precisely aimed. Set builds in the Customize tab.";
+  $("watch-note").innerHTML = "<strong>Charger</strong> rushes and trades up close; <strong>Kiter</strong> circle-strafes at 250–350 u; <strong>Sniper</strong> holds a far spot with a sight line and fires only when precisely aimed. Set builds in the Customize tab."
+    + tankCosmetics.notes.map((n) => `<br><span class="link-note">${esc(n)}</span>`).join("");
 }
 
 // --- Customize tab -------------------------------------------------------------------------
@@ -462,12 +486,12 @@ function drawRace() {
   const order = [...state.cars].sort((a, b) => Number(a.finished) - Number(b.finished));
   for (const c of order) {
     const prev = facingById.get(c.id) ?? 1;
-    const facing = drawRaceCar(ctx, track, c, { facingPrev: prev, tick: state.tick });
+    const facing = drawRaceCar(ctx, track, c, { facingPrev: prev, tick: state.tick, look: raceCars[c.id]?.look });
     facingById.set(c.id, facing);
   }
   if (state.over || state.outcome) {
     const outcome = state.outcome || JSON.parse(match.outcomeJson());
-    drawFinishBanner(ctx, track, raceSetup, outcome);
+    drawFinishBanner(ctx, track, { ...raceSetup, cars: raceCars }, outcome);
   }
 }
 
@@ -493,8 +517,12 @@ function drawNyborgTank(t, Y) {
   ctx.translate(t.x, Y(t.y));
   ctx.globalAlpha = t.alive ? 1 : 0.3;
 
-  // Nyborg body (replaces the classic hull). Hair colour is team-primary; flip on heading x.
-  drawNyborg(ctx, { hair: hairColor(t.team), facing, bob, scale: 0.72 });
+  // Nyborg body (replaces the classic hull). Hair colour is team-primary unless the link
+  // carries this Nyborg's look; flip on heading x. Team colour stays on the turret hub.
+  const look = tankCosmetics.looks[t.team];
+  drawNyborg(ctx, look
+    ? { hair: look.hair_color, strands: look.strands, accessories: look.accessories, facing, bob, scale: 0.72 }
+    : { hair: hairColor(t.team), facing, bob, scale: 0.72 });
 
   // Compact aim indicator (turret barrel) so aim direction stays readable.
   ctx.save();
@@ -591,15 +619,23 @@ document.querySelectorAll(".game").forEach((b) => b.addEventListener("click", ()
 
 await init();
 catalog = JSON.parse(tankCatalogJson());
+raceEngine = {
+  catalog: JSON.parse(catalogJson("racing")),
+  defaultBuild: () => JSON.parse(defaultBuild("racing")),
+  validateBuild: (b) => JSON.parse(validateBuild("racing", JSON.stringify(b))),
+};
 fillBotSelect($("bot0"));
 fillBotSelect($("bot1"));
 const params = new URLSearchParams(location.search);
 const wantRacing = params.get("game") === "racing";
 try {
-  if (wantRacing) spec = raceSpecFromQuery(location.search);
-  else spec = specFromQuery(location.search, canonicalTankQuery);
+  if (wantRacing) spec = raceSpecFromQuery(location.search, raceEngine);
+  else {
+    spec = specFromQuery(location.search, canonicalTankQuery);
+    if (params.has("looks") || params.has("name1") || params.has("name2")) tankCosmetics = parseCosmetics(params, 2);
+  }
 } catch (e) {
-  spec = wantRacing ? raceSpecFromQuery("?game=racing&seed=42") : defaultSpec();
+  spec = wantRacing ? raceSpecFromQuery("?game=racing&seed=42", raceEngine) : defaultSpec();
   queueMicrotask(() => { $("result").textContent = `Bad link (${e.message || e}); showing the default match.`; });
 }
 // Sync game chrome without restarting twice.
@@ -630,6 +666,7 @@ window.__arena = {
   get running() { return running; },
   get sprites() { return spriteMode; },
   get track() { return track; },
+  get raceCars() { return raceCars; },
   get game() { return isRacing() ? "racing" : "tank"; },
   hash: () => (match && typeof match.stateHash === 'function' ? match.stateHash() : undefined),
 };

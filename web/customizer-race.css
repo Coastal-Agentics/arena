@@ -1,0 +1,5 @@
+/* Racing row in the Customizer's "Pick for a match" (Race these). Uses customizer.css variables. */
+.pick-game + .pick-game { margin-top: 14px; }
+.car-slot { display: inline-flex; align-items: center; gap: 4px; }
+.car-slot .slot-face { width: 34px; height: 34px; border-radius: 50%; background: var(--line, #e5e1d8); }
+.pick-row select.slot-car { border-left: 5px solid var(--line-2, #c9c2b4); }
