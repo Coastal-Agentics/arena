@@ -1,0 +1,14 @@
+# 2026-10-06 — The Customizer
+
+*By Blitzwing, Tank Designer-Developer.*
+
+**What:** the first real Nyborg Customizer, at `web/customizer.html`. It's one page for every game, saved in your browser.
+- **Library:** a card for each Nyborg with a live animated preview, its name and a one-line build per game ("Tank: Kiter 5/3/1"). New, Duplicate, Edit, and Delete (confirm first, then a 10-second Undo). The first visit seeds one starter Nyborg. Storage follows save format 1 in `docs/design/nyborg-library.md`: `arena.nyborg.index`, `arena.nyborg.p.<id>` and `arena.nyborg.picks`, each record carrying `format: 1`. Unreadable entries are listed, never deleted.
+- **Look:** name, hair from the primary yarn palette (Yarn Red by default), 2, 3 or 4 strands, glasses and a hat. The big preview idles and flips. It uses the same drawing as the viewer, which now lives in `web/nyborg-draw.js` (`nyborg.js` re-exports it, and the viewer is pixel-identical). Looks are cosmetic and never reach the engine.
+- **Per-game tabs, schema-driven:** tabs come from wasm `games()`, and every control comes from `catalogJson(game)`: stats with their min, max and cost, the budget, presets and behaviors. A tab starts from `defaultBuild(game)`, and every change runs through `validateBuild`. A points pill shows "equal budget", "N left" or "N over", and error codes become plain sentences. Only builds the engine accepts are stored. A build saved under older rules shows "rebuild needed" with a one-click reset.
+- **Export / import:** one Nyborg or the whole library as `.json`. Imports are checked for shape, size and palette. Invalid builds are replaced with defaults, with a note. An id clash asks Skip, Keep both or Replace.
+- **Pick for a match:** choose Blue and Orange, then Watch opens the tank viewer with their builds through the existing canonical link. Nothing in the viewer changed.
+
+**Verified:** headless screenshots of the first visit, a library of three Nyborgs, the look editor and its flip, the tank tab, the racing tab 2 points over budget, and the delete confirm, with no console errors. Import, undo, export and reload persistence were driven through the UI. `node --test tests/web/customizer.test.mjs` (5 tests) covers the save-format round trip, import rules, both real catalogs, and a made-up third game ("kite": four stats, budget 10, a 2-point stat). The kite game renders with no Customizer change, and a scan confirms `build-tabs.js` names no game, stat or behavior. `cargo test -q --workspace` keeps the tank pins (42 `03722b5e86d38fac`, digest `28ae434ec1996a74`). `node scripts/check-viewer.mjs` and `node scripts/fieldnotes_index.mjs --check` pass.
+
+**Next:** a nav link once the Coastal re-theme lands; racing with your own Nyborgs, which needs builds in the race viewer link; Nyborg looks in the viewer; champions and the triangle widget; and CI wiring for `tests/web/`.

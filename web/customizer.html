@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Customizer: your Nyborgs · Coastal Agentics</title>
+  <meta name="description" content="Make Nyborgs, give each one a look, and set its build and behavior for every game. Every Nyborg gets the same point budget. Saved in your browser. Coastal Agentics.">
+  <link rel="icon" href="./favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./customizer.css">
+</head>
+<body>
+  <header class="top">
+    <a class="back" href="./arena.html">← Arena viewer</a>
+    <span class="brand">Coastal Agentics</span>
+  </header>
+
+  <main>
+    <div class="intro">
+      <h1>Customize: your Nyborgs</h1>
+      <p class="muted">One Customizer for every game. Saved in this browser; export or import any Nyborg as a <code>.json</code> file.</p>
+    </div>
+
+    <div id="banners" aria-live="polite"></div>
+
+    <div class="layout">
+      <aside class="panel library" aria-label="Your Nyborg library">
+        <h2>Library · <span id="lib-count">0</span></h2>
+        <div class="row gap">
+          <button type="button" class="btn primary" id="new">+ New</button>
+          <button type="button" class="btn" id="import">Import</button>
+          <button type="button" class="btn" id="export-all">Export all</button>
+          <input type="file" id="import-file" accept=".json,application/json" hidden>
+        </div>
+        <ul id="lib-list" class="lib-list"></ul>
+        <div id="lib-broken"></div>
+        <p class="muted small center">Every Nyborg: the same point budget in every game.<br>Looks are cosmetic only.</p>
+      </aside>
+
+      <section class="editor" id="editor" aria-label="Edit Nyborg">
+        <div class="editor-head">
+          <label class="name-wrap">
+            <span class="sr">Name</span>
+            <input id="name" class="name" maxlength="24" autocomplete="off" spellcheck="false">
+            <span class="hint">✎ rename</span>
+          </label>
+          <div class="row gap">
+            <button type="button" class="btn" id="dup">Duplicate</button>
+            <button type="button" class="btn" id="export-one">Export</button>
+            <button type="button" class="btn danger" id="delete">Delete…</button>
+          </div>
+        </div>
+        <p id="name-error" class="error small" hidden></p>
+
+        <div class="editor-grid">
+          <section class="panel look" aria-labelledby="look-h">
+            <div class="panel-head"><h2 id="look-h">Look</h2><span class="tag">cosmetic</span></div>
+            <div class="preview-wrap"><canvas id="preview" class="preview" width="240" height="240" aria-label="Animated Nyborg preview"></canvas></div>
+            <h3>Hair colour</h3>
+            <div id="swatches" class="swatches" role="radiogroup" aria-label="Hair colour"></div>
+            <h3>Strands</h3>
+            <div id="strands" class="seg" role="radiogroup" aria-label="Strands"></div>
+            <h3>Accessories</h3>
+            <div id="accessories" class="seg"></div>
+            <p class="muted small">The look is saved with your Nyborg but never sent to the engine or hashed. Two Nyborgs with the same build play exactly the same match.</p>
+          </section>
+
+          <section class="panel games" aria-label="Builds per game">
+            <div id="game-tabs" class="tabs" role="tablist"></div>
+            <div id="game-panel" role="tabpanel"></div>
+          </section>
+        </div>
+
+        <section class="panel pick" aria-labelledby="pick-h">
+          <h2 id="pick-h">Pick for a match</h2>
+          <div id="pick"></div>
+        </section>
+      </section>
+    </div>
+  </main>
+
+  <div id="toast" class="toast" hidden></div>
+  <div id="modal" class="modal" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-msg">
+      <p id="modal-msg"></p>
+      <div id="modal-btns" class="row gap end"></div>
+    </div>
+  </div>
+
+  <footer class="foot">Coastal Agentics · Savannah, Georgia · Built by agents.</footer>
+  <script type="module" src="./customizer.js"></script>
+</body>
+</html>
