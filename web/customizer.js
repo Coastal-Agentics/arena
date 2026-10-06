@@ -9,6 +9,7 @@ import {
   buildFor, buildStatus, sanitizeImported, parseImport, exportOne, exportAll, fileNameFor, newId,
 } from "./nyborg-library.js";
 import { tabModel, setLevel, applyPreset, setBehavior, summaryLine, friendlyErrors } from "./build-tabs.js";
+import { encodeBuild, raceQuery, cosmeticsQuery } from "./nyborg-link.js";
 
 const $ = (id) => document.getElementById(id);
 const el = (tag, attrs = {}, ...kids) => {
@@ -356,23 +357,51 @@ function editBuild(game, build) {
 }
 
 // --- pick for a match ----------------------------------------------------------------
-// Links into the viewer, per game. Only games whose viewer link carries builds are listed.
-// Tank's canonical link is ?seed=S&blue=<behavior>-<a>-<s>-<d>&orange=… (wasm-and-web.md).
-// Racing's viewer link doesn't carry builds yet, so it waits for a viewer change.
+// Links into the viewer, per game. The builds play the match; looks and names ride along for
+// the drawing only (nyborg-link.js), so a shared link plays the same match for anyone.
+// Tank: ?seed=S&blue=<behavior>-<a>-<s>-<d>&orange=… (wasm-and-web.md), then cosmetics.
+// Racing: ?game=racing&seed=S&cars=<behavior>-<p>-<t>-<g>,… (viewer-multi-game.md §4), then cosmetics.
+const U64_MAX = 18446744073709551615n;
+const seedOk = (s) => /^\d{1,20}$/.test(s) && BigInt(s) <= U64_MAX;
 const WATCH_LINKS = {
   tank: {
-    slots: [["blue", "Blue", "slot-blue"], ["orange", "Orange", "slot-orange"]],
-    url: (seed, builds) => {
-      const cat = CATALOGS.tank;
-      const part = (b) => [b.behavior.id, ...cat.stats.map((s) => b.levels[s.key])].join("-");
+    button: "Watch ▶",
+    min: 2, max: 2,
+    label: (i) => ["Blue", "Orange"][i],
+    cls: (i) => ["slot-blue", "slot-orange"][i],
+    between: "vs",
+    ids: (chosen) => [chosen.blue, chosen.orange],
+    save: (ids) => ({ blue: ids[0], orange: ids[1] }),
+    url: (seed, nyborgs, builds) => {
+      const part = (b) => encodeBuild(CATALOGS.tank, b);
       const q = canonicalTankQuery(`seed=${seed}&blue=${part(builds[0])}&orange=${part(builds[1])}`);
-      return `./arena.html?${q}`;
+      const cos = cosmeticsQuery(nyborgs.map((n) => ({ look: n.look, name: n.name })));
+      return `./arena.html?${q}${cos ? `&${cos}` : ""}`;
+    },
+  },
+  racing: {
+    button: "Race these ▶",
+    min: 2, max: 4,
+    label: (i) => `Car ${i + 1}`,
+    cls: () => "slot-car",
+    between: "",
+    ids: (chosen) => (Array.isArray(chosen.cars) ? chosen.cars : []),
+    save: (ids) => ({ cars: ids }),
+    url: (seed, nyborgs, builds) => {
+      if (!seedOk(seed)) throw new Error("The seed must be a whole number from 0 to 18446744073709551615.");
+      return `./arena.html?${raceQuery(CATALOGS.racing, {
+        seed, builds, custom: true, looks: nyborgs.map((n) => n.look), names: nyborgs.map((n) => n.name),
+      })}`;
     },
   },
 };
 
 function readPicks() {
   try { return JSON.parse(storage.getItem(KEYS.picks) || "{}") || {}; } catch { return {}; }
+}
+
+function savePick(game, value) {
+  safe(() => storage.setItem(KEYS.picks, JSON.stringify({ ...readPicks(), [game]: value })));
 }
 
 function renderPick() {
@@ -382,27 +411,31 @@ function renderPick() {
   for (const [game, spec] of Object.entries(WATCH_LINKS)) {
     if (!GAMES.includes(game)) continue;
     const chosen = picks[game] || {};
-    const sels = spec.slots.map(([slot, label, cls], i) => {
-      const fallback = lib.list[Math.min(i, lib.list.length - 1)]?.id;
-      const id = lib.get(chosen[slot]) ? chosen[slot] : fallback;
-      const s = el("select", { class: cls, "aria-label": `${titleCase(game)} ${label}`, "data-slot": slot },
+    // Slot count: the saved one, else as many Nyborgs as you have (within the game's range).
+    const saved = spec.ids(chosen);
+    const count = Math.min(spec.max, Math.max(spec.min, saved.length || lib.list.length));
+    const sels = Array.from({ length: count }, (_, i) => {
+      const fallback = lib.list.length ? lib.list[i % lib.list.length].id : "";
+      const id = lib.get(saved[i]) ? saved[i] : fallback;
+      const s = el("select", { class: spec.cls(i), "aria-label": `${titleCase(game)} ${spec.label(i)}`, "data-slot": String(i) },
         ...lib.list.map((n) => el("option", { value: n.id, text: n.name })));
       s.value = id || "";
       return s;
     });
-    const seed = el("input", { value: chosen.seed || "42", inputmode: "numeric", "aria-label": "Seed" });
-    const go = el("a", { class: "btn primary", href: "#", text: "Watch ▶" });
+    const seed = el("input", { value: chosen.seed || "42", inputmode: "numeric", "aria-label": `${titleCase(game)} seed` });
+    const go = el("a", { class: "btn primary", href: "#", text: spec.button, "data-game": game });
     const err = el("span", { class: "error small" });
-    const update = (remember) => {
+    const remember = (ids) => savePick(game, { ...spec.save(ids), seed: seed.value.trim() });
+    const update = (save) => {
       const ids = sels.map((s) => s.value);
-      const builds = ids.map((id) => lib.get(id) && buildFor(engine, lib.get(id), game));
+      const nyborgs = ids.map((id) => lib.get(id));
+      const builds = nyborgs.map((n) => n && buildFor(engine, n, game));
       const bad = builds.findIndex((b) => !b || !engine.validateBuild(game, b).ok);
-      const value = Object.fromEntries(spec.slots.map(([slot], i) => [slot, ids[i]]));
       // Saved only when the user picks, so the defaults keep following the library.
-      if (remember === true) safe(() => storage.setItem(KEYS.picks, JSON.stringify({ ...readPicks(), [game]: { ...value, seed: seed.value.trim() } })));
+      if (save === true) remember(ids);
       try {
-        if (bad >= 0) throw new Error(`${lib.get(ids[bad])?.name || "A Nyborg"} needs a valid ${titleCase(game)} build first.`);
-        go.href = spec.url(seed.value.trim() || "0", builds);
+        if (bad >= 0) throw new Error(`${nyborgs[bad]?.name || "A Nyborg"} needs a valid ${titleCase(game)} build first.`);
+        go.href = spec.url(seed.value.trim() || "0", nyborgs, builds);
         go.removeAttribute("aria-disabled");
         err.textContent = "";
       } catch (e) {
@@ -414,12 +447,30 @@ function renderPick() {
     for (const s of sels) s.addEventListener("change", () => update(true));
     seed.addEventListener("input", () => update(true));
     go.addEventListener("click", (e) => { if (go.getAttribute("aria-disabled")) e.preventDefault(); });
-    rows.push(el("div", {}, el("h3", { text: titleCase(game) }),
-      el("div", { class: "pick-row" }, sels[0], el("span", { class: "muted", text: "vs" }), sels[1],
-        el("label", { class: "muted" }, "Seed ", seed), go, err)));
+
+    const slots = [];
+    sels.forEach((s, i) => {
+      if (i && spec.between) slots.push(el("span", { class: "muted", text: spec.between }));
+      if (spec.max > 2) {
+        // A small live preview of whoever sits in the slot.
+        const c = el("canvas", { width: 34, height: 34, class: "slot-face", "aria-hidden": "true" });
+        addPreview(c, () => lib.get(s.value)?.look, { scale: 0.3 });
+        slots.push(el("span", { class: "car-slot" }, c, s));
+      } else slots.push(s);
+    });
+    const resize = (d) => { remember([...sels.map((s) => s.value), ...(d > 0 ? [sels[sels.length - 1].value] : [])].slice(0, count + d)); renderPick(); };
+    const sizeBtns = spec.max > spec.min ? [
+      el("button", { type: "button", class: "btn small", text: "+ Car", "aria-label": `Add a ${game} slot`, disabled: count >= spec.max, onclick: () => resize(1) }),
+      el("button", { type: "button", class: "btn small", text: "− Car", "aria-label": `Remove a ${game} slot`, disabled: count <= spec.min, onclick: () => resize(-1) }),
+    ] : [];
+    const seedGo = [el("label", { class: "muted" }, "Seed ", seed), go, err];
+    rows.push(el("div", { class: `pick-game pick-${game}` }, el("h3", { text: titleCase(game) }),
+      ...(sizeBtns.length
+        ? [el("div", { class: "pick-row" }, ...slots, ...sizeBtns), el("div", { class: "pick-row" }, ...seedGo)]
+        : [el("div", { class: "pick-row" }, ...slots, ...seedGo)])));
     update();
   }
-  rows.push(el("p", { class: "muted small", text: "Links carry builds, not looks, so a shared link plays the same match for anyone. In the viewer, tanks keep their team colours for now. Racing with your own Nyborgs comes next." }));
+  rows.push(el("p", { class: "muted small", text: "Links carry each Nyborg's build for the engine, plus its name and look for the drawing, so a shared link plays the same match for anyone. The same Nyborg can race more than once." }));
   box.replaceChildren(...rows);
 }
 

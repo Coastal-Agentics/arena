@@ -1,6 +1,7 @@
 // Racing viewer helpers (cosmetic drawing + default Ring builds). Sim stays in WasmRace.
 
 import { drawNyborg, facingFromHeading, idleBob } from "./nyborg.js";
+import { parseRaceQuery, raceQuery } from "./nyborg-link.js";
 
 /** Distinct primary yarn per car (no green): Yarn Red, Cobalt, Sunny, Orange. */
 export const RACE_HAIR = ["#D9534F", "#3F6FD8", "#F2C14E", "#F08A3C"];
@@ -24,19 +25,28 @@ export function raceBuild(id, levels = { power: 3, top_speed: 3, grip: 3 }) {
   return { rules_version: 1, levels, behavior: { kind: "scripted", id } };
 }
 
-/** Parse racing URL bits. Tank links without game=racing stay tank. */
-export function raceSpecFromQuery(search) {
+/**
+ * Parse a racing link (format in nyborg-link.js). With `engine` ({catalog, defaultBuild,
+ * validateBuild} for racing), `cars`, `looks` and `nameN` are read and every car is validated;
+ * a link without them is the default grid, exactly as before.
+ */
+export function raceSpecFromQuery(search, engine) {
+  if (engine) return parseRaceQuery(search, engine, defaultRaceBuilds());
   const q = new URLSearchParams(typeof search === "string" ? search.replace(/^\?/, "") : search);
   const seed = (q.get("seed") || "42").trim() || "42";
-  return { game: "racing", seed, builds: defaultRaceBuilds() };
+  return { game: "racing", seed, builds: defaultRaceBuilds(), custom: false, looks: [], names: [], notes: [] };
 }
 
-export function queryFromRaceSpec(spec, extras = {}) {
-  const parts = [`game=racing`, `seed=${encodeURIComponent(spec.seed)}`];
-  if (extras.speed && extras.speed !== 1) parts.push(`speed=${extras.speed}`);
-  if (extras.paused) parts.push("paused=1");
-  if (extras.t) parts.push(`t=${extras.t}`);
-  return parts.join("&");
+/** The shareable racing query; `catalog` (racing) is needed to print custom cars. */
+export function queryFromRaceSpec(spec, extras = {}, catalog = null) {
+  if (spec.custom && !catalog) throw new Error("queryFromRaceSpec: custom cars need the racing catalog");
+  return raceQuery(catalog, spec, extras);
+}
+
+/** The look car `id` is drawn with: its own from the link, else the default yarn palette. */
+export function lookForCar(spec, id) {
+  const l = spec?.looks?.[id];
+  return l ? { hair: l.hair_color, strands: l.strands, accessories: l.accessories } : { hair: hairForCar(id), strands: 3, accessories: [] };
 }
 
 function Yof(H, y) { return H - y; }
@@ -118,10 +128,10 @@ function drawCheckeredLine(ctx, a, b, Y, n) {
  * Draw one car: kart rotated to heading, Nyborg perched and flipped on heading x.
  * Finished cars draw faded (ghosts).
  */
-export function drawRaceCar(ctx, track, car, { facingPrev = 1, tick = 0 } = {}) {
+export function drawRaceCar(ctx, track, car, { facingPrev = 1, tick = 0, look = null } = {}) {
   const H = track.height;
   const Y = (y) => Yof(H, y);
-  const hair = hairForCar(car.id);
+  const hair = look?.hair || hairForCar(car.id);
   const facing = facingFromHeading(car.heading, facingPrev);
   const bob = car.finished ? 0 : idleBob(tick + car.id * 7);
   const ghost = car.finished;
@@ -137,7 +147,7 @@ export function drawRaceCar(ctx, track, car, { facingPrev = 1, tick = 0 } = {}) 
   ctx.restore();
 
   // Nyborg sits on the kart; flips left/right, does not spin with the chassis.
-  drawNyborg(ctx, { hair, facing, bob, scale: 0.42 });
+  drawNyborg(ctx, { hair, facing, bob, scale: 0.42, strands: look?.strands ?? 3, accessories: look?.accessories ?? [] });
 
   // Tiny place badge.
   if (car.placing != null) {
@@ -180,7 +190,7 @@ function roundRect(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
-/** Finish banner overlay. */
+/** Finish banner overlay. `setup.cars[i]` may carry a display `name` and `hair`. */
 export function drawFinishBanner(ctx, track, setup, outcome) {
   if (!outcome) return;
   const W = track.width, H = track.height;
@@ -212,7 +222,7 @@ export function drawFinishBanner(ctx, track, setup, outcome) {
     .sort((a, b) => a.place - b.place);
   order.forEach((row, i) => {
     const y = by + 78 + i * 28;
-    const hair = hairForCar(row.id);
+    const hair = setup?.cars?.[row.id]?.hair || hairForCar(row.id);
     const name = setup?.cars?.[row.id]?.name || `Car ${row.id}`;
     const beh = setup?.cars?.[row.id]?.behavior || "";
     ctx.fillStyle = hair;
