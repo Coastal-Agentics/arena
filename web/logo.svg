@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-labelledby="ca-t">
+  <!-- SPDX-FileCopyrightText: 2026 Nye Warburton -->
+  <!-- SPDX-License-Identifier: LicenseRef-Coastal-Assets -->
+  <!-- Copied from Coastal-Agentics/coastal-agentics.github.io. Logo: all rights reserved. -->
+  <!-- Coastal Agentics mark: solid C + triangle A. C outer diameter = A height (44/64); the A's left foot lands on the C's lowest point. -->
+  <title id="ca-t">Coastal Agentics</title>
+  <defs><clipPath id="ca-a"><path d="M43 10 L61 54 L47 54 L43 45 L39 54 L25 54 Z"/></clipPath><mask id="ca-w" maskUnits="userSpaceOnUse" x="0" y="0" width="64" height="64"><rect width="64" height="64" fill="#fff"/><path d="M0 39 q3 -1.6 6 0 t6 0 t6 0 t6 0 t6 0 t6 0 t6 0 t6 0 t6 0 t6 0 t6 0" fill="none" stroke="#000" stroke-width="1.2"/></mask></defs>
+  <g mask="url(#ca-w)">
+    <path d="M41.85 17.86 A22 22 0 1 0 41.85 46.14 L33.43 39.07 A11 11 0 1 1 33.43 24.93 Z" fill="#436A95"/>
+    <path d="M43 10 L61 54 L47 54 L43 45 L39 54 L25 54 Z" fill="#5F88B7"/>
+    <path d="M41.85 17.86 A22 22 0 1 0 41.85 46.14 L33.43 39.07 A11 11 0 1 1 33.43 24.93 Z" fill="#34557B" clip-path="url(#ca-a)"/>
+  </g>
+</svg>

@@ -3,38 +3,44 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Arena viewer — Coastal Agentics</title>
-  <meta name="description" content="Watch Tank Arena bots fight or Nyborgs race live in your browser: our deterministic Rust engine compiled to WebAssembly. Coastal Agentics: we train robots, with open tools, on the Georgia coast.">
+  <title>Arena viewer · Coastal Agentics</title>
+  <meta name="description" content="Watch Tank Arena bots fight or Nyborgs race live in your browser: our deterministic Rust engine compiled to WebAssembly. Arena is a Coastal Agentics project.">
   <link rel="icon" href="./favicon.svg" type="image/svg+xml">
+  <meta name="theme-color" content="#EEF2F6">
   <link rel="stylesheet" href="./style.css">
   <style>
-    main.wide { max-width: 880px; }
-    #arena { display:block; width:100%; max-width:800px; height:auto; background:#0e1219; border:1px solid #1f2533; border-radius:6px; }
+    main.wide { padding-top: 1.25rem; }
+    main.wide h1 { font-size: clamp(1.75rem, 4vw, 2.4rem); margin-bottom: .3em; }
+    main.wide > p { max-width: 52rem; margin-top: 0; }
+    #arena { display:block; width:100%; max-width:800px; height:auto; background:#0e1219; border:1px solid var(--line); border-radius:10px; box-shadow:0 6px 20px rgba(31,49,71,.10); }
     .controls { display:flex; flex-wrap:wrap; gap:10px 14px; align-items:center; margin:16px 0; color:var(--muted); font-size:.9rem; }
-    .controls input, .controls select, .controls button, .tankcard select, .presets button, #watch-this { background:var(--panel); color:var(--text); border:1px solid #2a3244; border-radius:6px; padding:6px 10px; font:inherit; }
+    .controls input, .controls select, .controls button, .tankcard select, .presets button, #watch-this { background:var(--panel); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:6px 10px; font:inherit; }
     .controls input { width:12em; }
     button { cursor:pointer; }
     .controls button:hover, .presets button:hover, #watch-this:hover { border-color:var(--accent); }
     .controls button.on, .presets button.on { border-color:var(--accent); color:var(--accent); }
     .status { display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px; margin:10px 0; font-size:.9rem; color:var(--muted); }
     #result, #cz-error { color:var(--accent); font-weight:700; }
-    .team0 { color:#4da3ff; } .team1 { color:#ff6b3d; }
-    .tabs { display:flex; gap:6px; margin:18px 0 4px; border-bottom:1px solid #1f2533; }
+    .team0 { color:#2F78C4; } .team1 { color:#D5531F; }
+    .tabs { display:flex; gap:6px; margin:18px 0 4px; border-bottom:1px solid var(--line); }
     .tabs button { background:none; border:none; border-bottom:2px solid transparent; color:var(--muted); padding:8px 14px; font:inherit; font-weight:700; }
     .tabs button[aria-selected="true"] { color:var(--text); border-bottom-color:var(--accent); }
     .cards { display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:12px; margin:12px 0; }
-    .tankcard { background:var(--panel); border:1px solid #1f2533; border-radius:8px; padding:12px 14px; font-size:.9rem; }
+    .tankcard { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px 14px; font-size:.9rem; }
     .tankcard h3 { margin:0 0 8px; font-size:1rem; display:flex; justify-content:space-between; align-items:center; gap:8px; }
-    .badge { font-size:.72rem; font-weight:700; letter-spacing:.03em; text-transform:uppercase; border:1px solid #2a3244; border-radius:999px; padding:2px 8px; color:var(--muted); white-space:nowrap; }
+    .badge { font-size:.72rem; font-weight:700; letter-spacing:.03em; text-transform:uppercase; border:1px solid var(--line); border-radius:999px; padding:2px 8px; color:var(--muted); white-space:nowrap; }
     .tri { display:block; width:100%; max-width:240px; margin:8px auto; touch-action:none; cursor:crosshair; }
     .tri text { fill:var(--muted); font-size:11px; font-family:inherit; }
+    .tri polygon { fill:var(--bg-deep); stroke:var(--a); }
+    .tri circle[data-l] { fill:var(--a); }
+    .tankcard h3 span[style] { filter:brightness(.72) saturate(1.2); } /* yarn colours on a light card */
     .presets { display:flex; flex-wrap:wrap; gap:6px; margin:6px 0 10px; }
     .presets button { padding:4px 8px; font-size:.8rem; }
     .readout { display:grid; grid-template-columns:auto 1fr; gap:2px 12px; margin:0; }
     .readout dt { color:var(--muted); } .readout dd { margin:0; font-variant-numeric:tabular-nums; }
     .muted { color:var(--muted); font-size:.85rem; }
     .games { display:flex; gap:6px; margin:12px 0 0; }
-    .games button { background:var(--panel); color:var(--muted); border:1px solid #2a3244; border-radius:6px; padding:6px 12px; font:inherit; font-weight:700; }
+    .games button { background:var(--panel); color:var(--muted); border:1px solid var(--line); border-radius:8px; padding:6px 12px; font:inherit; font-weight:700; }
     .games button.on { border-color:var(--accent); color:var(--accent); }
     #race-hud { display:flex; flex-wrap:wrap; gap:10px 18px; align-items:center; margin:8px 0; font-size:.9rem; color:var(--muted); }
     #race-hud .place { display:inline-flex; align-items:center; gap:6px; margin-right:10px; }
@@ -43,8 +49,22 @@
   </style>
 </head>
 <body>
+  <header class="site-header wrap">
+    <a class="brand" href="/" aria-label="Coastal Agentics home"><img src="./logo-wordmark.svg" alt="Coastal Agentics" width="206" height="40"></a>
+    <nav aria-label="Coastal Agentics">
+      <a href="/">Home</a>
+      <a href="/nyborgs/">Nyborgs</a>
+      <a href="/arena/" aria-current="page">Arena</a>
+    </nav>
+  </header>
+  <nav class="subnav wrap" aria-label="Arena">
+    <strong>Arena</strong>
+    <a href="index.html">Overview</a>
+    <a href="arena.html">Tank Arena</a>
+    <a href="arena.html?game=racing">Racing</a>
+    <a href="fieldnotes.html">Field notes</a>
+  </nav>
   <main class="wide">
-    <header><a class="mark" href="./index.html">← Coastal Agentics</a></header>
     <h1>Arena viewer</h1>
     <p id="blurb">The deterministic Rust engine, compiled to WebAssembly, running a Tank Arena duel live at 60 ticks per second. Same link, same match, every time.</p>
 
@@ -99,8 +119,14 @@
       <p class="muted">Link: <a id="cz-link" href="#"></a></p>
     </section>
 
-    <footer>Coastal Agentics · Savannah, Georgia · Built by agents. MIT licensed.</footer>
   </main>
+  <footer class="site-footer">
+    <div class="wrap footer-inner">
+      <p class="footer-brand"><img src="logo.svg" alt="" width="32" height="32"> <span><strong>Coastal Agentics</strong> · Behavioral design for agents · Savannah, Georgia</span></p>
+      <p class="footer-links"><a href="/">Coastal Agentics</a> <a href="/nyborgs/">Nyborgs</a> <a href="/arena/">Arena</a> <a href="fieldnotes.html">Field notes</a> <a href="https://github.com/Coastal-Agentics/arena">Source on GitHub</a></p>
+      <p class="legal-line">© 2026 Nye Warburton · Built by agents · Code: MIT OR Apache-2.0 · Nyborg art and logos: all rights reserved</p>
+    </div>
+  </footer>
   <script type="module" src="./arena.js"></script>
 </body>
 </html>

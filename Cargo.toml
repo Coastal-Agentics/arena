@@ -9,4 +9,4 @@ exclude = ["engine-py"]
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
-repository = "https://github.com/starscream-agentics/arena"
+repository = "https://github.com/Coastal-Agentics/arena"

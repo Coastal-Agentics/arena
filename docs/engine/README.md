@@ -50,7 +50,7 @@ flowchart LR
   wasm -->|"scripts/build-wasm.sh<br/>cargo build wasm32 + wasm-bindgen 0.2.100"| pkg["web/pkg<br/>engine_wasm.js + engine_wasm_bg.wasm<br/>(committed)"]
   pkg -->|"import ./pkg/engine_wasm.js"| js["web/arena.js<br/>canvas renderer"]
   js --> html["web/arena.html"]
-  html -->|"pages.yml uploads web/ as-is"| pages["GitHub Pages<br/>starscream-agentics.github.io/arena/"]
+  html -->|"pages.yml uploads web/ as-is"| pages["GitHub Pages<br/>coastal-agentics.github.io/arena/"]
 ```
 
 Data flow in one line each:

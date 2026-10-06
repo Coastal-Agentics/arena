@@ -41,7 +41,7 @@ Options:
 | `--replay-dir` | path | none | Created if missing (`create_dir_all`). Writes `match-<seed>.json` per match in [replay format 4](replay-format.md), overwriting existing files |
 | `-V`, `--version` | | | Prints `engine-cli 0.1.0` (the workspace version) |
 
-There are no subcommands. The binary and crate keep the name `engine-cli` (ADR-011 keeps crate names). The first line of `--help` is the clap `about` string in `engine-cli/src/main.rs`; test `help_uses_current_branding` keeps "Starscream" out of it.
+There are no subcommands. The binary and crate keep the name `engine-cli` (ADR-011 keeps crate names). The first line of `--help` is the clap `about` string in `engine-cli/src/main.rs`; test `help_uses_current_branding` keeps the retired codename out of it.
 
 ## Output
 

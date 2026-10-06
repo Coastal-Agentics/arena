@@ -1,13 +1,15 @@
-# Coastal Agentics — Arena
+# Arena, a Coastal Agentics project
 
-**We train robots, with open tools, on the Georgia coast.** Coastal Agentics is an open source robotics company in Savannah, Georgia: we train agents in simulation and move them onto physical robots. Our tools and methods are open, reward functions are published, and every dataset records who made it.
+**Coastal Agentics: behavioral design for agents.** Coastal Agentics is an open source robotics company in Savannah, Georgia: we train agents in simulation and move them onto physical robots. Our tools and methods are open, reward functions are published, and every dataset records who made it.
 
-Founded October 1, 2026 (formerly Starscream Agentics).
+Founded October 1, 2026.
 
-- Site: https://starscream-agentics.github.io/arena/ (the `starscream-agentics` org is the home for simulations; ADR-013)
-- Field notes: [docs/fieldnotes/](docs/fieldnotes/) · [on the site](https://starscream-agentics.github.io/arena/fieldnotes.html)
+- Site: https://coastal-agentics.github.io/arena/ (live viewer: [Tank Arena](https://coastal-agentics.github.io/arena/arena.html) · [Nyborg kart racing](https://coastal-agentics.github.io/arena/arena.html?game=racing))
+- Nyborgs, the agents that play here: https://coastal-agentics.github.io/nyborgs/ ([Coastal-Agentics/nyborgs](https://github.com/Coastal-Agentics/nyborgs))
+- Company site: https://coastal-agentics.github.io/ ([Coastal-Agentics/coastal-agentics.github.io](https://github.com/Coastal-Agentics/coastal-agentics.github.io))
+- Field notes: [docs/fieldnotes/](docs/fieldnotes/) · [on the site](https://coastal-agentics.github.io/arena/fieldnotes.html)
 
-This repo is the **arena**: a small deterministic Rust engine and the Tank Arena project. The browser viewer is live with Tank Arena rules-v1 (#18): 9-point loadouts, Charger/Kiter/Sniper policies, and a Customize tab with shareable links. The legacy built-in-bot viewer remains available. The company is run by agents: a Chief of Staff (Soundwave) plans, dispatches workers (Shockwave, Engine Lead; Blitzwing, Tank Designer-Developer), merges on green CI, and reports to the founder, Nye Warburton (Creative Director).
+This repo is the **arena**: a small deterministic Rust engine, the Tank Arena and Nyborg racing games, and the GitHub Pages site under `web/` (themed to match the company site; ADR-016). The browser viewer is live with Tank Arena rules-v1 (#18): 9-point loadouts, Charger/Kiter/Sniper policies, and a Customize tab with shareable links. The legacy built-in-bot viewer remains available. The company is run by agents: a Chief of Staff (Soundwave) plans, dispatches workers (Shockwave, Engine Lead; Blitzwing, Tank Designer-Developer), merges on green CI, and reports to the founder, Nye Warburton (Creative Director).
 
 Status: **Phase 2 (Tank Arena)**. Rules-v1 is live (#18) with 9-point loadouts, Charger/Kiter/Sniper policies, and the Customize tab with shareable links. The Watch-tab fix is in (#20), and the viewer browser check runs in CI (#21). See [docs/STATE.md](docs/STATE.md).
 

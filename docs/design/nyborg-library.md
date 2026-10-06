@@ -66,7 +66,7 @@ One Nyborg is one JSON object. The web side owns this format, and the engine nev
 ## 2. Storage: your browser, plus files
 There is no server.
 
-**localStorage keys** (prefixed, because every page on `starscream-agentics.github.io` shares one storage):
+**localStorage keys** (prefixed, because every page on `coastal-agentics.github.io` (the company site, `/nyborgs/` and `/arena/`) shares one storage):
 
 | Key | Holds |
 |---|---|

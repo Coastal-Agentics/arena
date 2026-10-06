@@ -3,16 +3,39 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Coastal Agentics</title>
-  <meta name="description" content="We train robots, with open tools, on the Georgia coast.">
+  <title>Arena · Coastal Agentics</title>
+  <meta name="description" content="Arena, a Coastal Agentics project: live simulations where Nyborgs learn to play. Watch Tank Arena or Nyborg kart racing in your browser.">
+  <meta name="theme-color" content="#EEF2F6">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="style.css">
+  <script src="flock.js" defer></script>
 </head>
 <body>
+  <header class="site-header wrap">
+    <a class="brand" href="/" aria-label="Coastal Agentics home"><img src="logo-wordmark.svg" alt="Coastal Agentics" width="206" height="40"></a>
+    <nav aria-label="Coastal Agentics">
+      <a href="/">Home</a>
+      <a href="/nyborgs/">Nyborgs</a>
+      <a href="/arena/" aria-current="page">Arena</a>
+    </nav>
+  </header>
+  <nav class="subnav wrap" aria-label="Arena">
+    <strong>Arena</strong>
+    <a href="index.html" aria-current="page">Overview</a>
+    <a href="arena.html">Tank Arena</a>
+    <a href="arena.html?game=racing">Racing</a>
+    <a href="fieldnotes.html">Field notes</a>
+  </nav>
   <main>
-    <header><span class="mark">Coastal Agentics</span></header>
-    <h1>We train robots, with open tools, on the Georgia coast.</h1>
-    <p>Coastal Agentics is an open source robotics company in Savannah, Georgia. We train agents in simulation and move them onto physical robots. Our tools and methods are open, reward functions are published, and every dataset records who made it. Founded October 1, 2026.</p>
+    <p class="eyebrow">A Coastal Agentics project</p>
+    <h1>Arena</h1>
+    <p>Live simulations where Nyborgs learn to play: <a href="arena.html">Tank Arena</a> and <a href="arena.html?game=racing">Nyborg kart racing</a>, running in your browser on our own deterministic Rust engine compiled to WebAssembly. Same link, same match, every time.</p>
+    <div class="links">
+      <a class="primary" href="arena.html">Watch the Tank Arena</a>
+      <a href="arena.html?game=racing">Watch Nyborgs race</a>
+      <a href="arena.html?tab=customize">Customize a match</a>
+    </div>
+    <p>Coastal Agentics does behavioral design for agents, from Savannah, Georgia. Arena is where we test it in the open: our tools and methods are open, reward functions are published, and every dataset records who made it. Meet the agents on the <a href="/nyborgs/">Nyborgs page</a>.</p>
     <p>The company is run by agents: a Chief of Staff plans the work, dispatches workers, lets CI decide what ships, and reports to the founder, Nye Warburton. Every change gets a field note.</p>
 
     <div class="card">
@@ -23,12 +46,18 @@
     </div>
 
     <div class="links">
-      <a href="https://github.com/starscream-agentics/arena">GitHub repo</a>
+      <a href="https://github.com/Coastal-Agentics/arena">GitHub repo</a>
       <a href="arena.html">Arena viewer</a>
       <a href="fieldnotes.html">Field notes</a>
     </div>
 
-    <footer>Coastal Agentics · Savannah, Georgia · Built by agents. MIT licensed.</footer>
   </main>
+  <footer class="site-footer">
+    <div class="wrap footer-inner">
+      <p class="footer-brand"><img src="logo.svg" alt="" width="32" height="32"> <span><strong>Coastal Agentics</strong> · Behavioral design for agents · Savannah, Georgia</span></p>
+      <p class="footer-links"><a href="/">Coastal Agentics</a> <a href="/nyborgs/">Nyborgs</a> <a href="/arena/">Arena</a> <a href="fieldnotes.html">Field notes</a> <a href="https://github.com/Coastal-Agentics/arena">Source on GitHub</a></p>
+      <p class="legal-line">© 2026 Nye Warburton · Built by agents · Code: MIT OR Apache-2.0 · Nyborg art and logos: all rights reserved</p>
+    </div>
+  </footer>
 </body>
 </html>
