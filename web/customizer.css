@@ -18,12 +18,38 @@ h3 { margin: 14px 0 6px; font-size: .9rem; color: var(--ink); }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 .row { display: flex; align-items: center; flex-wrap: wrap; } .gap { gap: 8px; } .end { justify-content: flex-end; }
 
-.top { display: flex; justify-content: space-between; align-items: center; padding: 12px 24px; border-bottom: 1px solid var(--line); background: var(--panel); }
-.top a.back { color: var(--accent); text-decoration: none; font-weight: 700; }
-.top .brand { color: var(--muted); font-weight: 700; letter-spacing: .02em; }
+/* Shared Coastal Agentics header, Arena sub-nav and footer (same pattern as style.css on the
+   other arena pages, /nyborgs/ and /). Scoped --ca-* tokens so the Customizer palette stays its own. */
+.site-header, .subnav, .site-footer {
+  --ca-ink: #1F3147; --ca-ink-soft: #4F6277; --ca-bg-deep: #E2E8EF; --ca-line: #D3DCE6; --ca-a: #5F88B7;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+.wrap { max-width: 1180px; margin-inline: auto; padding-inline: 24px; }
+.site-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; padding-block: 1.25rem; }
+.site-header .brand img { display: block; width: 206px; height: 40px; }
+.site-header nav { display: flex; gap: 1.5rem; font-size: .95rem; }
+.site-header nav a { text-decoration: none; color: var(--ca-ink-soft); white-space: nowrap; }
+.site-header nav a:hover, .site-header nav a[aria-current="page"] { color: var(--ca-ink); }
+.site-header nav a[aria-current="page"] { font-weight: 600; }
+.subnav { display: flex; flex-wrap: wrap; gap: .25rem 1.25rem; padding-block: .6rem; border-block: 1px solid var(--ca-line); font-size: .9rem; }
+.subnav strong { color: var(--ca-ink); }
+.subnav a { color: var(--ca-ink-soft); text-decoration: none; }
+.subnav a:hover, .subnav a[aria-current="page"] { color: var(--ca-ink); }
+.site-footer { margin-top: 2.5rem; border-top: 1px solid var(--ca-line); background: var(--ca-bg-deep); font-size: .92rem; line-height: 1.65; }
+.site-footer .footer-inner { padding-block: 2.25rem; display: grid; gap: .75rem; justify-items: start; }
+.site-footer p { margin: 0; color: var(--ca-ink-soft); }
+.site-footer .footer-brand { display: flex; align-items: center; gap: .75rem; color: var(--ca-ink); }
+.site-footer .footer-brand img { display: block; }
+.site-footer .footer-links { display: flex; flex-wrap: wrap; gap: .5rem 1.5rem; }
+.site-footer .footer-links a { color: var(--ca-ink); text-decoration-color: var(--ca-a); text-underline-offset: 3px; }
+.site-footer .legal-line { font-size: .85rem; }
+.site-header a:focus-visible, .subnav a:focus-visible, .site-footer a:focus-visible { outline: 2px solid var(--ca-a); outline-offset: 3px; border-radius: 4px; }
+@media (max-width: 480px) {
+  .site-header .brand img { width: 165px; height: 32px; }
+  .site-header nav { gap: .35rem 1rem; flex-wrap: wrap; font-size: .9rem; }
+}
 main { max-width: 1180px; margin: 0 auto; padding: 20px 24px 8px; }
 .intro { margin-bottom: 14px; }
-.foot { text-align: center; color: var(--muted); font-size: .8rem; padding: 18px; }
 
 .layout { display: grid; grid-template-columns: 300px 1fr; gap: 18px; align-items: start; }
 @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
