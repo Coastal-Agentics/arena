@@ -1,15 +1,17 @@
-/* The Customizer's own styles: light, soft and friendly, like the library wireframe.
-   Self-contained on purpose (the site theme in style.css is being redone separately). */
+/* The Customizer's own styles. Colours follow the Coastal Agentics theme (coastal-agentics.github.io
+   style.css tokens), set only through the variables below; status colours (ok/warn/bad) and team
+   slot colours stay as they were. */
 :root {
-  --bg: #F5F2EC; --panel: #FBF9F5; --card: #fff; --line: #E2DCD2; --line-2: #D7CFC2;
-  --text: #4A423B; --ink: #5E544B; --muted: #8C8378; --accent: #3F6FD8; --accent-soft: #EEF3FC;
+  --bg: #EEF2F6; --panel: #F7F9FB; --card: #fff; --line: #D3DCE6; --line-2: #BFCCDA;
+  --text: #1F3147; --ink: #1F3147; --muted: #4F6277; --accent: #436A95; --accent-soft: #E6EDF5;
   --ok: #3E9B6E; --warn: #C9772B; --bad: #C2413C; --bad-soft: #FBEDEC;
+  --code-bg: #E2E8EF; --preview-bg: #E2E8EF; --pip-off: #D3DCE6; --focus: #5F88B7; --scrim: rgba(31,49,71,.35);
   --radius: 12px;
-  font-family: "Nunito", "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--text); font-size: 15px; line-height: 1.45; }
-code { background: #EFEAE1; padding: 0 4px; border-radius: 4px; font-size: .9em; }
+code { background: var(--code-bg); padding: 0 4px; border-radius: 4px; font-size: .9em; }
 h1 { margin: 0 0 4px; font-size: 1.7rem; color: var(--ink); }
 h2 { margin: 0 0 10px; font-size: 1.05rem; color: var(--ink); }
 h3 { margin: 14px 0 6px; font-size: .9rem; color: var(--ink); }
@@ -59,7 +61,7 @@ main { max-width: 1180px; margin: 0 auto; padding: 20px 24px 8px; }
 
 .btn { font: inherit; font-weight: 700; font-size: .88rem; color: var(--ink); background: var(--card); border: 1.5px solid var(--line); border-radius: 9px; padding: 6px 12px; cursor: pointer; }
 .btn:hover { border-color: var(--accent); }
-.btn:focus-visible, .swatch:focus-visible, .seg button:focus-visible, .tabs button:focus-visible, .pip:focus-visible { outline: 3px solid #9DB6EE; outline-offset: 2px; }
+.btn:focus-visible, .swatch:focus-visible, .seg button:focus-visible, .tabs button:focus-visible, .pip:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
 .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
 .btn.danger:hover { border-color: var(--bad); color: var(--bad); }
 .btn:disabled { opacity: .45; cursor: not-allowed; }
@@ -85,7 +87,7 @@ main { max-width: 1180px; margin: 0 auto; padding: 20px 24px 8px; }
 .editor-grid { display: grid; grid-template-columns: 300px 1fr; gap: 18px; align-items: start; }
 @media (max-width: 1100px) { .editor-grid { grid-template-columns: 1fr; } }
 .preview-wrap { display: flex; justify-content: center; }
-.preview { width: 220px; height: 220px; border-radius: 50%; background: #F0EBE2; }
+.preview { width: 220px; height: 220px; border-radius: 50%; background: var(--preview-bg); }
 .swatches { display: flex; flex-wrap: wrap; gap: 6px; }
 .swatch { width: 24px; height: 24px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 1.5px var(--line-2); cursor: pointer; padding: 0; }
 .swatch[aria-checked="true"] { box-shadow: 0 0 0 2.5px var(--ink); }
@@ -108,7 +110,7 @@ main { max-width: 1180px; margin: 0 auto; padding: 20px 24px 8px; }
 .stat .ro { grid-column: 1 / -1; font-size: .8rem; color: var(--muted); }
 .stat .cost { font-size: .75rem; color: var(--muted); font-weight: 600; margin-left: 6px; }
 .pips { display: flex; gap: 4px; }
-.pip { width: 28px; height: 12px; border-radius: 4px; border: none; background: #E4DED4; cursor: pointer; padding: 0; }
+.pip { width: 28px; height: 12px; border-radius: 4px; border: none; background: var(--pip-off); cursor: pointer; padding: 0; }
 .pip.on { background: var(--accent); }
 .stepper { width: 28px; height: 28px; border-radius: 50%; padding: 0; font-size: 1rem; line-height: 1; }
 .presets { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -132,7 +134,7 @@ select.beh { font: inherit; color: var(--ink); background: var(--card); border: 
 .banner.ok { background: #EEF8F2; border-color: #BFE1CD; color: #24603F; }
 .toast { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); background: var(--ink); color: #fff; border-radius: 10px; padding: 10px 14px; display: flex; gap: 12px; align-items: center; box-shadow: 0 6px 20px rgba(0,0,0,.18); }
 .toast .btn { background: #fff; }
-.modal { position: fixed; inset: 0; background: rgba(60,52,44,.35); display: flex; align-items: center; justify-content: center; }
+.modal { position: fixed; inset: 0; background: var(--scrim); display: flex; align-items: center; justify-content: center; }
 .modal-card { background: var(--panel); border-radius: var(--radius); border: 1.5px solid var(--line); padding: 20px; min-width: 300px; max-width: 420px; box-shadow: 0 10px 30px rgba(0,0,0,.2); }
 .modal-card p { margin: 0 0 16px; font-weight: 700; color: var(--ink); }
 [hidden] { display: none !important; }
