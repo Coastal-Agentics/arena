@@ -91,6 +91,11 @@ jobs:
           node --test scripts/fieldnotes_index.test.mjs
       - name: Build catalog JS exports (racing)
         run: node --test scripts/catalog_racing.test.mjs
+      # Web module tests (Customizer save format, imports, schema-driven build tabs; #73).
+      # The quoted glob is expanded by node: on Node 22 a bare directory (`node --test tests/web/`)
+      # is treated as a module path and fails with "Cannot find module".
+      - name: Web module tests (tests/web)
+        run: node --test "tests/web/**/*.test.mjs"
       - name: Native-vs-wasm parity (pinned replays)
         run: |
           node --version

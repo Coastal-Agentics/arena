@@ -28,7 +28,7 @@ all = ["saltmarsh-arena[gym,pettingzoo]"]
 test = ["pytest>=8"]
 
 [project.urls]
-Repository = "https://github.com/starscream-agentics/arena"
+Repository = "https://github.com/Coastal-Agentics/arena"
 
 [tool.maturin]
 # Mixed layout: the pure-Python package in python/, the Rust module at

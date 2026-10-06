@@ -514,14 +514,18 @@ build step and never builds `web/pkg`.** Pages serves exactly the committed file
 them fresh is the `wasm` CI job's job. `pages.yml` doesn't wait for CI itself. It relies on
 `main` requiring the `lint`, `test` and `wasm` checks before a merge (ADR-007).
 
-The site is served under a subpath, `https://starscream-agentics.github.io/arena/`. So every
-reference in `web/` must be relative:
+The site is served under a subpath, `https://coastal-agentics.github.io/arena/` (later
+`coastalagentics.com/arena/`). So every asset reference in `web/` must be relative:
 
 - `arena.html`: `./style.css`, `./favicon.svg`, `./arena.js`, `./index.html`;
 - `arena.js`: `import … from "./pkg/engine_wasm.js"`;
 - the glue finds the wasm relative to its own URL (`import.meta.url`).
 
 A leading `/` (e.g. `/pkg/engine_wasm.js`) would resolve to
-`starscream-agentics.github.io/pkg/…` and 404. A local check: copy `web/` to
+`coastal-agentics.github.io/pkg/…` and 404. The one deliberate exception is the shared
+header and footer navigation between the three sites (`/` company site, `/nyborgs/`,
+`/arena/`; ADR-016): those links are root-relative so they keep working when the org site
+moves to its own domain. They are plain links, never assets, so the viewer check never
+fetches them; when you serve `web/` on its own they point outside it. A local check: copy `web/` to
 `<tmp>/arena/`, run `python3 -m http.server` in `<tmp>`, and open
 `http://localhost:8000/arena/arena.html`.

@@ -3,16 +3,29 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Customizer: your Nyborgs · Coastal Agentics</title>
-  <meta name="description" content="Make Nyborgs, give each one a look, and set its build and behavior for every game. Every Nyborg gets the same point budget. Saved in your browser. Coastal Agentics.">
+  <title>Customizer: your Nyborgs · Arena · Coastal Agentics</title>
+  <meta name="description" content="Make Nyborgs, give each one a look, and set its build and behavior for every game. Every Nyborg gets the same point budget. Saved in your browser. Arena is a Coastal Agentics project.">
+  <meta name="theme-color" content="#EEF2F6">
   <link rel="icon" href="./favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="./customizer.css">
 </head>
 <body>
-  <header class="top">
-    <a class="back" href="./arena.html">← Arena viewer</a>
-    <span class="brand">Coastal Agentics</span>
+  <header class="site-header wrap">
+    <a class="brand" href="/" aria-label="Coastal Agentics home"><img src="./logo-wordmark.svg" alt="Coastal Agentics" width="206" height="40"></a>
+    <nav aria-label="Coastal Agentics">
+      <a href="/">Home</a>
+      <a href="/nyborgs/">Nyborgs</a>
+      <a href="/arena/" aria-current="page">Arena</a>
+    </nav>
   </header>
+  <nav class="subnav wrap" aria-label="Arena">
+    <strong>Arena</strong>
+    <a href="index.html">Overview</a>
+    <a href="arena.html">Tank Arena</a>
+    <a href="arena.html?game=racing">Racing</a>
+    <a href="customizer.html" aria-current="page">Customizer</a>
+    <a href="fieldnotes.html">Field notes</a>
+  </nav>
 
   <main>
     <div class="intro">
@@ -86,7 +99,13 @@
     </div>
   </div>
 
-  <footer class="foot">Coastal Agentics · Savannah, Georgia · Built by agents.</footer>
+  <footer class="site-footer">
+    <div class="wrap footer-inner">
+      <p class="footer-brand"><img src="logo.svg" alt="" width="32" height="32"> <span><strong>Coastal Agentics</strong> · Behavioral design for agents · Savannah, Georgia</span></p>
+      <p class="footer-links"><a href="/">Coastal Agentics</a> <a href="/nyborgs/">Nyborgs</a> <a href="/arena/">Arena</a> <a href="fieldnotes.html">Field notes</a> <a href="https://github.com/Coastal-Agentics/arena">Source on GitHub</a></p>
+      <p class="legal-line">© 2026 Nye Warburton · Built by agents · Code: MIT OR Apache-2.0 · Nyborg art and logos: all rights reserved</p>
+    </div>
+  </footer>
   <script type="module" src="./customizer.js"></script>
 </body>
 </html>

@@ -1,6 +1,6 @@
 # STATE
 
-_Single source of truth for Coastal Agentics (formerly Starscream Agentics). Owned by the CoS (Soundwave). Updated at the end of every work cycle._
+_Single source of truth for Coastal Agentics. Owned by the CoS (Soundwave). Updated at the end of every work cycle._
 
 **Last updated:** 2026-10-05 ~6:45 PM ET (America/New_York)
 **Phase:** 2 — Arenas (tank live; racing R1–R2 live; Python bridge M4 live; M5 two-game viewer started with Nyborg sprites)
@@ -10,9 +10,10 @@ _Single source of truth for Coastal Agentics (formerly Starscream Agentics). Own
 - **Multi-game design approved and built (2026-10-03):** design #43; engine M1/M2 (#45, #46, #48, #50); per-game build catalog (#51, #59); M3a replay format 5 (#56); **racing v0** rules R1 (#57) and baselines R2 (#58), catalog (#60), in wasm GAMES (#63, #64); **M4** `saltmarsh-arena` Python bridge for tank and racing (#66). ADR-015 (Jev as an optional tool) accepted (#47, #48).
 - **Nyborgs:** character design rev 3 settled for now (#44: cream head, dot eyes, no mouth, 2–4 yarn strands, Yarn Red default; cosmetics never affect stats). Library and save format approved (#49, #55). **M5 first slice live:** Nyborgs are the default tank-viewer sprites, `?sprites=classic` falls back (#67). The real Customizer comes next.
 - **Evolution (dodge lineage, seed 1):** nightly gens 0–399 on `nightly-data`. Gen 399 **Charger 2-4-3** wins **5,057 / 6,000 (84.28%)** vs Gen 0 on 1,000 held-out seeds, digest `5e4b79cb74a97f07` — **held as experimental**. **#68 (merged, `75d0248`)** folded it (plus the pre-dodge archive) into `main` as a real merge commit (ADR-007).
-- **Licensing:** #62 (MIT OR Apache-2.0, holder Nye Warburton, Nyborg art all rights reserved, DCO + REUSE checks) is green and **waits on Nye to review and merge**, together with starscream-agentics.github.io#1 (privacy/terms pages), or the footer links 404.
+- **Licensing:** #62 (MIT OR Apache-2.0, holder Nye Warburton, Nyborg art all rights reserved, DCO + REUSE checks) is green and **waits on Nye to review and merge**, together with Coastal-Agentics/nyborgs#1 and Coastal-Agentics/coastal-agentics.github.io#1 (privacy/terms pages), or the footer links 404.
 - Field notes now render from a generated index (#52–#54). Parity fixtures refreshed (#61); wasm slimmed to 302,776 B (#59) and the build script hardened (#65).
-- Live: [arena viewer](https://starscream-agentics.github.io/arena/arena.html), [Starscream splash](https://starscream-agentics.github.io/), [company site](https://coastal-agentics.github.io/).
+- **Moved into Coastal-Agentics (2026-10-06, ADR-016):** `arena` and the Nyborgs landing page (`nyborgs`, formerly the old org's splash repo) now live in the Coastal-Agentics org. The internal codename is retired from public pages, READMEs and repo metadata; dated field notes and past ADRs keep their wording as history. All three sites share one header, footer and theme.
+- Live: [arena](https://coastal-agentics.github.io/arena/) ([viewer](https://coastal-agentics.github.io/arena/arena.html)), [Nyborgs](https://coastal-agentics.github.io/nyborgs/), [company site](https://coastal-agentics.github.io/).
 
 ## Phase 2 status
 | Item | Status |

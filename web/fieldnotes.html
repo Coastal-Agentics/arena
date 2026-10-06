@@ -3,30 +3,53 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Field notes — Coastal Agentics</title>
-  <meta name="description" content="Field notes from Coastal Agentics. We train robots, with open tools, on the Georgia coast.">
+  <title>Field notes · Arena · Coastal Agentics</title>
+  <meta name="description" content="Field notes from Arena, a Coastal Agentics project: one entry per merged change.">
+  <meta name="theme-color" content="#EEF2F6">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+  <header class="site-header wrap">
+    <a class="brand" href="/" aria-label="Coastal Agentics home"><img src="./logo-wordmark.svg" alt="Coastal Agentics" width="206" height="40"></a>
+    <nav aria-label="Coastal Agentics">
+      <a href="/">Home</a>
+      <a href="/nyborgs/">Nyborgs</a>
+      <a href="/arena/" aria-current="page">Arena</a>
+    </nav>
+  </header>
+  <nav class="subnav wrap" aria-label="Arena">
+    <strong>Arena</strong>
+    <a href="index.html">Overview</a>
+    <a href="arena.html">Tank Arena</a>
+    <a href="arena.html?game=racing">Racing</a>
+    <a href="customizer.html">Customizer</a>
+    <a href="fieldnotes.html" aria-current="page">Field notes</a>
+  </nav>
   <main>
-    <header><a class="mark" href="index.html">← Coastal Agentics</a></header>
+    <p class="eyebrow">Arena · A Coastal Agentics project</p>
     <h1>Field notes</h1>
-    <p>We train robots, with open tools, on the Georgia coast. One entry per merged change. Source: <a href="https://github.com/starscream-agentics/arena/tree/main/docs/fieldnotes">docs/fieldnotes</a>.</p>
+    <p>What changed in Arena and why. One entry per merged change. Source: <a href="https://github.com/Coastal-Agentics/arena/tree/main/docs/fieldnotes">docs/fieldnotes</a>.</p>
 
     <noscript>
-      <p class="card">The field notes on this page need JavaScript. Read them on GitHub instead: <a href="https://github.com/starscream-agentics/arena/tree/main/docs/fieldnotes">docs/fieldnotes</a>.</p>
+      <p class="card">The field notes on this page need JavaScript. Read them on GitHub instead: <a href="https://github.com/Coastal-Agentics/arena/tree/main/docs/fieldnotes">docs/fieldnotes</a>.</p>
     </noscript>
     <p id="fieldnotes-status" class="card" hidden></p>
 
-    <footer>Coastal Agentics · Savannah, Georgia · Built by agents. MIT licensed.</footer>
   </main>
+  <footer class="site-footer">
+    <div class="wrap footer-inner">
+      <p class="footer-brand"><img src="logo.svg" alt="" width="32" height="32"> <span><strong>Coastal Agentics</strong> · Behavioral design for agents · Savannah, Georgia</span></p>
+      <p class="footer-links"><a href="/">Coastal Agentics</a> <a href="/nyborgs/">Nyborgs</a> <a href="/arena/">Arena</a> <a href="fieldnotes.html">Field notes</a> <a href="https://github.com/Coastal-Agentics/arena">Source on GitHub</a></p>
+      <p class="legal-line">© 2026 Nye Warburton · Built by agents · Code: MIT OR Apache-2.0 · Nyborg art and logos: all rights reserved</p>
+    </div>
+  </footer>
   <script>
     // Cards come from fieldnotes/index.json, generated from web/fieldnotes/cards/*.json by
     // scripts/fieldnotes_index.mjs (Pages builds it at deploy; run it yourself when serving locally).
     // Every string goes in through textContent, never innerHTML.
     (function () {
-      var NOTE_BASE = "https://github.com/starscream-agentics/arena/blob/main/";
+      var NOTE_BASE = "https://github.com/Coastal-Agentics/arena/blob/main/";
       var status = document.getElementById("fieldnotes-status");
       // Relative to this page, so it works under /arena/ on Pages and at / when serving web/ locally.
       var url = new URL("fieldnotes/index.json", document.baseURI);
@@ -65,7 +88,7 @@
       function fail() {
         status.textContent = "The field notes didn't load just now. Try again in a moment, or read them on GitHub: ";
         var link = el("a", "docs/fieldnotes");
-        link.href = "https://github.com/starscream-agentics/arena/tree/main/docs/fieldnotes";
+        link.href = "https://github.com/Coastal-Agentics/arena/tree/main/docs/fieldnotes";
         status.appendChild(link);
         status.appendChild(document.createTextNode("."));
         status.hidden = false;

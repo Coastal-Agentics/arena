@@ -1,6 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <!-- Coastal Agentics mark: a small tank in the site accent (#ff6b3d) -->
-  <rect x="14" y="14" width="16" height="4" rx="2" fill="#ff6b3d" transform="rotate(-30 14 16)"/>
-  <rect x="2" y="15" width="24" height="13" rx="3" fill="#ff6b3d"/>
-  <circle cx="14" cy="16" r="6" fill="#ff6b3d" stroke="#0b0d12" stroke-width="2"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="3 3 58 58" width="64" height="64">
+  <!-- Favicon: same mark without the hairline wave (it disappears at 16-32px), cropped to fill the tile. -->
+  <defs><clipPath id="fv-a"><path d="M43 10 L61 54 L47 54 L43 45 L39 54 L25 54 Z"/></clipPath></defs>
+  <g>
+    <path d="M41.85 17.86 A22 22 0 1 0 41.85 46.14 L33.43 39.07 A11 11 0 1 1 33.43 24.93 Z" fill="#436A95"/>
+    <path d="M43 10 L61 54 L47 54 L43 45 L39 54 L25 54 Z" fill="#5F88B7"/>
+    <path d="M41.85 17.86 A22 22 0 1 0 41.85 46.14 L33.43 39.07 A11 11 0 1 1 33.43 24.93 Z" fill="#34557B" clip-path="url(#fv-a)"/>
+  </g>
 </svg>

@@ -20,4 +20,4 @@ print(infos, sa.verify_replay("racing", env.replay_json()))
 ```
 
 Built from `engine-py/` with maturin (`maturin build --release`). Not published yet.
-See [docs/engine/python.md](https://github.com/starscream-agentics/arena/blob/main/docs/engine/python.md).
+See [docs/engine/python.md](https://github.com/Coastal-Agentics/arena/blob/main/docs/engine/python.md).
