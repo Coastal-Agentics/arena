@@ -136,3 +136,7 @@ M3 should start after ADR-014 **B1** lands (in progress), so the bindings wrap t
 - **Q1: Gen 0 is today's scripted defaults** (Charger, Kiter and Sniper as shipped, at 3/3/3).
 - **Q2: a champion above 70% vs the scripted field is held from promotion and labeled experimental, and the CoS tells Nye.**
 - **Q3: Shockwave owns `engine-py/`.**
+
+## Amendments
+
+- **2026-10-07: V3 Charger approach bounds and M1 re-pin (approved by Nye).** The Charger's `stop_dist` gene floor rises from 20 to 60 and its `steer_tol` ceiling falls from 0.6 to 0.2, the shipped values. As with the 2026-10-02 dodge cap, evolution may make a tank more careful than its scripted self, never more reckless. The evidence is in `docs/design/tank-balance-2026-10.md` (PR #80). The old M1 champion (`charger-2-5-2`, digest `d15709d4b3bd6953`) has `stop_dist` 20 and `steer_tol` 0.6, so it no longer loads. The §7 M1 pin is re-made from the same seed-1, 100-generation run under the new bounds: Gen 99 `sniper-5-2-2`, 5,738 of 6,000 (95.6%) vs Gen 0, digest `0a2f3a7e2e498278`, status `experimental`. The nightly lineage is archived (`web/data/evolution/archive/pre-v3-2026-10-07/`) and restarts at Gen 0. Scripted tanks, Gen 0, the Chaser/Wanderer pins and the bot smoke digest are unchanged.
