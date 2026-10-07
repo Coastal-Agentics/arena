@@ -36,9 +36,7 @@ extra, `gym_env`, `parallel_env`, `ArenaGymEnv` and `ArenaParallelEnv` raise
 `python/tests/test_bare.py` checks this, and it checks that the base API loads neither
 Gymnasium nor PettingZoo. `COASTAL_ARENA_EXTRAS=none` makes a run assert that the extras
 are absent (the bare-wheel CI step). `=all` makes a missing extra fail the env tests
-instead of skipping them. Until `.github/workflows/engine-py.yml` moves to the new names,
-the tests also read the pre-rename `SALTMARSH_ARENA_EXTRAS` and `SALTMARSH_ARENA_REPLAY_DIR`
-(`python/tests/conftest.py`); drop that fallback once it does.
+instead of skipping them.
 
 **Kept apart from the engine.** `engine-py` is its own Cargo workspace. The root workspace
 lists it in `exclude`, and it has its own `Cargo.lock` and `target/`. So `cargo build`,
