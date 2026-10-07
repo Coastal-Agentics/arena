@@ -1,4 +1,4 @@
-"""Type stubs for the Rust module ``saltmarsh_arena._core`` (``engine-py/src/python.rs``)."""
+"""Type stubs for the Rust module ``coastal_arena._core`` (``engine-py/src/python.rs``)."""
 
 from __future__ import annotations
 

@@ -3,7 +3,7 @@ requires = ["maturin>=1.9,<2"]
 build-backend = "maturin"
 
 [project]
-name = "saltmarsh-arena"
+name = "coastal-arena"
 description = "The arena's deterministic Rust games (Tank Arena, Racing) as PettingZoo and Gymnasium environments"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -24,7 +24,7 @@ dynamic = ["version"]
 [project.optional-dependencies]
 gym = ["gymnasium>=1.0,<2"]
 pettingzoo = ["pettingzoo>=1.24,<2", "gymnasium>=1.0,<2"]
-all = ["saltmarsh-arena[gym,pettingzoo]"]
+all = ["coastal-arena[gym,pettingzoo]"]
 test = ["pytest>=8"]
 
 [project.urls]
@@ -32,9 +32,9 @@ Repository = "https://github.com/Coastal-Agentics/arena"
 
 [tool.maturin]
 # Mixed layout: the pure-Python package in python/, the Rust module at
-# saltmarsh_arena._core. Only maturin turns on pyo3 (the root workspace excludes this crate).
+# coastal_arena._core. Only maturin turns on pyo3 (the root workspace excludes this crate).
 python-source = "python"
-module-name = "saltmarsh_arena._core"
+module-name = "coastal_arena._core"
 features = ["python"]
 profile = "release"
 include = [{ path = "LICENSE", format = "sdist" }]

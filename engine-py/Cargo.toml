@@ -1,6 +1,6 @@
 [package]
 name = "engine-py"
-description = "Python bindings for the arena games (tank, racing): the saltmarsh-arena wheel, built with maturin"
+description = "Python bindings for the arena games (tank, racing): the coastal-arena wheel, built with maturin"
 # Not a member of the root workspace (it excludes this crate): kept in step with it by hand.
 version = "0.1.0"
 edition = "2021"
@@ -13,7 +13,7 @@ publish = false
 [workspace]
 
 [lib]
-# The Python module is `saltmarsh_arena._core` (see pyproject.toml).
+# The Python module is `coastal_arena._core` (see pyproject.toml).
 name = "engine_py"
 crate-type = ["cdylib", "rlib"]
 

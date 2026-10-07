@@ -137,16 +137,16 @@ jobs:
         run: |
           python -m venv "$RUNNER_TEMP/bare"
           "$RUNNER_TEMP/bare/bin/python" -m pip install --disable-pip-version-check dist/*.whl -r requirements-test.txt
-          SALTMARSH_ARENA_EXTRAS=none "$RUNNER_TEMP/bare/bin/python" -m pytest -q
+          COASTAL_ARENA_EXTRAS=none "$RUNNER_TEMP/bare/bin/python" -m pytest -q
       - name: Test the wheel with [all] (Python 3.10)
         run: |
           python -m pip install --disable-pip-version-check "$(ls dist/*.whl)[all]" -r requirements-test.txt -r requirements-extras.txt
-          SALTMARSH_ARENA_EXTRAS=all SALTMARSH_ARENA_REPLAY_DIR=target/py-replays python -m pytest -q
+          COASTAL_ARENA_EXTRAS=all COASTAL_ARENA_REPLAY_DIR=target/py-replays python -m pytest -q
       - name: Verify the Python-run replays natively
         run: cargo run --release -q --example verify_replay -- target/py-replays/*.json
       - uses: actions/upload-artifact@v7
         with:
-          name: saltmarsh-arena-wheel
+          name: coastal-arena-wheel
           path: engine-py/dist/*.whl
 
   test:
@@ -160,19 +160,19 @@ jobs:
           python-version: "3.14"
       - uses: actions/download-artifact@v8
         with:
-          name: saltmarsh-arena-wheel
+          name: coastal-arena-wheel
           path: dist
       - name: Test the bare wheel, numpy only (Python 3.14)
         working-directory: engine-py
         run: |
           python -m venv "$RUNNER_TEMP/bare"
           "$RUNNER_TEMP/bare/bin/python" -m pip install --disable-pip-version-check ../dist/*.whl -r requirements-test.txt
-          SALTMARSH_ARENA_EXTRAS=none "$RUNNER_TEMP/bare/bin/python" -m pytest -q
+          COASTAL_ARENA_EXTRAS=none "$RUNNER_TEMP/bare/bin/python" -m pytest -q
       - name: Test the wheel with [all] (Python 3.14)
         working-directory: engine-py
         run: |
           python -m pip install --disable-pip-version-check "$(ls ../dist/*.whl)[all]" -r requirements-test.txt -r requirements-extras.txt
-          SALTMARSH_ARENA_EXTRAS=all python -m pytest -q
+          COASTAL_ARENA_EXTRAS=all python -m pytest -q
 ```
 
 What the steps run (all in `engine-py/`):
@@ -182,11 +182,11 @@ What the steps run (all in `engine-py/`):
   `tests/fixtures/determinism.json`), `tests/alloc.rs` (steps allocate only for history
   doubling) and `tests/lock.rs` (shared crates have the root lockfile's versions).
 - `pytest`: `python/tests/`, twice per Python.
-  - **Bare wheel (numpy only), `SALTMARSH_ARENA_EXTRAS=none`:** the API, `FlatEnv` and
+  - **Bare wheel (numpy only), `COASTAL_ARENA_EXTRAS=none`:** the API, `FlatEnv` and
     the Python-vs-native determinism episodes (including 1,000-step tank and racing
     episodes). It asserts that Gymnasium and PettingZoo are absent, and that the envs
     raise `MissingExtraError` naming `[gym]` or `[pettingzoo]`. The env tests skip.
-  - **`[all]`, `SALTMARSH_ARENA_EXTRAS=all`:** everything, including PettingZoo's
+  - **`[all]`, `COASTAL_ARENA_EXTRAS=all`:** everything, including PettingZoo's
     `parallel_api_test` and `parallel_seed_test`, Gymnasium's `check_env`, and the env
     determinism runs. A missing extra fails here instead of skipping.
   - The pins for the extras are in `requirements-extras.txt`, and pytest's pin is in
