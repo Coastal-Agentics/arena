@@ -376,7 +376,7 @@ Tests: `race.rs`'s unit tests (the same results as `racing::balance::run`, engin
 native fixture, shapes, bad input, replay round trip) and `scripts/race_wasm.test.mjs`
 (Node, on the committed `web/pkg`). That test covers native `final_hash` parity, plus two
 racing replays written from Python (`scripts/fixtures/python-racing/`, from engine-py's
-`test_determinism.py` with `SALTMARSH_ARENA_REPLAY_DIR`) that verify in wasm. CI runs it
+`test_determinism.py` with `COASTAL_ARENA_REPLAY_DIR`) that verify in wasm. CI runs it
 through `scripts/catalog_racing.test.mjs`, which imports it.
 
 ### Viewer URL parameters (`web/arena.js`, `web/tank-ui.js`)

@@ -10,7 +10,7 @@ import time
 
 import numpy as np
 
-import saltmarsh_arena as sa
+import coastal_arena as ca
 
 STEPS = int(sys.argv[1]) if len(sys.argv) > 1 else 200_000
 
@@ -22,7 +22,7 @@ def patterns(rows, n):
 
 
 def flat(game, builds, learning, fs, steps):
-    f = sa.FlatEnv(game, builds, learning, fs)
+    f = ca.FlatEnv(game, builds, learning, fs)
     pats = patterns(len(learning), f.core.action_len)
     acts, step, core = f.actions, f.core.step, f.core
     seed, ticks = 0, 0
@@ -40,7 +40,7 @@ def flat(game, builds, learning, fs, steps):
 
 
 def parallel(game, builds, learning, fs, steps):
-    env = sa.parallel_env(game, builds, learning, fs)
+    env = ca.parallel_env(game, builds, learning, fs)
     pats = patterns(len(learning), env.flat.core.action_len)
     names = env.possible_agents
     seed = 0
@@ -56,8 +56,8 @@ def parallel(game, builds, learning, fs, steps):
 
 
 def main():
-    t = sa.default_build("tank")
-    r = sa.default_build("racing")
+    t = ca.default_build("tank")
+    r = ca.default_build("racing")
     cases = [
         ("tank 2 learning", "tank", [t, t], [0, 1]),
         ("tank 1 learning + charger", "tank", [t, t], [0]),

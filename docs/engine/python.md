@@ -1,7 +1,7 @@
-# Python bindings: engine-py and the saltmarsh-arena wheel
+# Python bindings: engine-py and the coastal-arena wheel
 
 Source: `engine-py/` (`src/lib.rs`, `src/games.rs`, `src/session.rs`, `src/python.rs`,
-`python/saltmarsh_arena/`, `pyproject.toml`). Plan: [game-system.md](../design/game-system.md)
+`python/coastal_arena/`, `pyproject.toml`). Plan: [game-system.md](../design/game-system.md)
 §1, §6 and M4, following GATE-003 §6.
 
 `engine-py` exposes Tank Arena and Racing to Python training tools. The simulation stays in
@@ -16,7 +16,7 @@ cd engine-py
 pip install "maturin>=1.9.4,<2"
 maturin build --release --out dist            # one abi3 wheel, CPython 3.10 to 3.14
 pip install "$(ls dist/*.whl)[all]" -r requirements-test.txt -r requirements-extras.txt
-SALTMARSH_ARENA_EXTRAS=all python -m pytest -q # python/tests
+COASTAL_ARENA_EXTRAS=all python -m pytest -q   # python/tests
 cargo test --release                           # the Rust core, no Python needed
 ```
 
@@ -25,18 +25,20 @@ cargo test --release                           # the Rust core, no Python needed
 
 | Install | Adds | For |
 |---|---|---|
-| `saltmarsh-arena` | numpy | `FlatEnv`, `games`, `catalog`, `default_build`, `validate_build`, `verify_replay` |
-| `saltmarsh-arena[gym]` | gymnasium | `gym_env` |
-| `saltmarsh-arena[pettingzoo]` | pettingzoo, gymnasium (PettingZoo's spaces) | `parallel_env` |
-| `saltmarsh-arena[all]` | both | everything |
+| `coastal-arena` | numpy | `FlatEnv`, `games`, `catalog`, `default_build`, `validate_build`, `verify_replay` |
+| `coastal-arena[gym]` | gymnasium | `gym_env` |
+| `coastal-arena[pettingzoo]` | pettingzoo, gymnasium (PettingZoo's spaces) | `parallel_env` |
+| `coastal-arena[all]` | both | everything |
 
 The env modules (`_gymnasium`, `_pettingzoo`) are imported on first use. Without their
 extra, `gym_env`, `parallel_env`, `ArenaGymEnv` and `ArenaParallelEnv` raise
-`saltmarsh_arena.MissingExtraError`, an `ImportError` that names the extra to install.
+`coastal_arena.MissingExtraError`, an `ImportError` that names the extra to install.
 `python/tests/test_bare.py` checks this, and it checks that the base API loads neither
-Gymnasium nor PettingZoo. `SALTMARSH_ARENA_EXTRAS=none` makes a run assert that the extras
+Gymnasium nor PettingZoo. `COASTAL_ARENA_EXTRAS=none` makes a run assert that the extras
 are absent (the bare-wheel CI step). `=all` makes a missing extra fail the env tests
-instead of skipping them.
+instead of skipping them. Until `.github/workflows/engine-py.yml` moves to the new names,
+the tests also read the pre-rename `SALTMARSH_ARENA_EXTRAS` and `SALTMARSH_ARENA_REPLAY_DIR`
+(`python/tests/conftest.py`); drop that fallback once it does.
 
 **Kept apart from the engine.** `engine-py` is its own Cargo workspace. The root workspace
 lists it in `exclude`, and it has its own `Cargo.lock` and `target/`. So `cargo build`,
@@ -50,17 +52,17 @@ used. `engine/`, the games, engine-wasm and engine-cli have no change.
 ## API
 
 ```python
-import saltmarsh_arena as sa
+import coastal_arena as ca
 
-sa.games()            # [{"game": "tank", "obs_len": 176, "action_len": 4, "min_agents": 2, ...}, {"game": "racing", ...}]
-sa.catalog("racing"); sa.default_build("tank"); sa.validate_build("tank", build)   # the viewer's catalog calls
+ca.games()            # [{"game": "tank", "obs_len": 176, "action_len": 4, "min_agents": 2, ...}, {"game": "racing", ...}]
+ca.catalog("racing"); ca.default_build("tank"); ca.validate_build("tank", build)   # the viewer's catalog calls
 
-env = sa.parallel_env("tank", builds=[blue, orange], learning=None, frame_skip=4)  # PettingZoo ParallelEnv ([pettingzoo])
-env = sa.gym_env("racing", builds=[car] * 4, agent=0)                              # Gymnasium Env, one learner ([gym])
-f = sa.FlatEnv("racing", builds, learning=[0, 2])                                  # zero-copy numpy views
+env = ca.parallel_env("tank", builds=[blue, orange], learning=None, frame_skip=4)  # PettingZoo ParallelEnv ([pettingzoo])
+env = ca.gym_env("racing", builds=[car] * 4, agent=0)                              # Gymnasium Env, one learner ([gym])
+f = ca.FlatEnv("racing", builds, learning=[0, 2])                                  # zero-copy numpy views
 
 env.replay_json()                     # the match as replay JSON
-sa.verify_replay("tank", json)        # Replay::verify natively, returns final_hash
+ca.verify_replay("tank", json)        # Replay::verify natively, returns final_hash
 ```
 
 - **Builds** are the catalog's build JSON (a string or a dict), checked by
@@ -86,7 +88,7 @@ sa.verify_replay("tank", json)        # Replay::verify natively, returns final_h
 - `reset(seed, options)`: `options` is accepted and ignored. Builds, learning agents and
   `frame_skip` are fixed when the env is made.
 
-The type stubs are `python/saltmarsh_arena/_core.pyi` (checked with `mypy.stubtest`). The
+The type stubs are `python/coastal_arena/_core.pyi` (checked with `mypy.stubtest`). The
 package is typed (`py.typed`) and passes `mypy --strict`.
 
 ## Hot path
@@ -118,7 +120,7 @@ observation so it stays valid after the next step. `FlatEnv` is the zero-copy pa
   Gymnasium env. The replay JSON must equal the native run's byte for byte, and the
   `final_hash` must equal the pin and `verify_replay`.
 - `examples/verify_replay.rs` re-verifies the replays the Python tests write
-  (`SALTMARSH_ARENA_REPLAY_DIR`) in a binary with no Python in it. Tank replays from Python
+  (`COASTAL_ARENA_REPLAY_DIR`) in a binary with no Python in it. Tank replays from Python
   also verify in wasm (`checkReplayJson`), and racing replays too (`checkRaceReplayJson`,
   `scripts/race_wasm.test.mjs`).
 - `python/tests/test_envs.py` runs PettingZoo's `parallel_api_test` and `parallel_seed_test`

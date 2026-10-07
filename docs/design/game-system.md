@@ -2,9 +2,9 @@
 
 **Status:** Proposed (2026-10-03). For Nye as a gate, via Soundwave. Docs only: no code changes.
 **Owner:** Shockwave (Engine Lead). **Game side:** Blitzwing (Tank Designer-Developer), co-author and reviewer.
-**Builds on:** ADR-009, ADR-014 (B1 done in #30: `engine::generic::Rules`), `docs/engine/`, GATE-003 (§6 bridge, M3), Saltmarsh ADR-001 and ARCHITECTURE.md (`gaming`, the planned `saltmarsh-arena` wheel).
+**Builds on:** ADR-009, ADR-014 (B1 done in #30: `engine::generic::Rules`), `docs/engine/`, GATE-003 (§6 bridge, M3), Saltmarsh ADR-001 and ARCHITECTURE.md (`gaming`, the planned `coastal-arena` wheel).
 
-**In one paragraph:** every game is a `Rules` impl in its own `games/<name>` crate in this repo, run by the same deterministic engine loop, replayed in the same envelope, and checked by the same native-vs-wasm parity CI. Two small, opt-in additions let training tools use any game: a defaulted per-agent `reward`, and a fixed-size `f32` view for bindings. One Python wheel built here (`saltmarsh-arena`) exposes each game as a PettingZoo/Gymnasium env, and Saltmarsh's `gaming` part wraps it. Tank refits first with no replay byte changes. Racing is game #2 and the ADR-014 trigger for B2–B5.
+**In one paragraph:** every game is a `Rules` impl in its own `games/<name>` crate in this repo, run by the same deterministic engine loop, replayed in the same envelope, and checked by the same native-vs-wasm parity CI. Two small, opt-in additions let training tools use any game: a defaulted per-agent `reward`, and a fixed-size `f32` view for bindings. One Python wheel built here (`coastal-arena`) exposes each game as a PettingZoo/Gymnasium env, and Saltmarsh's `gaming` part wraps it. Tank refits first with no replay byte changes. Racing is game #2 and the ADR-014 trigger for B2–B5.
 
 **Naming:** the customizable agents are **Nyborgs**: one Nyborg can play in several arenas (tank, racing), and over time both Nyborgs and maps become customizable.
 
@@ -144,7 +144,7 @@ Any setup that can be a `Rules` + `Flat` impl gets its own `games/<name>` crate 
 | Engine (`Rules`, `Match`, replays, hashing) | arena `engine/` | It is here (#30), with the determinism docs |
 | Each game's rules | arena `games/<name>` | ADR-009; the tank already lives here |
 | wasm viewer + parity CI | arena `engine-wasm/`, `web/`, `ci.yml` | Parity needs the Rust sim and the pinned replays in one repo |
-| Python wheel | arena `engine-py/`, published as **`saltmarsh-arena`** | GATE-003 M3 already plans `engine-py/` here (pyo3 + maturin, abi3-py310). Saltmarsh ADR-001 expects this wheel. Building it here makes them one wheel, not two |
+| Python wheel | arena `engine-py/`, published as **`coastal-arena`** | GATE-003 M3 already plans `engine-py/` here (pyo3 + maturin, abi3-py310). Saltmarsh ADR-001 expects this wheel. Building it here makes them one wheel, not two |
 | Python envs for training and eval | Saltmarsh `gaming` | It registers the envs, adds py_trees agents, and links them to Saltmarsh `eval` (seeds, cost) and `data` (LeRobotDataset export) |
 
 Splitting the Rust games across repos would duplicate the tick loop and the parity CI. Moving them into Saltmarsh would put Rust and wasm in a Python repo. Saltmarsh `[gaming]` keeps building without the wheel until it is published, which is a separate gate.
@@ -156,13 +156,13 @@ Splitting the Rust games across repos would duplicate the tick loop and the pari
 | **M1** (small) | `Rules::reward` (default 0.0), the `Flat` trait, and E1 (flat history buffer) | Shockwave | All hash pins, parity fixtures and replay bytes unchanged; speed equal or better; wasm size reported | Within B1; unlocks nothing |
 | M2 | Tank refit: E2 (Shockwave), plus T1 obs and T2 reward (Blitzwing) | Shockwave, Blitzwing | tank-refit.md's before/after table identical; no replay bytes change | Within B1 |
 | M3 | Racing v0: R1 (rules, format 5, `Finished`) and R2 (baselines, `Flat`, reward, BALANCE.md). Engine side: the `Finished` variant and the format 5 envelope | Blitzwing (rules), Shockwave (engine) | racing.md's acceptance; tank format 4 files still load and verify | **The trigger: unblocks B2–B5** |
-| M4 | Bindings: `engine-py/` → `saltmarsh-arena`, generic over `Rules + Flat`, for tank and racing (GATE-003 M3, extended) | Shockwave | GATE-003 M3's tests pass for both games; Saltmarsh `[gaming]` can use the wheel locally | none |
+| M4 | Bindings: `engine-py/` → `coastal-arena`, generic over `Rules + Flat`, for tank and racing (GATE-003 M3, extended) | Shockwave | GATE-003 M3's tests pass for both games; Saltmarsh `[gaming]` can use the wheel locally | none |
 | M5 | Viewer for two games: V2 (= R3), with `WasmRace` (Shockwave), and V3, with `catalogJson(game)` (Shockwave). Then B2–B5 (T3) if Nye approves | Blitzwing, Shockwave | Racing links replay exactly in the browser; racing parity fixtures in CI; tank unchanged | B2–B5 |
 | Later | R4 (racing evolution, after M3); fixed-array tank obs (Blitzwing's call); the third setup from §5 | — | — | — |
 
 *Progress:* M3a, the engine side of M3, adds `EndReason::Finished` and replay format 5 (`Rules::GAME`, `Rules::RULES_VERSION`, `Rules::WRITES_FORMAT`; Tank Arena keeps writing format 4). No tank replay byte or hash changed. See [replay format](../engine/replay-format.md#format-5-the-game-envelope).
 
-*Progress:* M4 adds `engine-py/` and the `saltmarsh-arena` wheel. It has one generic session over `Rules + Flat`, used by tank and racing, with PettingZoo, Gymnasium and zero-copy `FlatEnv` APIs. GATE-003 M3's tests pass for both games: `parallel_api_test`, `parallel_seed_test`, Python 1,000-step `final_hash` = Rust `Replay::verify`, one abi3 wheel on 3.10 and 3.14, and an SB3 PPO smoke run. Its CI workflow is in [ci-specs.md](../engine/ci-specs.md#b-engine-py-wheel-build-m4-ready-to-apply), and the API is in [python.md](../engine/python.md).
+*Progress:* M4 adds `engine-py/` and the `coastal-arena` wheel. It has one generic session over `Rules + Flat`, used by tank and racing, with PettingZoo, Gymnasium and zero-copy `FlatEnv` APIs. GATE-003 M3's tests pass for both games: `parallel_api_test`, `parallel_seed_test`, Python 1,000-step `final_hash` = Rust `Replay::verify`, one abi3 wheel on 3.10 and 3.14, and an SB3 PPO smoke run. Its CI workflow is in [ci-specs.md](../engine/ci-specs.md#b-engine-py-wheel-build-m4-ready-to-apply), and the API is in [python.md](../engine/python.md).
 
 **Independent of this order:**
 - **V4,** the shared Gen badge and slider, is Blitzwing's next task (the GATE-003 M2 UI).
@@ -172,7 +172,7 @@ Splitting the Rust games across repos would duplicate the tick loop and the pari
 ## Open questions for Nye
 1. **Racing gate and scope:** does racing get its own gate (like GATE-002 for tanks)? For v0, is one track enough, should it mirror the tanks' 9-point budget, and is shuffling the grid by seed OK?
 2. **Order:** racing (M3) before the tank Python bridge (M4), or the bridge first? GATE-003 M3 is approved and listed as next in STATE.
-3. **Wheel and license:** build one wheel here, named `saltmarsh-arena` (GATE-003's working name is `engine-py`)? And should arena's crates become MIT OR Apache-2.0 before it ships? That needs every copyright holder's consent, and publishing stays a separate gate.
+3. **Wheel and license:** build one wheel here, named `coastal-arena` (GATE-003's working name is `engine-py`)? And should arena's crates become MIT OR Apache-2.0 before it ships? That needs every copyright holder's consent, and publishing stays a separate gate.
 4. **ADR-014 after racing:** approve B2–B5 (M5), or keep them deferred? Should `Outcome` later become a per-game associated type (a B-step, not proposed now)?
 5. **Cost:** Saltmarsh `eval` requires a per-step cost. Should game envs report one (e.g. racing collisions) or a declared 0.0?
 

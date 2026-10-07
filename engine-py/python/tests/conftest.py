@@ -9,14 +9,22 @@ import pytest
 
 FIXTURE = pathlib.Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "determinism.json"
 
+
+def arena_env(name: str) -> str:
+    """Read ``COASTAL_ARENA_<name>``. Until .github/workflows/engine-py.yml is
+    updated, CI still sets the pre-rename ``SALTMARSH_ARENA_<name>``, so fall back
+    to it. Remove the fallback once the workflow uses the new names."""
+    return os.environ.get(f"COASTAL_ARENA_{name}") or os.environ.get(f"SALTMARSH_ARENA_{name}", "")
+
+
 # What the test run expects installed: "none" (the bare wheel, numpy only), "all"
 # (the [all] extras), or unset (whatever is there; env tests skip without extras).
-EXTRAS = os.environ.get("SALTMARSH_ARENA_EXTRAS", "")
+EXTRAS = arena_env("EXTRAS")
 
 
 def need(module: str) -> ModuleType:
     """Import an extra's module for an env test: skip without it, unless the run
-    expects every extra (SALTMARSH_ARENA_EXTRAS=all), where a missing one fails."""
+    expects every extra (COASTAL_ARENA_EXTRAS=all), where a missing one fails."""
     if EXTRAS == "all":
         return importlib.import_module(module)
     return pytest.importorskip(module)
