@@ -11,10 +11,8 @@ FIXTURE = pathlib.Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "
 
 
 def arena_env(name: str) -> str:
-    """Read ``COASTAL_ARENA_<name>``. Until .github/workflows/engine-py.yml is
-    updated, CI still sets the pre-rename ``SALTMARSH_ARENA_<name>``, so fall back
-    to it. Remove the fallback once the workflow uses the new names."""
-    return os.environ.get(f"COASTAL_ARENA_{name}") or os.environ.get(f"SALTMARSH_ARENA_{name}", "")
+    """Read ``COASTAL_ARENA_<name>`` from the environment (empty if unset)."""
+    return os.environ.get(f"COASTAL_ARENA_{name}", "")
 
 
 # What the test run expects installed: "none" (the bare wheel, numpy only), "all"
