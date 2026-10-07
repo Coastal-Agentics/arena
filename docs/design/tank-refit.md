@@ -42,10 +42,10 @@
 | Bot smoke run, seeds 0–199 | digest `28ae434ec1996a74` | `smoke_run_seeds_0_to_199_are_unchanged` |
 | CLI smoke output | `engine-cli --matches 10 --seed 42` byte-identical (first row: seed 42, winner 1, 447 ticks, `03722b5e86d38fac`) | CI `test` job |
 | Parity fixtures (7) | `cw-seed-max` `f1d983e88de5d020` · `cw-all-destroyed` `fc9b0fbc0058d761` · `cw-per-tank-params` `86bc2f990b3b015d` · `cw-spread-still` `92981daa6ab1c79f` · `arena-charger-mirror` `d8b3fec9b177e010` · `arena-sniper-vs-charger` `e09cf50fd8e2160b` · `arena-2v2-tick-limit` `0aa1ae238e20374d` | `engine-wasm/tests/parity/`, `scripts/check-parity.mjs`, CI `wasm` job |
-| M1 pinned champion | `charger-2-5-2`, Gen 99, 5,300 of 6,000 (88.3%), digest `d15709d4b3bd6953`, experimental | `games/tank/tests/evolve_m1.rs` (plus the slow `--ignored` full run) |
+| M1 pinned champion | `sniper-5-2-2`, Gen 99, 5,738 of 6,000 (95.6%), digest `0a2f3a7e2e498278`, experimental (re-pinned 2026-10-07 for V3; was `charger-2-5-2`, `d15709d4b3bd6953`) | `games/tank/tests/evolve_m1.rs` (plus the slow `--ignored` full run) |
 | Balance | Kiter > Charger 69.2%, Charger > Sniper 64.5%, Sniper > Kiter 75.0%; median match 44.6 s; draws 8.3% | `cargo run -p tank --release --example balance -- 200` regenerates `BALANCE.md` with no diff |
 | Replays | `REPLAY_FORMAT` 4, `OLDEST_READABLE_FORMAT` 2, `setup_hash`, the `MatchConfig` and `Action` JSON shapes | engine replay tests; parity fixtures |
-| Evolution | gene tables (Charger 14, Kiter 15, Sniper 20), dodge cap 0.65 / 0.95 / 0.61, GA config, fitness | genome tests; `evolve verify` on the `nightly-data` lineage |
+| Evolution | gene tables (Charger 14, Kiter 15, Sniper 20), dodge cap 0.65 / 0.95 / 0.61, Charger approach bounds `stop_dist` ≥ 60 and `steer_tol` ≤ 0.2 (V3, 2026-10-07), GA config, fitness | genome tests; `evolve verify` on the `nightly-data` lineage |
 | Old URLs | `?seed=42&blue=kiter-5-3-1&orange=charger-4-1-4`, the legacy `?seed=…&a=Chaser&b=Wanderer`, and `tab`, `speed`, `paused`, `t`; canonical query output | `scripts/check-viewer.mjs`, `scripts/check-viewer-browser.py` |
 
 **The replay format stays 4 and byte-identical.** The refit writes exactly the files it writes today. Format 5 arrives later with racing, and a format 4 file with no `game` field keeps meaning Tank Arena. Whether tank ever writes format 5 is a separate decision. It would change the file bytes but not `final_hash` or `setup_hash`.
