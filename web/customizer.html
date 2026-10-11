@@ -3,114 +3,25 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Customizer: your Nyborgs · Arena · Coastal Agentics</title>
-  <meta name="description" content="Make Nyborgs, give each one a look, and set its build and behavior for every game. Every Nyborg gets the same point budget. Saved in your browser. Arena is a Coastal Agentics project.">
-  <meta name="theme-color" content="#EEF2F6">
+  <title>The Customizer moved into the Nyborg app · Arena · Coastal Agentics</title>
+  <meta name="robots" content="noindex">
   <link rel="icon" href="./favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="./customizer.css">
-  <link rel="stylesheet" href="./customizer-race.css">
+  <link rel="canonical" href="./play/">
+  <!-- The Customizer is now the Nyborg app's editor (docs/design/nyborg-app.md, milestone 4).
+       Same Nyborgs, same browser storage. This page forwards to your selected Nyborg's editor. -->
+  <script>
+    (function () {
+      var hash = "#/";
+      try {
+        var index = JSON.parse(localStorage.getItem("arena.nyborg.index") || "null");
+        if (index && index.selected) hash = "#/nyborg/" + encodeURIComponent(index.selected);
+      } catch (e) { /* storage blocked: go home */ }
+      location.replace("./play/" + hash);
+    })();
+  </script>
+  <meta http-equiv="refresh" content="1; url=./play/">
 </head>
 <body>
-  <header class="site-header wrap">
-    <a class="brand" href="/" aria-label="Coastal Agentics home"><img src="./logo-wordmark.svg" alt="Coastal Agentics" width="206" height="40"></a>
-    <nav aria-label="Coastal Agentics">
-      <a href="/">Home</a>
-      <a href="/nyborgs/">Nyborgs</a>
-      <a href="/arena/" aria-current="page">Arena</a>
-    </nav>
-  </header>
-  <nav class="subnav wrap" aria-label="Arena">
-    <strong>Arena</strong>
-    <a href="index.html">Overview</a>
-    <a href="arena.html">Tank Arena</a>
-    <a href="arena.html?game=racing">Racing</a>
-    <a href="customizer.html" aria-current="page">Customizer</a>
-    <a href="fieldnotes.html">Field notes</a>
-  </nav>
-
-  <main>
-    <div class="intro">
-      <h1>Customize: your Nyborgs</h1>
-      <p class="muted">One Customizer for every game. Saved in this browser; export or import any Nyborg as a <code>.json</code> file.</p>
-    </div>
-
-    <div id="banners" aria-live="polite"></div>
-
-    <div class="layout">
-      <aside class="panel library" aria-label="Your Nyborg library">
-        <h2>Library · <span id="lib-count">0</span></h2>
-        <div class="row gap">
-          <button type="button" class="btn primary" id="new">+ New</button>
-          <button type="button" class="btn" id="import">Import</button>
-          <button type="button" class="btn" id="export-all">Export all</button>
-          <input type="file" id="import-file" accept=".json,application/json" hidden>
-        </div>
-        <ul id="lib-list" class="lib-list"></ul>
-        <div id="lib-broken"></div>
-        <p class="muted small center">Every Nyborg: the same point budget in every game.<br>Looks are cosmetic only.</p>
-      </aside>
-
-      <section class="editor" id="editor" aria-label="Edit Nyborg">
-        <div class="editor-head">
-          <label class="name-wrap">
-            <span class="sr">Name</span>
-            <input id="name" class="name" maxlength="24" autocomplete="off" spellcheck="false">
-            <span class="hint">✎ rename</span>
-          </label>
-          <div class="row gap">
-            <button type="button" class="btn" id="dup">Duplicate</button>
-            <button type="button" class="btn" id="export-one">Export</button>
-            <button type="button" class="btn danger" id="delete">Delete…</button>
-          </div>
-        </div>
-        <p id="name-error" class="error small" hidden></p>
-
-        <div class="editor-grid">
-          <section class="panel look" aria-labelledby="look-h">
-            <div class="panel-head"><h2 id="look-h">Look</h2><span class="tag">cosmetic</span></div>
-            <div class="preview-wrap"><canvas id="preview" class="preview" width="240" height="240" aria-label="Animated Nyborg preview"></canvas></div>
-            <h3>Hair style</h3>
-            <div id="styles" class="styles" role="radiogroup" aria-label="Hair style"></div>
-            <h3>Hair colour</h3>
-            <div id="swatches" class="swatches" role="radiogroup" aria-label="Hair colour"></div>
-            <div id="strands-row">
-              <h3>Strands</h3>
-              <div id="strands" class="seg" role="radiogroup" aria-label="Strands"></div>
-            </div>
-            <h3>Accessories</h3>
-            <div id="accessories" class="seg"></div>
-            <p class="muted small">The look is saved with your Nyborg but never sent to the engine or hashed. Two Nyborgs with the same build play exactly the same match.</p>
-          </section>
-
-          <section class="panel games" aria-label="Builds per game">
-            <div id="game-tabs" class="tabs" role="tablist"></div>
-            <div id="game-panel" role="tabpanel"></div>
-          </section>
-        </div>
-
-        <section class="panel pick" aria-labelledby="pick-h">
-          <h2 id="pick-h">Pick for a match</h2>
-          <div id="pick"></div>
-        </section>
-      </section>
-    </div>
-  </main>
-
-  <div id="toast" class="toast" hidden></div>
-  <div id="modal" class="modal" hidden>
-    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-msg">
-      <p id="modal-msg"></p>
-      <div id="modal-btns" class="row gap end"></div>
-    </div>
-  </div>
-
-  <footer class="site-footer">
-    <div class="wrap footer-inner">
-      <p class="footer-brand"><img src="logo.svg" alt="" width="32" height="32"> <span><strong>Coastal Agentics</strong> · Behavioral design for agents · Savannah, Georgia</span></p>
-      <p class="footer-links"><a href="/">Coastal Agentics</a> <a href="/nyborgs/">Nyborgs</a> <a href="/arena/">Arena</a> <a href="fieldnotes.html">Field notes</a> <a href="https://github.com/Coastal-Agentics/arena">Source on GitHub</a></p>
-      <p class="legal-line">© 2026 Nye Warburton · Built by agents · Code: MIT OR Apache-2.0 · Nyborg art and logos: all rights reserved</p>
-    </div>
-  </footer>
-  <script type="module" src="./customizer.js"></script>
+  <p>The Customizer moved into the <a href="./play/">Nyborg app</a>. Same Nyborgs, same browser.</p>
 </body>
 </html>

@@ -113,3 +113,33 @@ canvas.match { width: 100%; height: auto; display: block; border-radius: 10px; }
 .finish-acts { margin-bottom: 6px; }
 .share-url { font: inherit; font-size: .8rem; width: 100%; padding: 5px 8px; border: 1.5px solid var(--line-2); border-radius: 8px; }
 @media (max-width: 900px) { .watch { grid-template-columns: 1fr; } }
+
+/* Edit. */
+.edit-grid { display: grid; grid-template-columns: minmax(280px, 1fr) minmax(0, 1.25fr); gap: 18px; align-items: start; }
+.edit-grid .panel { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 16px 20px; }
+.edit-grid .stage { max-width: 300px; margin: 0 auto 8px; }
+.edit-grid .h3 { display: block; margin: 8px 0 6px; font-weight: 700; font-size: .9rem; color: var(--ink); }
+#edit-name { font: inherit; font-size: 1.1rem; padding: 7px 10px; border: 1.5px solid var(--line-2); border-radius: 10px; width: 100%; }
+.build-panel { margin-top: 10px; }
+.try-row { margin-top: 16px; }
+.try-row .confirm { font-weight: 700; color: var(--bad); }
+.tri-row { display: grid; grid-template-columns: minmax(180px, 240px) 1fr; gap: 16px; align-items: center; }
+.tri { width: 100%; touch-action: none; cursor: crosshair; }
+.tri text { font: 700 11px system-ui, sans-serif; fill: var(--muted); }
+.tri:focus-visible { outline: 3px solid var(--focus); outline-offset: 4px; border-radius: 8px; }
+.readout { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; margin: 0; font-size: .88rem; }
+.readout dt { color: var(--muted); }
+.readout dd { margin: 0; color: var(--ink); font-weight: 600; }
+.presets { display: flex; flex-wrap: wrap; gap: 6px; }
+.presets .btn.on { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+.toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); background: var(--ink); color: #fff; border-radius: 12px; padding: 10px 14px; display: flex; gap: 12px; align-items: center; box-shadow: 0 6px 24px rgba(0,0,0,.2); z-index: 10; }
+.toast[hidden] { display: none; }
+
+/* Backup. */
+.panel.backup { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 16px 20px; }
+.backup-list { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 6px; }
+.backup-list li { display: grid; grid-template-columns: 44px 1fr auto; gap: 10px; align-items: center; }
+.mini-face { width: 44px; height: 44px; }
+.backup-list .nm { font-weight: 700; color: var(--ink); }
+.broken { margin-top: 16px; }
+@media (max-width: 820px) { .edit-grid { grid-template-columns: 1fr; } .tri-row { grid-template-columns: 1fr; } .tri-wrap { max-width: 260px; } }
