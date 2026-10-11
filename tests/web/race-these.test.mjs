@@ -61,14 +61,22 @@ test("builds: encode/decode round trip for every valid racing build", () => {
 test("looks: encode/decode round trip for every palette colour, strand count and accessory set", () => {
   let n = 0;
   for (const { hex } of HAIR_PALETTE) for (const strands of [2, 3, 4]) for (const accessories of [[], ["glasses"], ["hat"], ["glasses", "hat"]]) {
-    const look = { hair_color: hex, strands, accessories };
+    const look = { hair_style: "yarn", hair_color: hex, strands, accessories };
     assert.deepEqual(decodeLook(encodeLook(look)), look);
+    for (const hair_style of ["mop", "pom", "fringe", "crest"]) {
+      const fuzzy = { hair_style, hair_color: hex, strands: 3, accessories };
+      assert.deepEqual(decodeLook(encodeLook(fuzzy)), fuzzy);
+    }
     n++;
   }
   assert.equal(n, 120);
   assert.equal(encodeLook({ hair_color: "#D9534F", strands: 3, accessories: ["hat", "glasses"] }), "D9534F-3-gh");
   assert.equal(encodeLook({ hair_color: "#3f6fd8", strands: 2, accessories: [] }), "3F6FD8-2");
-  assert.deepEqual(decodeLook("d9534f-4-hg"), { hair_color: "#D9534F", strands: 4, accessories: ["glasses", "hat"] });
+  assert.deepEqual(decodeLook("d9534f-4-hg"), { hair_style: "yarn", hair_color: "#D9534F", strands: 4, accessories: ["glasses", "hat"] }, "pre-format-2 links read as Classic yarn");
+  assert.equal(encodeLook({ hair_style: "mop", hair_color: "#D9534F", strands: 4, accessories: ["glasses"] }), "D9534F-m-g");
+  assert.equal(encodeLook({ hair_style: "crest", hair_color: "#3F6FD8", strands: 3, accessories: [] }), "3F6FD8-c");
+  assert.deepEqual(decodeLook("F2C14E-p-h"), { hair_style: "pom", hair_color: "#F2C14E", strands: 3, accessories: ["hat"] });
+  assert.equal(decodeLook("F2C14E-x"), null, "unknown style letter");
   for (const bad of ["00FF00-3", "D9534F-5", "D9534F-1", "D9534F-3-gg", "D9534F-3-x", "#D9534F-3", "D9534F", "<b>-3"]) {
     assert.equal(decodeLook(bad), null, bad);
   }
@@ -83,7 +91,7 @@ test("racing link: full round trip with cars, looks and names", () => {
     seed: "7",
     builds: [build("cutter", 5, 2, 2), build("follower", 2, 2, 5), build("cutter", 5, 2, 2)],
     custom: true,
-    looks: [{ hair_color: "#D9534F", strands: 3, accessories: ["glasses"] }, null, { hair_color: "#F2C14E", strands: 4, accessories: ["hat"] }],
+    looks: [{ hair_style: "yarn", hair_color: "#D9534F", strands: 3, accessories: ["glasses"] }, null, { hair_style: "yarn", hair_color: "#F2C14E", strands: 4, accessories: ["hat"] }],
     names: ["Pip", "Juno & co, <b>", "Pip 2 🧶"],
   };
   const q = raceQuery(RACING, spec);
@@ -95,8 +103,8 @@ test("racing link: full round trip with cars, looks and names", () => {
   // The viewer's own wrappers give the same thing.
   assert.deepEqual(raceSpecFromQuery(q, engine), back);
   assert.equal(queryFromRaceSpec(back, { speed: 2, paused: true }, RACING), q + "&speed=2&paused=1");
-  assert.deepEqual(lookForCar(back, 0), { hair: "#D9534F", strands: 3, accessories: ["glasses"] });
-  assert.deepEqual(lookForCar(back, 1), { hair: RACE_HAIR[1], strands: 3, accessories: [] }, "no look: default palette");
+  assert.deepEqual(lookForCar(back, 0), { hair: "#D9534F", style: "yarn", strands: 3, accessories: ["glasses"], seed: back.names[0] || "car-0" });
+  assert.deepEqual(lookForCar(back, 1), { hair: RACE_HAIR[1], style: "mop", strands: 3, accessories: [], seed: back.names[1] || "car-1" }, "no look: default palette, default style");
   // One car is allowed; names on slots beyond the cars are ignored.
   const one = parseRaceQuery("game=racing&seed=1&cars=blocker-1-3-5&name1=Solo&name3=Ghost", engine, defaultRaceBuilds());
   assert.deepEqual([one.builds.length, one.names, one.notes], [1, ["Solo"], []]);
@@ -172,11 +180,11 @@ test("a link's race equals a direct WasmRace.fromBuilds run; cosmetics never cha
 });
 
 test("tank links: looks and names ride along without touching the tank query", () => {
-  const cos = cosmeticsQuery([{ look: { hair_color: "#C8459A", strands: 4, accessories: ["hat"] }, name: "Pip" }, { look: null, name: "Juno" }]);
-  assert.equal(cos, "looks=C8459A-4-h,&name1=Pip&name2=Juno");
+  const cos = cosmeticsQuery([{ look: { hair_style: "mop", hair_color: "#C8459A", strands: 4, accessories: ["hat"] }, name: "Pip" }, { look: null, name: "Juno" }]);
+  assert.equal(cos, "looks=C8459A-m-h,&name1=Pip&name2=Juno");
   const base = "seed=42&blue=kiter-5-3-1&orange=charger-4-1-4";
   assert.deepEqual(specFromQuery(`?${base}&${cos}`, canonicalTankQuery), specFromQuery(`?${base}`, canonicalTankQuery));
   const back = parseCosmetics(`?${base}&${cos}`, 2);
-  assert.deepEqual(back, { looks: [{ hair_color: "#C8459A", strands: 4, accessories: ["hat"] }, null], names: ["Pip", "Juno"], notes: [] });
+  assert.deepEqual(back, { looks: [{ hair_style: "mop", hair_color: "#C8459A", strands: 3, accessories: ["hat"] }, null], names: ["Pip", "Juno"], notes: [] });
   assert.equal(cosmeticsQuery([{}, {}]), "", "nothing to carry: the canonical tank link is unchanged");
 });

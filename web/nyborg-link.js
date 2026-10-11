@@ -6,12 +6,14 @@
 //   cars:  1–4 builds, each a behavior plus its stat levels in catalog order (power-top_speed-grip),
 //          written like a tank loadout. No `cars` = today's default grid.
 // Cosmetics, for any game's slots (racing cars 1–4; tank 1 = blue, 2 = orange):
-//   &looks=D9534F-3-g,3F6FD8-2,&name1=Pip&name2=Juno
-//   looks: one per slot, comma-separated: palette hex (no #), strands 2–4, then accessory
-//          letters (g = glasses, h = hat). An empty entry keeps that slot's default look.
+//   &looks=D9534F-m-g,3F6FD8-2,&name1=Pip&name2=Juno
+//   looks: one per slot, comma-separated: palette hex (no #), then the hair (a style letter:
+//          m = Shaggy mop, p = Pom cloud, f = Muppet fringe, c = Tousled crest; or a strand
+//          count 2–4 = Classic yarn, which is how every link before save format 2 reads), then
+//          accessory letters (g = glasses, h = hat). An empty entry keeps that slot's default look.
 //   nameN: display name of slot N (1–24 characters).
 // Cosmetics never reach the engine: only `seed` and `cars` build the race.
-import { HAIR_PALETTE, ACCESSORIES } from "./nyborg-draw.js";
+import { HAIR_PALETTE, ACCESSORIES, HAIR_STYLES } from "./nyborg-draw.js";
 import { friendlyErrors } from "./build-tabs.js";
 
 export const MAX_CARS = 4;
@@ -19,6 +21,8 @@ export const MAX_SLOTS = 4;
 const ACC_CODE = { glasses: "g", hat: "h" };
 const CODE_ACC = Object.fromEntries(Object.entries(ACC_CODE).map(([k, v]) => [v, k]));
 const PALETTE = new Set(HAIR_PALETTE.map((c) => c.hex.toUpperCase()));
+const STYLE_CODE = Object.fromEntries(HAIR_STYLES.filter((s) => s.code).map((s) => [s.id, s.code]));
+const CODE_STYLE = Object.fromEntries(Object.entries(STYLE_CODE).map(([k, v]) => [v, k]));
 
 /** "cutter-5-2-2" from a build, stat levels in catalog order. */
 export function encodeBuild(catalog, build) {
@@ -38,24 +42,27 @@ export function decodeBuild(catalog, token) {
   };
 }
 
-/** "D9534F-3-gh" from a look ({hair_color, strands, accessories}). */
+/** "D9534F-m-gh" from a look ({hair_style, hair_color, strands, accessories}); yarn writes its strands. */
 export function encodeLook(look) {
   const acc = ACCESSORIES.map((a) => a.id).filter((id) => look.accessories?.includes(id)).map((id) => ACC_CODE[id]).join("");
-  const base = `${String(look.hair_color).replace(/^#/, "").toUpperCase()}-${look.strands}`;
+  const hair = STYLE_CODE[look.hair_style] || look.strands || 3;
+  const base = `${String(look.hair_color).replace(/^#/, "").toUpperCase()}-${hair}`;
   return acc ? `${base}-${acc}` : base;
 }
 
-/** A look from "D9534F-3-gh", or null. Hair must be a palette colour, as in save format 1. */
+/** A look from "D9534F-m-gh" (or "D9534F-3-gh", Classic yarn), or null. Hair must be a palette colour. */
 export function decodeLook(token) {
-  const m = /^([0-9a-fA-F]{6})-([234])(?:-([gh]{0,2}))?$/.exec(String(token ?? "").trim());
+  const m = /^([0-9a-fA-F]{6})-([234mpfc])(?:-([gh]{0,2}))?$/.exec(String(token ?? "").trim());
   if (!m) return null;
   const hex = `#${m[1].toUpperCase()}`;
   if (!PALETTE.has(hex)) return null;
   const letters = [...(m[3] || "")];
   if (new Set(letters).size !== letters.length) return null;
+  const yarn = /[234]/.test(m[2]);
   return {
+    hair_style: yarn ? "yarn" : CODE_STYLE[m[2]],
     hair_color: hex,
-    strands: Number(m[2]),
+    strands: yarn ? Number(m[2]) : 3,
     accessories: ACCESSORIES.map((a) => a.id).filter((id) => letters.includes(ACC_CODE[id])),
   };
 }

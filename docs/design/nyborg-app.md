@@ -121,7 +121,9 @@ coastal-agentics.github.io/
 
 It's stored as `arena.nyborg.p.<id>` plus `arena.nyborg.index` (order and selected) and `arena.nyborg.picks`. **The selected Nyborg becomes "my Nyborg" on the home screen.** No new storage keys are needed for milestones 1–4.
 
-### Next: save format 2 adds the hair style (milestone 5, after Nye picks)
+### Save format 2 adds the hair style (milestone 5: built)
+
+Nye's answer on #85: players pick from several styles, the Shaggy mop is the default, Classic yarn stays as an option, and existing Nyborgs move to the mop in the migration. The field is `look.hair_style`. A bare `hair` would collide with the drawing code's `hair` argument, which has always meant the colour.
 
 ```json
 "look": { "hair_style": "mop", "hair_color": "#3F6FD8", "strands": 3, "accessories": ["hat"] }
@@ -130,7 +132,7 @@ It's stored as `arena.nyborg.p.<id>` plus `arena.nyborg.index` (order and select
 - **`hair_style`** (required in format 2): `"yarn"` (today's strands) or one of the styles Nye picks from section 8 (`"mop"`, `"pom"`, `"fringe"`, `"crest"`).
 - **`strands`** stays and only means something for `"yarn"`. That way a Nyborg can switch back to yarn without losing its strand count.
 - **Why a format bump rather than a quiet new field:** today's code already shows a newer-format Nyborg read-only and refuses to import it (`readOnly`, "made by a newer version"). So an old cached tab can never save over a format-2 Nyborg and drop its hair style.
-- **Migration 1 → 2:** on first load, a one-time copy goes to the reserved `arena.nyborg.backup.v1` key, then every Nyborg gets `hair_style: "yarn"`, so nobody's Nyborg changes behind their back (or the new default; open question 2).
+- **Migration 1 → 2:** on first load, a one-time copy of the whole format-1 library goes to the reserved `arena.nyborg.backup.v1` key (never overwritten), then every Nyborg gets `hair_style: "mop"` (Nye's call) and keeps its strand count for Classic yarn. If the backup can't be written, nothing is written and the Customizer asks for an export.
 - **The fuzz is seeded by `id`,** so Pip's tufts are the same on every screen and every machine. House Nyborgs get fixed ids (`house-racing-follower`, …) for the same reason.
 - **Links:** today's look token is `D9534F-3-gh`. The second field becomes *either* a strand count `2|3|4` (yarn, exactly as today) *or* a style letter: `m` mop, `p` pom, `f` fringe, `c` crest. Every link already shared still decodes to the same look.
 - **House Nyborgs** are plain format-2 objects in a small module (`web/house.js`), one cast per game: names, looks and a build. In links they're just builds, looks and names, so no new link format is needed.

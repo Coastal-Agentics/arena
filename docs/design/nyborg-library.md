@@ -17,6 +17,8 @@
 ## 1. The save format (version 1)
 One Nyborg is one JSON object. The web side owns this format, and the engine never reads it.
 
+> **Now format 2** (2026-10-11): the look gains `hair_style` (`mop` default, `pom`, `fringe`, `crest`, `yarn`). Format-1 libraries upgrade on load after a backup to `arena.nyborg.backup.v1`, and every existing Nyborg gets the Shaggy mop. See [nyborg-app.md](nyborg-app.md) §5.
+
 ```json
 {
   "format": 1,

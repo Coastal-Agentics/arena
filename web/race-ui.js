@@ -1,6 +1,6 @@
 // Racing viewer helpers (cosmetic drawing + default Ring builds). Sim stays in WasmRace.
 
-import { drawNyborg, facingFromHeading, idleBob } from "./nyborg.js";
+import { drawNyborg, facingFromHeading, idleBob, DEFAULT_HAIR_STYLE } from "./nyborg.js";
 import { parseRaceQuery, raceQuery } from "./nyborg-link.js";
 
 /** Distinct primary yarn per car (no green): Yarn Red, Cobalt, Sunny, Orange. */
@@ -43,10 +43,17 @@ export function queryFromRaceSpec(spec, extras = {}, catalog = null) {
   return raceQuery(catalog, spec, extras);
 }
 
-/** The look car `id` is drawn with: its own from the link, else the default yarn palette. */
+/**
+ * The look car `id` is drawn with: its own from the link, else the default palette in the
+ * default hair style. `seed` keys the fur's jitter: links carry no Nyborg id, so the name
+ * (or the slot) stands in, and the same link always draws the same tufts.
+ */
 export function lookForCar(spec, id) {
   const l = spec?.looks?.[id];
-  return l ? { hair: l.hair_color, strands: l.strands, accessories: l.accessories } : { hair: hairForCar(id), strands: 3, accessories: [] };
+  const seed = spec?.names?.[id] || `car-${id}`;
+  return l
+    ? { hair: l.hair_color, style: l.hair_style, strands: l.strands, accessories: l.accessories, seed }
+    : { hair: hairForCar(id), style: DEFAULT_HAIR_STYLE, strands: 3, accessories: [], seed };
 }
 
 function Yof(H, y) { return H - y; }
@@ -147,7 +154,10 @@ export function drawRaceCar(ctx, track, car, { facingPrev = 1, tick = 0, look = 
   ctx.restore();
 
   // Nyborg sits on the kart; flips left/right, does not spin with the chassis.
-  drawNyborg(ctx, { hair, facing, bob, scale: 0.42, strands: look?.strands ?? 3, accessories: look?.accessories ?? [] });
+  drawNyborg(ctx, {
+    hair, style: look?.style ?? DEFAULT_HAIR_STYLE, id: look?.seed ?? `car-${car.id}`,
+    facing, bob, scale: 0.42, strands: look?.strands ?? 3, accessories: look?.accessories ?? [],
+  });
 
   // Tiny place badge.
   if (car.placing != null) {

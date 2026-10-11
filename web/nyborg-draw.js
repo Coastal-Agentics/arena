@@ -1,7 +1,11 @@
 // Shared Nyborg drawing (canvas 2D). Used by the arena viewer (via ./nyborg.js) and the
 // Customizer, so a Nyborg looks exactly the same everywhere. Cosmetic only: nothing here
 // reaches the sim. The look follows docs/design/nyborg.md (revision 3): a cream head, two dot
-// eyes, no mouth, and 2-4 chunky yarn strands. Drawn facing right; pass facing -1 to mirror.
+// eyes, no mouth, and hair in one of five styles (nyborg-hair.js): four fuzzy ones, Shaggy mop
+// by default, or Classic yarn (2-4 chunky strands). Drawn facing right; pass facing -1 to mirror.
+import { fuzzyHair, isFuzzy, DEFAULT_HAIR_STYLE } from "./nyborg-hair.js";
+
+export { HAIR_STYLES, HAIR_STYLE_IDS, DEFAULT_HAIR_STYLE } from "./nyborg-hair.js";
 
 export const NYBORG = {
   head: "#EADFCB",
@@ -58,12 +62,15 @@ export function hairColor(team) {
 
 /**
  * Draw a Nyborg centered at the current transform origin.
+ * - `hair`: the hair colour. `style`: "mop" (default), "pom", "fringe", "crest" or "yarn".
+ * - `id`: seeds the fur's jitter (the Nyborg id; a name or slot for Nyborgs from a link).
  * - `facing`: +1 (right) or -1 (left). `bob`: small vertical offset in px.
- * - `strands`: 2, 3 or 4 (default 3). `accessories`: any of "glasses", "hat".
+ * - `strands`: 2, 3 or 4 (yarn only, default 3). `accessories`: any of "glasses", "hat".
  * Cosmetics only — no effect on stats.
  */
-export function drawNyborg(ctx, { hair, facing = 1, bob = 0, scale = 0.55, strands = 3, accessories = [] } = {}) {
+export function drawNyborg(ctx, { hair, style = DEFAULT_HAIR_STYLE, id = "nyborg", facing = 1, bob = 0, scale = 0.55, strands = 3, accessories = [] } = {}) {
   const color = hair || "#D9534F";
+  if (style !== "yarn") return drawFuzzy(ctx, { color, style: isFuzzy(style) ? style : DEFAULT_HAIR_STYLE, id, facing, bob, scale, accessories });
   const set = STRAND_SETS[strands] || STRAND_SETS[3];
   ctx.save();
   ctx.scale(facing * scale, scale);
@@ -103,6 +110,39 @@ export function drawNyborg(ctx, { hair, facing = 1, bob = 0, scale = 0.55, stran
   ctx.restore();
 }
 
+// A fuzzy-haired Nyborg: fur behind the head, the head, fur in front, then the face.
+function drawFuzzy(ctx, { color, style, id, facing, bob, scale, accessories }) {
+  ctx.save();
+  ctx.scale(facing * scale, scale);
+  ctx.translate(0, bob / scale);
+  // Device px per head decides the detail level (viewer heads are about 20-30 px wide).
+  const m = typeof ctx.getTransform === "function" ? ctx.getTransform() : { a: scale, b: 0 };
+  const small = Math.hypot(m.a, m.b) * 40 < 34;
+  const fur = fuzzyHair(style, id, color, small);
+
+  ctx.fillStyle = "rgba(0,0,0,0.18)";
+  ctx.beginPath();
+  ctx.ellipse(0, 8, 20, 4.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.lineJoin = "round";
+  fur.drawBack(ctx);
+  ctx.fillStyle = NYBORG.head;
+  ctx.strokeStyle = NYBORG.outline;
+  ctx.lineWidth = 2.6;
+  ctx.beginPath();
+  ctx.arc(0, -4, 20, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  fur.drawFront(ctx);
+
+  drawEye(ctx, -7, -3);
+  drawEye(ctx, 7, -3);
+  if (accessories.includes("glasses")) drawGlasses(ctx);
+  if (accessories.includes("hat")) drawHat(ctx, fur.hat);
+  ctx.restore();
+}
+
 function drawEye(ctx, x, y) {
   ctx.fillStyle = NYBORG.eyes;
   ctx.beginPath();
@@ -134,10 +174,12 @@ function drawGlasses(ctx) {
   ctx.restore();
 }
 
-function drawHat(ctx) {
+// The hat sits at y -21.5 on yarn; each fuzzy style lifts (y) and sizes (s) it to sit on the hair.
+function drawHat(ctx, { y = -21.5, s = 1 } = {}) {
   ctx.save();
-  ctx.translate(0, -21.5);
+  ctx.translate(0, y);
   ctx.rotate((8 * Math.PI) / 180);
+  if (s !== 1) ctx.scale(s, s);
   ctx.strokeStyle = NYBORG.outline;
   ctx.lineWidth = 1.5;
   ctx.lineJoin = "round";

@@ -13,12 +13,18 @@
 <body>
   <canvas id="sheet"></canvas>
   <script type="module">
-    // Draws the hair comparison sheet (docs/design/nyborg-hair-options.png). Prototype only.
-    import { drawNyborgHair, HAIR_OPTIONS } from "./nyborg-hair.js";
-    import { HAIR_PALETTE } from "../nyborg-draw.js";
+    // Draws the hair comparison sheet (docs/design/nyborg-hair-options.png) with the real drawing.
+    import { HAIR_PALETTE, HAIR_STYLES, drawNyborg as drawNyborgHair } from "../nyborg-draw.js";
+    const BLURBS = {
+      mop: "A big soft mop of short fur, hanging over the sides with a messy fringe. The default.",
+      pom: "A round fluffy pom-pom cloud sitting on the crown.",
+      fringe: "A fuzzy bowl with heavy bangs falling to just above the eyes.",
+      crest: "A tousled crest of soft fur tufts, swept back as if running.",
+    };
+    const HAIR_OPTIONS = HAIR_STYLES.filter((s) => s.id !== "yarn").map((s) => ({ ...s, blurb: BLURBS[s.id] }));
 
     const ROWS = [
-      { id: "yarn", letter: "Now", name: "Yarn strands (today)", blurb: "2-4 chunky yarn strands. The reference." },
+      { id: "yarn", letter: "Yarn", name: "Classic yarn", blurb: "2-4 chunky yarn strands, still an option." },
       ...HAIR_OPTIONS,
     ];
     const COLORS = [["Yarn Red", "#D9534F"], ["Cobalt", "#3F6FD8"], ["Sunny", "#F2C14E"]];
@@ -52,7 +58,7 @@
     };
     const nyborg = (x, y, opts) => { ctx.save(); ctx.translate(x, y); drawNyborgHair(ctx, opts); ctx.restore(); };
 
-    text("Nyborg hair options: prototype sheet", PAD, 38, { size: 24, weight: 700 });
+    text("Nyborg hair styles", PAD, 38, { size: 24, weight: 700 });
     text("Same round cream head, two dot eyes, no mouth. Seeded by Nyborg id, no Math.random. Large = Customizer size; small = true viewer size on the dark arena (tank 0.72, kart 0.42).", PAD, 64, { size: 13.5, color: "#4F6277" });
 
     const xLarge = PAD + LABEL_W, xDark = xLarge + LARGE.length * CELL + 16, xPal = xDark + DARK_W + 16;
@@ -93,7 +99,7 @@
         nyborg(px, py, { style: row.id, id: `${id}-p${k}`, hair: hex, scale: 0.95, facing: k % 2 ? -1 : 1 });
       });
     });
-    text("Prototype: web/proto/nyborg-hair.js. Not wired into the viewer or Customizer. docs/design/nyborg-app.md §8.", PAD, H - 16, { size: 12, color: "#4F6277" });
+    text("Drawn by web/nyborg-draw.js + web/nyborg-hair.js, the same code as the viewer and the Customizer. docs/design/nyborg-app.md §8.", PAD, H - 16, { size: 12, color: "#4F6277" });
     window.__sheetDone = true;
   </script>
 </body>

@@ -3,7 +3,7 @@
 // the engine's games() / catalogJson(game), export and import. Save format and storage:
 // docs/design/nyborg-library.md. The look never reaches the engine.
 import init, { games, catalogJson, defaultBuild, validateBuild, canonicalTankQuery } from "./pkg/engine_wasm.js";
-import { drawNyborg, idleBob, HAIR_PALETTE, ACCESSORIES } from "./nyborg-draw.js";
+import { drawNyborg, idleBob, HAIR_PALETTE, ACCESSORIES, HAIR_STYLES } from "./nyborg-draw.js";
 import {
   Library, MemoryStorage, KEYS, cleanName, createNyborg, duplicateNyborg, nextFreeName, touch,
   buildFor, buildStatus, sanitizeImported, parseImport, exportOne, exportAll, fileNameFor, newId,
@@ -110,10 +110,11 @@ function download(name, text) {
 
 // --- previews (one animation loop for every canvas) ----------------------------------
 
-const previews = new Set(); // {canvas, look(), scale, flip}
+const previews = new Set(); // {canvas, nyborg(), scale, flip}
 
-function addPreview(canvas, look, { scale, flip = false }) {
-  const p = { canvas, look, scale, flip };
+// `nyborg()` returns the Nyborg to draw ({id, look}): its id seeds the fur, so it matches the viewer.
+function addPreview(canvas, nyborg, { scale, flip = false }) {
+  const p = { canvas, nyborg, scale, flip };
   previews.add(p);
   return p;
 }
@@ -127,7 +128,8 @@ function paint(p, t) {
   const ctx = c.getContext("2d");
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, w, h);
-  const look = p.look();
+  const n = p.nyborg();
+  const look = n?.look;
   if (!look) return;
   const tick = (t / 1000) * 60;
   // The big preview turns around every 2.4 s, to show the flip the viewer does.
@@ -135,7 +137,7 @@ function paint(p, t) {
   ctx.save();
   ctx.translate(w / 2, h * 0.7);
   drawNyborg(ctx, {
-    hair: look.hair_color, strands: look.strands, accessories: look.accessories,
+    hair: look.hair_color, style: look.hair_style, id: n.id, strands: look.strands, accessories: look.accessories,
     facing, bob: idleBob(tick) * p.scale, scale: p.scale,
   });
   ctx.restore();
@@ -168,7 +170,7 @@ function renderLibrary() {
         el("button", { type: "button", class: "btn small", text: "Edit", onclick: (e) => { e.stopPropagation(); selectNyborg(n.id); $("name").focus(); } }),
         el("button", { type: "button", class: "btn small", text: "Duplicate", onclick: (e) => { e.stopPropagation(); duplicate(n.id); } }),
         el("button", { type: "button", class: "btn small danger", text: "Delete", onclick: (e) => { e.stopPropagation(); remove(n.id); } })));
-    addPreview(canvas, () => lib.get(n.id)?.look, { scale: 0.62 });
+    addPreview(canvas, () => lib.get(n.id), { scale: 0.62 });
     return card;
   }));
   renderBroken();
@@ -235,6 +237,16 @@ function renderEditor() {
   if (document.activeElement !== $("name")) $("name").value = n.name;
   $("name-error").hidden = true;
 
+  // Hair style: one button per style, each with this Nyborg wearing it.
+  $("styles").replaceChildren(...HAIR_STYLES.map((s) => {
+    const c = el("canvas", { width: 52, height: 52, "aria-hidden": "true" });
+    addPreview(c, () => { const cur = selected(); return cur && { id: cur.id, look: { ...cur.look, hair_style: s.id, accessories: [] } }; }, { scale: 0.62 });
+    return el("button", {
+      type: "button", class: "style-btn", role: "radio", "aria-checked": String(n.look.hair_style === s.id), title: s.name,
+      onclick: () => updateLook({ hair_style: s.id }),
+    }, c, el("span", { text: s.name }));
+  }));
+  $("strands-row").hidden = n.look.hair_style !== "yarn";
   $("swatches").replaceChildren(...HAIR_PALETTE.map((c) => el("button", {
     type: "button", class: "swatch", role: "radio", style: `background:${c.hex}`, title: c.name,
     "aria-label": c.name, "aria-checked": String(n.look.hair_color === c.hex),
@@ -454,7 +466,7 @@ function renderPick() {
       if (spec.max > 2) {
         // A small live preview of whoever sits in the slot.
         const c = el("canvas", { width: 34, height: 34, class: "slot-face", "aria-hidden": "true" });
-        addPreview(c, () => lib.get(s.value)?.look, { scale: 0.3 });
+        addPreview(c, () => lib.get(s.value), { scale: 0.3 });
         slots.push(el("span", { class: "car-slot" }, c, s));
       } else slots.push(s);
     });
@@ -522,8 +534,15 @@ $("import-file").addEventListener("change", async (e) => {
 $("name").addEventListener("change", commitName);
 $("name").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); $("name").blur(); } });
 
-addPreview($("preview"), () => selected()?.look, { scale: 2.3, flip: true });
+addPreview($("preview"), () => selected(), { scale: 2.3, flip: true });
 if (storageBlocked) banner("This browser is blocking storage, so nothing is saved after you close the page. Export your Nyborgs to keep them.", "", "blocked");
+// Save format 2 arrived: say so once, friendly, and point at Classic yarn for anyone who misses it.
+if (lib.migration?.error) {
+  banner("Your Nyborgs have new fuzzy hair, but this browser couldn't save a backup of the old library, so the change isn't saved yet. Export your library to keep a copy.", "bad", "migration");
+} else if (lib.migration) {
+  const k = lib.migration.count;
+  banner(`New hair! ${k === 1 ? "Your Nyborg now has" : `Your ${k} Nyborgs now have`} a Shaggy mop. Pick another style in Look, Classic yarn included. (A backup of the old library is saved in this browser.)`, "ok", "migration");
+}
 if (seeded) banner(`Say hi to ${seeded.name}, your first Nyborg. Give it a look and a build, or make more with + New.`, "ok", "welcome");
 renderAll();
 requestAnimationFrame(loop);
