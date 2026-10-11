@@ -1,21 +1,18 @@
 // Tank Arena, as an app game module (docs/design/nyborg-app.md §6): its slots, its house
 // opponent and how a match link is written. Links are exactly the viewer's tank format:
 // ?seed=S&blue=<behavior>-<a>-<s>-<d>&orange=…, then looks and names for the drawing only.
-import { encodeBuild, decodeBuild, cosmeticsQuery } from "../nyborg-link.js";
+import { encodeBuild, cosmeticsQuery } from "../nyborg-link.js";
 
 export default {
   id: "tank",
   title: "Tank Arena",
   button: "Tank ▶",
-  blurb: "Two Nyborgs, two tanks, one arena.",
+  start: "Start the match ▶",
+  setup: "Pick your opponent",
+  blurb: "Two Nyborgs, two tanks, one arena. Last tank standing wins.",
   slots: { min: 2, max: 2, names: ["Blue", "Orange"] },
-
-  /** The house side for slots after yours: today's default orange tank (no look, no name). */
-  house(engine) {
-    const q = new URLSearchParams(engine.tankCatalog().default_query);
-    const b = decodeBuild(engine.catalog("tank"), q.get("orange"));
-    return [{ build: b, look: null, name: null, house: true }];
-  },
+  /** The house Nyborg (app/house.js) you face by default. */
+  house: ["house-pepper"],
 
   /** The viewer query for {seed, slots: [{build, look, name}]}. */
   query(engine, { seed, slots }) {

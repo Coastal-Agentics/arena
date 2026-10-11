@@ -45,3 +45,37 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; }
   .stage { max-width: 260px; margin-inline: auto; width: 100%; }
   .me-name { font-size: 1.6rem; }
 }
+
+/* House cast strip on home. */
+.cast { margin-top: 26px; }
+.cast h2 { margin-bottom: 2px; }
+.cast-row { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 14px; }
+.cast-row li { display: flex; flex-direction: column; align-items: center; width: 86px; }
+.cast-face { width: 76px; height: 76px; }
+.cast-row .nm { font-size: .82rem; font-weight: 700; color: var(--ink); text-align: center; }
+
+/* Match setup. */
+.slots { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.slot { display: grid; grid-template-columns: 64px 100px 1fr auto; align-items: center; gap: 14px; background: var(--card); border: 1.5px solid var(--line); border-radius: 14px; padding: 6px 14px; }
+.slot.mine { border-color: var(--accent); }
+.slot-name { font-weight: 800; color: var(--muted); font-size: .85rem; }
+.slot-face { width: 100px; height: 100px; }
+.slot .nm { font-size: 1.15rem; color: var(--ink); }
+.slot .tagline { color: var(--ink); font-style: italic; margin-top: 2px; }
+.tag { font-size: .7rem; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; border-radius: 999px; padding: 1px 8px; }
+.tag.yours { background: var(--accent-soft); color: var(--accent); }
+.tag.house { background: #FFF2DC; color: #8A5A12; }
+.slot-acts { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.slot-acts select { font: inherit; padding: 4px 6px; border-radius: 8px; border: 1.5px solid var(--line-2); background: #fff; }
+.add-slot { margin-top: 10px; }
+.seed-row { margin-top: 18px; }
+.seed-row .h3 { font-weight: 700; color: var(--ink); }
+.seed-row input { font: inherit; width: 13ch; padding: 5px 8px; border-radius: 8px; border: 1.5px solid var(--line-2); }
+.seed-row input.bad { border-color: var(--bad); }
+.start-row { margin-top: 18px; }
+@media (max-width: 720px) {
+  .slot { grid-template-columns: 72px 1fr; padding: 8px 10px; gap: 8px; }
+  .slot-name { grid-column: 1 / -1; }
+  .slot-face { width: 72px; height: 72px; }
+  .slot-acts { grid-column: 1 / -1; flex-direction: row; justify-content: space-between; align-items: center; }
+}

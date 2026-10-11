@@ -6,10 +6,13 @@ import { openLibrary, el } from "./ui.js";
 import { startRouter } from "./router.js";
 import home from "./screens/home.js";
 import hatch from "./screens/hatch.js";
+import setup from "./screens/setup.js";
+import { viewerLink } from "../games/index.js";
 
 const ROUTES = [
   { pattern: "", screen: home },
   { pattern: "new", screen: hatch },
+  { pattern: "play/:game", screen: setup },
 ];
 
 const banners = document.getElementById("banners");
@@ -37,6 +40,8 @@ else if (lib.migration) banner(`New hair! ${lib.migration.count === 1 ? "Your Ny
 
 const app = {
   engine, lib, storage, banner, safe,
+  /** Where Start goes for a match: the viewer, with looks and names for the drawing only. */
+  matchHref: (mod, match) => viewerLink(engine, mod, match),
   // Both fire hashchange, so the router shows the new screen; replace keeps Back sensible.
   go(hash, { replace = false } = {}) {
     if (replace) location.replace(hash); else location.hash = hash;

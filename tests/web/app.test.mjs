@@ -8,8 +8,9 @@ import { fileURLToPath } from "node:url";
 import * as wasm from "../../web/pkg/engine_wasm.js";
 import { makeEngine } from "../../web/app/engine.js";
 import { parseHash, href, matchRoute } from "../../web/app/router.js";
-import { GAME_MODULES, arenas, slotFor, quickMatch, viewerLink } from "../../web/games/index.js";
-import { createNyborg } from "../../web/nyborg-library.js";
+import { GAME_MODULES, arenas, slotFor, quickMatch, viewerLink, lineup, matchFor } from "../../web/games/index.js";
+import { createNyborg, checkShape } from "../../web/nyborg-library.js";
+import { HOUSE, houseById, isHouse } from "../../web/app/house.js";
 import { parseRaceQuery } from "../../web/nyborg-link.js";
 import { specFromQuery, queryFromSpec } from "../../web/tank-ui.js";
 import { defaultRaceBuilds } from "../../web/race-ui.js";
@@ -45,33 +46,69 @@ test("routes: parse, build and match hash routes", () => {
 
 test("arenas: every engine game with a module, in app order; a third game plugs in", () => {
   assert.deepEqual(arenas(engine).map((m) => m.id), ["racing", "tank"]);
-  for (const m of GAME_MODULES) for (const k of ["id", "title", "button", "slots", "house", "query"]) assert.ok(k in m, `${m.id}.${k}`);
-  const third = { id: "golf", title: "Golf", button: "Golf ▶", slots: { min: 1, max: 1, names: ["You"] }, house: () => [], query: () => "game=golf" };
+  for (const m of GAME_MODULES) for (const k of ["id", "title", "button", "start", "setup", "blurb", "slots", "house", "query"]) assert.ok(k in m, `${m.id}.${k}`);
+  const third = { id: "golf", title: "Golf", button: "Golf ▶", slots: { min: 1, max: 1, names: ["You"] }, house: [], query: () => "game=golf" };
   const fakeEngine = { ...engine, games: () => [...engine.games(), { game: "golf", rules_version: 1 }] };
   assert.deepEqual(arenas(fakeEngine, [...GAME_MODULES, third]).map((m) => m.id), ["racing", "tank", "golf"]);
   assert.deepEqual(arenas(engine, [...GAME_MODULES, third]).map((m) => m.id), ["racing", "tank"], "no engine game, no arena");
 });
 
-test("racing quick match: you plus the house grid; the link plays the direct race", () => {
+test("house Nyborgs: named, valid format-2 Nyborgs, mixed hair, every build on the same budget", () => {
+  assert.ok(HOUSE.length >= 4 && HOUSE.length <= 8, "a short cast");
+  assert.equal(new Set(HOUSE.map((n) => n.name)).size, HOUSE.length);
+  assert.ok(new Set(HOUSE.map((n) => n.look.hair_style)).size >= 4, "mixed across hair styles");
+  for (const n of HOUSE) {
+    assert.ok(isHouse(n.id) && houseById(n.id) === n);
+    assert.deepEqual(checkShape(n), [], n.name);
+    assert.ok(n.tagline.length > 0 && n.tagline.length < 70);
+    for (const { game } of engine.games()) {
+      assert.equal(engine.validateBuild(game, n.builds[game]).ok, true, `${n.name} ${game}`);
+      const sum = Object.values(n.builds[game].levels).reduce((a, b) => a + b, 0);
+      assert.equal(sum, engine.catalog(game).budget, `${n.name} ${game} spends the budget`);
+    }
+  }
+  for (const m of GAME_MODULES) for (const id of m.house) assert.ok(houseById(id), `${m.id} house ${id}`);
+});
+
+test("lineup: you plus the house by default; asked ids kept; topped up to the minimum", () => {
+  const racing = GAME_MODULES.find((m) => m.id === "racing");
+  const tank = GAME_MODULES.find((m) => m.id === "tank");
+  const mine = new Set(["me", "pal"]);
+  const known = (id) => mine.has(id) || !!houseById(id);
+  assert.deepEqual(lineup(racing, known, "me"), ["me", ...racing.house]);
+  assert.deepEqual(lineup(tank, known, "me"), ["me", "house-pepper"]);
+  assert.deepEqual(lineup(racing, known, "me", ["pal", "nope", "house-mumble"]), ["pal", "house-mumble"]);
+  assert.deepEqual(lineup(tank, known, "me", ["me", "pal", "house-biscuit"]), ["me", "pal"], "at most slots.max");
+  assert.deepEqual(lineup(tank, known, "me", ["pal"]), ["pal", HOUSE[0].id], "topped up to slots.min");
+});
+
+test("racing quick match: you plus Biscuit, Noodle and Captain Fuzz; the link plays the direct race", () => {
   const n = pip();
   const racing = GAME_MODULES.find((m) => m.id === "racing");
   const m = quickMatch(engine, racing, n);
   assert.equal(m.slots.length, 4);
   assert.deepEqual(m.slots[0], slotFor(engine, n, "racing"));
   const link = viewerLink(engine, racing, m);
-  assert.equal(link, "../arena.html?game=racing&seed=42&cars=cutter-5-2-2,cutter-3-3-3,blocker-3-3-3,follower-3-3-3&looks=3F6FD8-m-h,,,&name1=Pip");
+  assert.equal(link, "../arena.html?game=racing&seed=42&cars=cutter-5-2-2,follower-3-3-3,cutter-4-3-2,blocker-3-2-4"
+    + "&looks=3F6FD8-m-h,F2C14E-p,EE7A68-4,D4A23A-c&name1=Pip&name2=Biscuit&name3=Noodle&name4=Captain%20Fuzz");
   const spec = parseRaceQuery(link.split("?")[1], raceEngine, defaultRaceBuilds());
   assert.deepEqual(spec.notes, []);
-  assert.deepEqual(spec.builds, [n.builds.racing, ...defaultRaceBuilds().slice(1)]);
-  assert.deepEqual(runRace(spec.seed, spec.builds), runRace("42", [n.builds.racing, ...defaultRaceBuilds().slice(1)]));
+  assert.deepEqual(spec.names, ["Pip", "Biscuit", "Noodle", "Captain Fuzz"]);
+  const builds = [n.builds.racing, ...racing.house.map((id) => houseById(id).builds.racing)];
+  assert.deepEqual(spec.builds, builds);
+  assert.deepEqual(runRace(spec.seed, spec.builds), runRace("42", builds));
+  // Swapping a house Nyborg for one of yours changes who plays, through the same path.
+  const juno = { ...createNyborg(engine, "Juno"), look: { hair_style: "pom", hair_color: "#C8459A", strands: 3, accessories: [] } };
+  const swapped = matchFor(engine, racing, [n, houseById("house-biscuit"), juno], "7");
+  assert.match(viewerLink(engine, racing, swapped), /cars=cutter-5-2-2,follower-3-3-3,follower-3-3-3&looks=3F6FD8-m-h,F2C14E-p,C8459A-p&name1=Pip&name2=Biscuit&name3=Juno$/);
 });
 
-test("tank quick match: you are Blue against the house; cosmetics stay out of the tank query", () => {
+test("tank quick match: you are Blue against Pepper; cosmetics stay out of the tank query", () => {
   const n = pip();
   const tank = GAME_MODULES.find((m) => m.id === "tank");
   const link = viewerLink(engine, tank, quickMatch(engine, tank, n));
   const q = link.split("?")[1];
-  assert.match(q, /^seed=42&blue=kiter-4-3-2&orange=[a-z]+-\d-\d-\d&looks=3F6FD8-m-h,&name1=Pip$/);
+  assert.equal(q, "seed=42&blue=kiter-4-3-2&orange=charger-4-1-4&looks=3F6FD8-m-h,B83246-m-g&name1=Pip&name2=Pepper");
   const plain = queryFromSpec(specFromQuery(`?${q}`, wasm.canonicalTankQuery));
   assert.ok(!plain.includes("looks") && !plain.includes("name"));
   assert.deepEqual(runTank(plain), runTank(q.split("&looks")[0]));
