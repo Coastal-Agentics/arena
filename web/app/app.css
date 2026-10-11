@@ -1,0 +1,47 @@
+/* The Nyborg app (/arena/play/). Builds on customizer.css tokens (--ink, --card, --accent…). */
+main.app { padding-top: 18px; padding-bottom: 8px; }
+.app .intro { margin: 6px 0 16px; }
+.app h1:focus { outline: none; }
+.app .eyebrow { margin: 0; font-size: .75rem; letter-spacing: .14em; text-transform: uppercase; font-weight: 700; color: var(--accent); }
+.loading { padding: 40px 0; }
+.btn.play { font-weight: 800; }
+.btn.big { font-size: 1.05rem; padding: 10px 22px; }
+a.btn { text-decoration: none; display: inline-flex; align-items: center; }
+.foot { margin-top: 18px; }
+
+/* Spotlight: your Nyborg, big, with its arena buttons. */
+.spotlight { display: grid; grid-template-columns: minmax(220px, 300px) 1fr; gap: 24px; align-items: center;
+  background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 18px 24px; }
+.stage { background: radial-gradient(circle at 50% 54%, var(--accent-soft) 0 44%, transparent 44.5%); border-radius: 16px; }
+.big-face { width: 100%; aspect-ratio: 1; display: block; }
+.me-name { font-size: 2rem; margin: 2px 0 8px; }
+.lines .line { color: var(--muted); font-size: .92rem; }
+.lines .line strong { color: var(--ink); }
+.lines .rebuild { color: var(--warn); }
+.actions { margin: 14px 0 8px; }
+
+/* Every Nyborg. */
+.all { margin-top: 26px; }
+.ny-grid { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+.ny-card { background: var(--card); border: 1.5px solid var(--line); border-radius: 14px; padding: 8px 8px 10px; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.ny-card.on { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+.ny-card .pick { all: unset; cursor: pointer; display: flex; flex-direction: column; align-items: center; width: 100%; border-radius: 10px; }
+.ny-card .pick:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.card-face { width: 96px; height: 96px; }
+.ny-card .nm { font-weight: 700; color: var(--ink); text-align: center; overflow-wrap: anywhere; }
+.ny-card .mini { gap: 4px; justify-content: center; }
+.ny-card.new { justify-content: center; border-style: dashed; min-height: 170px; }
+.ny-card .plus { font-size: 2.4rem; line-height: 96px; height: 96px; color: var(--accent); font-weight: 300; }
+
+/* Hatch. */
+.hatch { display: grid; grid-template-columns: minmax(220px, 340px) 1fr; gap: 28px; align-items: start;
+  background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 18px 24px; }
+.hatch .h3 { display: block; margin: 0 0 6px; font-weight: 700; font-size: .9rem; color: var(--ink); }
+.hatch input[type="text"] { font: inherit; font-size: 1.1rem; padding: 8px 10px; border: 1.5px solid var(--line-2); border-radius: 10px; width: min(100%, 320px); }
+.hatch .styles { max-width: 460px; }
+
+@media (max-width: 720px) {
+  .spotlight, .hatch { grid-template-columns: 1fr; padding: 14px; }
+  .stage { max-width: 260px; margin-inline: auto; width: 100%; }
+  .me-name { font-size: 1.6rem; }
+}
