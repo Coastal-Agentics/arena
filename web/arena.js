@@ -519,10 +519,12 @@ function drawNyborgTank(t, Y) {
 
   // Nyborg body (replaces the classic hull). Hair colour is team-primary unless the link
   // carries this Nyborg's look; flip on heading x. Team colour stays on the turret hub.
+  // Fur jitter is keyed by the link's name for this slot (links carry no Nyborg id), else the team.
   const look = tankCosmetics.looks[t.team];
+  const seed = tankCosmetics.names[t.team] || `tank-${t.team}`;
   drawNyborg(ctx, look
-    ? { hair: look.hair_color, strands: look.strands, accessories: look.accessories, facing, bob, scale: 0.72 }
-    : { hair: hairColor(t.team), facing, bob, scale: 0.72 });
+    ? { hair: look.hair_color, style: look.hair_style, id: seed, strands: look.strands, accessories: look.accessories, facing, bob, scale: 0.72 }
+    : { hair: hairColor(t.team), id: seed, facing, bob, scale: 0.72 });
 
   // Compact aim indicator (turret barrel) so aim direction stays readable.
   ctx.save();

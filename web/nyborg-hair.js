@@ -1,27 +1,27 @@
-// PROTOTYPE, not wired in: four fuzzy hair treatments for Nyborgs (docs/design/nyborg-app.md §8).
-// Nothing in the viewer or the Customizer imports this yet; web/proto/hair-sheet.html draws the
-// comparison sheet. Once Nye picks, the chosen style moves into nyborg-draw.js behind a
-// `hair_style` look field (save format 2) and the yarn strands stay as the "classic" option.
+// Nyborg hair styles (docs/design/nyborg-app.md §8, picked by Nye on #85: players choose).
+// Four fuzzy styles plus Classic yarn. drawNyborg() in nyborg-draw.js draws the head, eyes and
+// accessories and asks this module for the fur behind and in front of the head.
+// Cosmetic only. Deterministic: no Math.random. Jitter comes from mulberry32 seeded by an
+// FNV-1a hash of the Nyborg id (or, for a Nyborg from a link, its name or slot).
 //
-// Same head as nyborg-draw.js: cream circle r 20 at (0, -4), two dot eyes at y -3, no mouth.
-// Drawn facing right; `facing: -1` mirrors the whole Nyborg, so any sweep in the hair flips too.
-// Deterministic: no Math.random. Jitter comes from mulberry32 seeded by an FNV-1a hash of the
-// Nyborg id, so the same Nyborg always gets the same tufts, on every machine.
-//
-// How the fur is drawn: every tuft is a tapered, slightly curled leaf, filled (never a stroked
-// line, which reads as sticks). Pass 1 draws all tufts a little larger in a dark tint of the hair
-// colour, pass 2 a soft base mass, pass 3 the tufts in the hair colour; only the outer edge keeps
-// the dark rim, so the silhouette reads as a fuzzy outline. At Customizer size a few thin lighter
-// and darker tufts add texture; at viewer size (head under ~26 px) those are skipped and the tufts
-// get fatter, so the shape still reads as one shaggy blob.
-import { NYBORG, drawNyborg } from "../nyborg-draw.js";
+// How the fur is drawn: every tuft is a tapered clump with a ROUND tip (pointed tips read as
+// spikes, stroked lines as sticks). Pass 1 draws all clumps a little larger in a dark tint of
+// the hair colour, pass 2 a soft base mass, pass 3 the clumps in the hair colour; only the
+// outer edge keeps the dark rim. At Customizer size a few micro-hairs past each tip felt the
+// rim and thin strands add texture; viewer-size heads (under ~34 device px) skip those and use
+// fatter clumps, so each style still reads as one clear shaggy shape.
 
-export const HAIR_OPTIONS = [
-  { id: "mop", letter: "A", name: "Shaggy mop", blurb: "A big soft mop of short fur, hanging over the sides with a messy fringe." },
-  { id: "pom", letter: "B", name: "Pom cloud", blurb: "A round fluffy pom-pom cloud sitting on the crown." },
-  { id: "fringe", letter: "C", name: "Muppet fringe", blurb: "A fuzzy bowl with heavy bangs falling to just above the eyes." },
-  { id: "crest", letter: "D", name: "Tousled crest", blurb: "A tousled crest of soft fur tufts, swept back as if running." },
+/** Every hair style a Nyborg can have, in Customizer order. "mop" is the default. */
+export const HAIR_STYLES = [
+  { id: "mop", letter: "A", name: "Shaggy mop", code: "m" },
+  { id: "pom", letter: "B", name: "Pom cloud", code: "p" },
+  { id: "fringe", letter: "C", name: "Muppet fringe", code: "f" },
+  { id: "crest", letter: "D", name: "Tousled crest", code: "c" },
+  { id: "yarn", letter: "", name: "Classic yarn", code: "" }, // link code is the strand count
 ];
+export const DEFAULT_HAIR_STYLE = "mop";
+export const HAIR_STYLE_IDS = HAIR_STYLES.map((s) => s.id);
+export const isFuzzy = (style) => STYLES[style] !== undefined;
 
 /** FNV-1a 32-bit hash of a string (the Nyborg id). */
 export function seedFrom(id) {
@@ -273,66 +273,20 @@ function crest(r) {
 
 const STYLES = { mop, pom, fringe, crest };
 
-// --- head and accessories (same shapes as nyborg-draw.js) ------------------------------------
-function head(ctx) {
-  ctx.fillStyle = "rgba(0,0,0,0.18)";
-  ctx.beginPath(); ctx.ellipse(0, 8, 20, 4.5, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = NYBORG.head; ctx.strokeStyle = NYBORG.outline; ctx.lineWidth = 2.6;
-  ctx.beginPath(); ctx.arc(CX, CY, R, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-}
-function face(ctx) {
-  for (const x of [-7, 7]) {
-    ctx.fillStyle = NYBORG.eyes; ctx.beginPath(); ctx.arc(x, -3, 2.6, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(x + 0.8, -3.9, 0.8, 0, Math.PI * 2); ctx.fill();
-  }
-}
-function glasses(ctx) {
-  ctx.save();
-  ctx.strokeStyle = "#3B3632"; ctx.lineWidth = 1.5; ctx.fillStyle = "rgba(255,255,255,0.25)";
-  for (const x of [-7, 7]) { ctx.beginPath(); ctx.arc(x, -3, 5.1, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
-  ctx.beginPath();
-  ctx.moveTo(-1.9, -3.6); ctx.quadraticCurveTo(0, -5, 1.9, -3.6);
-  ctx.moveTo(-12.1, -4.2); ctx.lineTo(-18.5, -6.2);
-  ctx.moveTo(12.1, -4.2); ctx.lineTo(18.5, -6.2);
-  ctx.stroke();
-  ctx.restore();
-}
-function hat(ctx, { y, s }) {
-  ctx.save();
-  ctx.translate(0, y); ctx.rotate((8 * Math.PI) / 180); ctx.scale(s, s);
-  ctx.strokeStyle = NYBORG.outline; ctx.lineWidth = 1.5; ctx.lineJoin = "round";
-  ctx.fillStyle = "#5F7A99"; ctx.beginPath(); ctx.ellipse(0, 0, 15.5, 3.3, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-  ctx.fillStyle = "#6E8BAE"; ctx.beginPath();
-  ctx.moveTo(-8.4, -0.6); ctx.bezierCurveTo(-8.4, -8.4, -4.5, -11, 0, -11); ctx.bezierCurveTo(4.5, -11, 8.4, -8.4, 8.4, -0.6);
-  ctx.closePath(); ctx.fill(); ctx.stroke();
-  ctx.fillStyle = "#F5F2EC"; ctx.fillRect(-8, -4.2, 16, 2.8);
-  ctx.restore();
-}
 
 /**
- * Draw a Nyborg with one of the prototype hair styles ("mop" | "pom" | "fringe" | "crest"), or
- * "yarn" for today's strands (delegates to nyborg-draw.js). Same arguments as drawNyborg, plus
- * `style` and `id` (seeds the jitter).
+ * The fur for one Nyborg: `{drawBack(ctx), drawFront(ctx), hat: {y, s}}` in head units, facing
+ * right (the caller mirrors). Call drawBack, then drawFront: they share one seeded stream.
+ * `small` = viewer size. Unknown styles fall back to the default.
  */
-export function drawNyborgHair(ctx, { hair = "#D9534F", style = "mop", id = "nyborg", facing = 1, bob = 0, scale = 0.55, strands = 3, accessories = [] } = {}) {
-  if (style === "yarn") return drawNyborg(ctx, { hair, facing, bob, scale, strands, accessories });
-  const make = STYLES[style] || STYLES.mop;
-  const r = rng(seedFrom(`${id}:${style}`));
-  const shape = make(r);
-  const t = tones(hair);
-  ctx.save();
-  ctx.scale(facing * scale, scale);
-  ctx.translate(0, bob / scale);
-  // Device pixels per head unit decides the level of detail (viewer heads are ~20-30 px wide).
-  const m = ctx.getTransform();
-  const px = Math.hypot(m.a, m.b) * R * 2;
-  const small = px < 34;
-  ctx.lineJoin = "round";
-  furLayer(ctx, shape.back, shape.backMass, t, small, r, shape.backExtra);
-  head(ctx);
-  furLayer(ctx, shape.front, shape.frontMass, t, small, r, shape.frontExtra);
-  face(ctx);
-  if (accessories.includes("glasses")) glasses(ctx);
-  if (accessories.includes("hat")) hat(ctx, shape.hat);
-  ctx.restore();
+export function fuzzyHair(style, id, color, small) {
+  const key = isFuzzy(style) ? style : DEFAULT_HAIR_STYLE;
+  const r = rng(seedFrom(`${id}:${key}`));
+  const shape = STYLES[key](r);
+  const t = tones(color);
+  return {
+    hat: shape.hat,
+    drawBack: (ctx) => furLayer(ctx, shape.back, shape.backMass, t, small, r, shape.backExtra),
+    drawFront: (ctx) => furLayer(ctx, shape.front, shape.frontMass, t, small, r, shape.frontExtra),
+  };
 }

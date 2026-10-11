@@ -1,11 +1,13 @@
-// Node tests for the hair prototype (web/proto/nyborg-hair.js): deterministic, seeded by id.
+// Node tests for the hair styles (web/nyborg-hair.js, drawn by drawNyborg): deterministic, seeded by id.
 //   node --test "tests/web/**/*.test.mjs"
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { drawNyborgHair, HAIR_OPTIONS, seedFrom, rng } from "../../web/proto/nyborg-hair.js";
-import { HAIR_PALETTE } from "../../web/nyborg-draw.js";
+import { seedFrom, rng, HAIR_STYLES } from "../../web/nyborg-hair.js";
+import { HAIR_PALETTE, drawNyborg } from "../../web/nyborg-draw.js";
+const drawNyborgHair = drawNyborg;
+const HAIR_OPTIONS = HAIR_STYLES.filter((s) => s.id !== "yarn");
 
 /** A canvas stand-in that records every call (rounded), enough to compare two drawings. */
 function recorder() {
@@ -36,9 +38,11 @@ test("seeds are stable across runs and machines", () => {
   assert.ok(seqA.every((v) => v >= 0 && v < 1));
 });
 
-test("no Math.random anywhere in the prototype", () => {
-  const src = readFileSync(fileURLToPath(new URL("../../web/proto/nyborg-hair.js", import.meta.url)), "utf8");
-  assert.ok(!/Math\.random/.test(src.replace(/\/\/.*$/gm, "")));
+test("no Math.random in the hair or drawing code", () => {
+  for (const f of ["nyborg-hair.js", "nyborg-draw.js"]) {
+    const src = readFileSync(fileURLToPath(new URL(`../../web/${f}`, import.meta.url)), "utf8");
+    assert.ok(!/Math\.random/.test(src.replace(/\/\/.*$/gm, "")), f);
+  }
 });
 
 test("same Nyborg id draws the same hair; another id draws different tufts", () => {
@@ -67,4 +71,11 @@ test("facing -1 mirrors the whole Nyborg, and viewer size uses the lighter detai
 
 test("yarn keeps today's drawing as the reference", () => {
   assert.ok(draw({ style: "yarn", hair: "#D9534F", strands: 3 }).includes("quadraticCurveTo"));
+});
+
+test("the default style is the Shaggy mop; unknown styles fall back to it", () => {
+  const base = { id: "pip", hair: "#D9534F", scale: 1 };
+  assert.equal(draw(base), draw({ ...base, style: "mop" }));
+  assert.equal(draw({ ...base, style: "broccoli" }), draw({ ...base, style: "mop" }));
+  assert.deepEqual(HAIR_STYLES.map((s) => s.id), ["mop", "pom", "fringe", "crest", "yarn"]);
 });
