@@ -8,6 +8,8 @@ import home from "./screens/home.js";
 import hatch from "./screens/hatch.js";
 import setup from "./screens/setup.js";
 import watch from "./screens/watch.js";
+import edit from "./screens/edit.js";
+import backup from "./screens/backup.js";
 import { href } from "./router.js";
 import { matchQuery } from "./match.js";
 
@@ -16,6 +18,8 @@ const ROUTES = [
   { pattern: "new", screen: hatch },
   { pattern: "play/:game", screen: setup },
   { pattern: "watch/:game", screen: watch },
+  { pattern: "nyborg/:id", screen: edit },
+  { pattern: "backup", screen: backup },
 ];
 
 const banners = document.getElementById("banners");
@@ -35,6 +39,18 @@ function safe(fn) {
   }
 }
 
+// A toast with Undo for 10 s (deleting a Nyborg).
+const toast = document.getElementById("toast");
+let toastTimer = 0;
+function undoable(text, undo) {
+  clearTimeout(toastTimer);
+  toast.replaceChildren(el("span", { text }), el("button", { class: "btn small", type: "button", text: "Undo", onclick: () => {
+    clearTimeout(toastTimer); toast.hidden = true; undo(); router.refresh();
+  } }));
+  toast.hidden = false;
+  toastTimer = setTimeout(() => { toast.hidden = true; }, 10000);
+}
+
 const engine = await loadEngine();
 const { lib, storage, blocked } = openLibrary();
 if (blocked) banner("This browser isn't letting the page save, so your Nyborgs last only until you close this tab.", "warn", "storage");
@@ -46,13 +62,14 @@ const app = {
   /** Where Start goes: the watch screen, inside the app. */
   matchHref: (mod, match, ids) => href(["watch", mod.id], matchQuery(ids, match.seed)),
   /** Where "Tweak" goes for one of your Nyborgs. */
-  tweakHref: () => "../customizer.html",
+  tweakHref: (id) => href(["nyborg", id]),
+  undoable,
   // Both fire hashchange, so the router shows the new screen; replace keeps Back sensible.
   go(hash, { replace = false } = {}) {
     if (replace) location.replace(hash); else location.hash = hash;
   },
 };
-startRouter(document.getElementById("screen"), ROUTES, app);
+const router = startRouter(document.getElementById("screen"), ROUTES, app);
 
 // For headless checks.
 window.__app = { app, get hash() { return location.hash; } };

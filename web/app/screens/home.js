@@ -37,7 +37,7 @@ export default {
           el("div", { class: "lines" }, buildLines(n)),
           el("div", { class: "row gap actions" },
             playButtons(n, "primary"),
-            el("a", { class: "btn", href: "../customizer.html", text: "Edit look & builds" })),
+            el("a", { class: "btn", id: "edit", href: href(["nyborg", n.id]), text: "Edit look & builds" })),
           el("p", { class: "muted small", text: "Your Nyborg plays the house Nyborgs. Same build, same link, same match, every time." })));
 
       const cards = lib.list.map((x) => el("li", { class: `ny-card${x.id === n.id ? " on" : ""}`, "data-id": x.id },
@@ -57,14 +57,14 @@ export default {
         el("section", { class: "all", "aria-labelledby": "all-h" },
           el("h2", { id: "all-h", text: `All your Nyborgs · ${lib.list.length}` }),
           el("ul", { class: "ny-grid" }, cards),
-          lib.broken.length ? el("p", { class: "muted small", text: `${lib.broken.length} saved Nyborg(s) couldn't be read; open the Customizer to download or remove them.` }) : null),
+          lib.broken.length ? el("p", { class: "muted small" }, `${lib.broken.length} saved Nyborg(s) couldn't be read. `, el("a", { href: href(["backup"]), text: "See Backup" }), ".") : null),
         el("section", { class: "cast", "aria-labelledby": "cast-h" },
           el("h2", { id: "cast-h", text: "The house Nyborgs" }),
           el("p", { class: "muted small", text: "They're always up for a match. Swap any of them for one of yours in match setup." }),
           el("ul", { class: "cast-row" }, HOUSE.map((h) => el("li", { title: h.tagline },
             face(h, { scale: 0.8, y: 0.7 }, { class: "cast-face" }), el("span", { class: "nm", text: h.name }))))),
         el("p", { class: "muted small foot", },
-          "Saved in this browser. Export, import and the full editor live in the ", el("a", { href: "../customizer.html", text: "Customizer" }), "."));
+          "Saved in this browser. ", el("a", { href: href(["backup"]), text: "Back up or move your Nyborgs" }), "."));
     };
     render();
   },

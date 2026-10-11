@@ -138,3 +138,39 @@ test("watch sessions: the app plays the same race and tank match as the engine, 
     }
   }
 });
+
+test("edit: the tank triangle maps all 19 loadouts to valid 9-point builds; other games use the pips", async () => {
+  const { loadoutOf, levelsOf } = await import("../../web/games/tank.js");
+  const tcat = engine.tankCatalog();
+  assert.equal(tcat.loadouts.length, 19);
+  for (const l of tcat.loadouts) {
+    assert.equal(loadoutOf(levelsOf(l)), l);
+    const b = { rules_version: 1, levels: levelsOf(l), behavior: { kind: "scripted", id: "kiter" } };
+    assert.equal(engine.validateBuild("tank", b).ok, true, l);
+  }
+  // The triangle only ever lands on the engine's snap, which is always one of the 19.
+  for (const w of [[1, 0, 0], [0, 1, 0], [0, 0, 1], [0.2, 0.3, 0.5], [0.9, 0.05, 0.05]]) assert.ok(tcat.loadouts.includes(wasm.snapLoadout(...w)));
+  const tank = GAME_MODULES.find((m) => m.id === "tank"), racing = GAME_MODULES.find((m) => m.id === "racing");
+  assert.equal(typeof tank.editor, "function", "tank keeps the triangle (decision 8)");
+  assert.equal(racing.editor, undefined, "racing (and any new game) gets the schema-driven pips");
+});
+
+test("backup: import puts Nyborgs in the library; a clash can skip, keep both or replace", async () => {
+  const { importInto } = await import("../../web/app/screens/backup.js");
+  const { Library, MemoryStorage, exportAll } = await import("../../web/nyborg-library.js");
+  const lib = new Library(new MemoryStorage());
+  lib.load();
+  const a = pip(), b = { ...createNyborg(engine, "Juno") };
+  const file = exportAll([a, b]);
+  let r = await importInto(engine, lib, file, () => assert.fail("no clash yet"));
+  assert.deepEqual([r.added, r.error, lib.list.map((n) => n.name)], [2, null, ["Pip", "Juno"]]);
+  const answers = ["both", "skip"];
+  r = await importInto(engine, lib, file, async () => answers.shift());
+  assert.equal(r.added, 1);
+  assert.deepEqual(lib.list.map((n) => n.name), ["Pip", "Juno", "Pip"]);
+  assert.notEqual(lib.list[2].id, a.id, "kept both under a new id");
+  const renamed = exportAll([{ ...a, name: "Pip Two" }]);
+  r = await importInto(engine, lib, renamed, async () => "replace");
+  assert.equal(lib.get(a.id).name, "Pip Two");
+  assert.match((await importInto(engine, lib, "nope", () => "skip")).error, /JSON/);
+});

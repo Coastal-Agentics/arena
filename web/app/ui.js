@@ -16,6 +16,9 @@ export function el(tag, attrs = {}, ...kids) {
   return e;
 }
 
+/** node.replaceChildren(...kids) without the null/false ones (replaceChildren would print "null"). */
+export const fill = (node, ...kids) => node.replaceChildren(...kids.flat().filter((k) => k != null && k !== false));
+
 export const titleCase = (s) => s.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
 
 // --- previews ---------------------------------------------------------------------------------
