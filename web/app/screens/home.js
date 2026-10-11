@@ -3,7 +3,8 @@
 import { el, face, titleCase } from "../ui.js";
 import { buildFor, buildStatus } from "../../nyborg-library.js";
 import { summaryLine } from "../../build-tabs.js";
-import { arenas, quickMatch, viewerLink } from "../../games/index.js";
+import { arenas } from "../../games/index.js";
+import { HOUSE } from "../house.js";
 import { href } from "../router.js";
 
 export default {
@@ -14,9 +15,11 @@ export default {
     const games = arenas(engine);
     const me = () => lib.get(lib.selected) || lib.list[0];
 
+    // Each arena button opens match setup with this Nyborg against the house, one click from Start.
     const playButtons = (n, cls = "") => games.map((g) => el("a", {
-      class: `btn play ${cls}`, href: viewerLink(engine, g, quickMatch(engine, g, n)),
-      "data-game": g.id, text: g.button, title: `${g.title}: ${n.name} against the house`,
+      class: `btn play ${cls}`, href: href(["play", g.id], `me=${encodeURIComponent(n.id)}`),
+      "data-game": g.id, text: g.button, title: `${g.title}: ${n.name} against the house Nyborgs`,
+      onclick: () => app.safe(() => lib.select(n.id)),
     }));
     const buildLines = (n) => games.map((g) => {
       const st = buildStatus(engine, n, g.id);
@@ -55,6 +58,11 @@ export default {
           el("h2", { id: "all-h", text: `All your Nyborgs · ${lib.list.length}` }),
           el("ul", { class: "ny-grid" }, cards),
           lib.broken.length ? el("p", { class: "muted small", text: `${lib.broken.length} saved Nyborg(s) couldn't be read; open the Customizer to download or remove them.` }) : null),
+        el("section", { class: "cast", "aria-labelledby": "cast-h" },
+          el("h2", { id: "cast-h", text: "The house Nyborgs" }),
+          el("p", { class: "muted small", text: "They're always up for a match. Swap any of them for one of yours in match setup." }),
+          el("ul", { class: "cast-row" }, HOUSE.map((h) => el("li", { title: h.tagline },
+            face(h, { scale: 0.8, y: 0.7 }, { class: "cast-face" }), el("span", { class: "nm", text: h.name }))))),
         el("p", { class: "muted small foot", },
           "Saved in this browser. Export, import and the full editor live in the ", el("a", { href: "../customizer.html", text: "Customizer" }), "."));
     };
