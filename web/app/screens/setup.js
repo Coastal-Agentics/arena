@@ -5,15 +5,10 @@
 import { el, face, titleCase } from "../ui.js";
 import { buildFor, buildStatus } from "../../nyborg-library.js";
 import { summaryLine } from "../../build-tabs.js";
-import { arenas, lineup, matchFor } from "../../games/index.js";
-import { HOUSE, houseById, isHouse } from "../house.js";
+import { arenas, matchFor } from "../../games/index.js";
+import { HOUSE, isHouse } from "../house.js";
 import { href } from "../router.js";
-
-const U64_MAX = 18446744073709551615n;
-export const seedOk = (s) => /^\d{1,20}$/.test(s) && BigInt(s) <= U64_MAX;
-// A fresh seed for "Shuffle": any u32 is a valid u64 seed, and the match itself stays
-// deterministic for the seed it lands on (the seed is in the link).
-const freshSeed = () => String(crypto.getRandomValues(new Uint32Array(1))[0]);
+import { resolveMatch, seedOk, freshSeed, matchQuery } from "../match.js";
 
 export default {
   title: (args, app) => `${arenas(app.engine).find((m) => m.id === args.game)?.title || "Play"} setup`,
@@ -21,13 +16,13 @@ export default {
     const { engine, lib } = app;
     const mod = arenas(engine).find((m) => m.id === args.game);
     if (!mod) { app.go(href([]), { replace: true }); return; }
-    const who = (id) => (isHouse(id) ? houseById(id) : lib.get(id));
-    const me = params.get("me") && lib.get(params.get("me")) ? params.get("me") : lib.selected || lib.list[0]?.id;
-    let ids = lineup(mod, who, me, (params.get("slots") || "").split(",").filter(Boolean));
-    let seed = seedOk(params.get("seed") || "") ? params.get("seed") : "42";
+    const resolved = resolveMatch(app, mod, params);
+    const who = resolved.who;
+    let ids = resolved.ids;
+    let seed = resolved.seed;
     let seedError = "";
 
-    const save = () => history.replaceState(null, "", href(["play", mod.id], `slots=${ids.join(",")}&seed=${seed}`));
+    const save = () => history.replaceState(null, "", href(["play", mod.id], matchQuery(ids, seed)));
     const unusedHouse = () => HOUSE.find((n) => !ids.includes(n.id))?.id || HOUSE[0].id;
 
     const swapper = (i) => {
