@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import * as wasm from "../../web/pkg/engine_wasm.js";
 import { makeEngine } from "../../web/app/engine.js";
 import { parseHash, href, matchRoute } from "../../web/app/router.js";
-import { GAME_MODULES, arenas, slotFor, quickMatch, viewerLink, lineup, matchFor } from "../../web/games/index.js";
+import { GAME_MODULES, arenas, slotFor, quickMatch, viewerLink, lineup, matchFor, gameForQuery } from "../../web/games/index.js";
 import { createNyborg, checkShape } from "../../web/nyborg-library.js";
 import { HOUSE, houseById, isHouse } from "../../web/app/house.js";
 import { parseRaceQuery } from "../../web/nyborg-link.js";
@@ -173,4 +173,36 @@ test("backup: import puts Nyborgs in the library; a clash can skip, keep both or
   r = await importInto(engine, lib, renamed, async () => "replace");
   assert.equal(lib.get(a.id).name, "Pip Two");
   assert.match((await importInto(engine, lib, "nope", () => "skip")).error, /JSON/);
+});
+
+test("save from a link: parseQuery reads back what query wrote, for every arena", () => {
+  const me = { ...createNyborg(engine, "Pip"), id: "ny-me", look: { hair_style: "mop", hair_color: "#3F6FD8", strands: 3, accessories: ["hat"] } };
+  for (const mod of arenas(engine)) {
+    const match = quickMatch(engine, mod, me, "42");
+    const params = new URLSearchParams(mod.query(engine, match));
+    assert.equal(gameForQuery(engine, params).id, mod.id);
+    const back = mod.parseQuery(engine, params);
+    assert.equal(back.seed, "42");
+    assert.equal(back.slots.length, match.slots.length);
+    back.slots.forEach((s, i) => {
+      assert.deepEqual(s.build, match.slots[i].build, `${mod.id} slot ${i} build`);
+      assert.equal(s.name, match.slots[i].name);
+      assert.deepEqual(s.look, match.slots[i].look);
+      assert.equal(back.fellBack[i], false);
+    });
+    // And re-encoding is stable, so the app's share link is the viewer's link.
+    assert.equal(mod.query(engine, { ...back, seed: "42" }), mod.query(engine, match));
+  }
+});
+
+test("save from a link: a bad build falls back and is flagged; bot duels are refused", () => {
+  const racing = arenas(engine).find((m) => m.id === "racing");
+  const r = racing.parseQuery(engine, new URLSearchParams("game=racing&seed=9&cars=cutter-9-9-9,follower-3-3-3&name1=Zed"));
+  assert.deepEqual(r.fellBack, [true, false]);
+  assert.equal(engine.validateBuild("racing", r.slots[0].build).ok, true);
+  assert.match(r.notes.join(" "), /Car 1/);
+  const tank = arenas(engine).find((m) => m.id === "tank");
+  assert.throws(() => tank.parseQuery(engine, new URLSearchParams("seed=1&a=chaser&b=wanderer")), /built-in bots/);
+  assert.equal(gameForQuery(engine, new URLSearchParams("seed=1")).id, "tank");
+  assert.equal(gameForQuery(engine, new URLSearchParams("game=chess")), null);
 });
