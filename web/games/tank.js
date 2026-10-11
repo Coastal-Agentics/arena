@@ -1,10 +1,10 @@
 // Tank Arena, as an app game module (docs/design/nyborg-app.md §6): its slots, its house
 // opponent and how a match link is written. Links are exactly the viewer's tank format:
 // ?seed=S&blue=<behavior>-<a>-<s>-<d>&orange=…, then looks and names for the drawing only.
-import { encodeBuild, cosmeticsQuery } from "../nyborg-link.js";
+import { encodeBuild, cosmeticsQuery, parseCosmetics } from "../nyborg-link.js";
 import { drawTankScene, TEAM_COLORS, TANK_RADIUS } from "../tank-draw.js";
 import { drawYouMarker } from "../app/marker.js";
-import { TRI, pointToWeights, weightsToPoint, loadoutWeights, readout, presetName } from "../tank-ui.js";
+import { TRI, pointToWeights, weightsToPoint, loadoutWeights, readout, presetName, specFromQuery } from "../tank-ui.js";
 import { el } from "../app/ui.js";
 import { verdict, statusLine } from "../app/build-editor.js";
 
@@ -30,6 +30,23 @@ export default {
   /** The house Nyborg (app/house.js) you face by default. */
   house: ["house-pepper"],
 
+  /**
+   * A viewer tank link (?seed=…&blue=…&orange=…&looks=…&nameN=…) as a match. The engine
+   * canonicalises it and throws on a bad one; the built-in-bot links (?a=&b=) aren't Nyborgs.
+   */
+  parseQuery(engine, params) {
+    const spec = specFromQuery(params, engine.canonicalTankQuery);
+    if (spec.mode !== "tank") throw new Error("That link plays the built-in bots, which aren't Nyborgs. Open it in the arena viewer.");
+    const cos = parseCosmetics(params, 2);
+    return {
+      seed: spec.seed, notes: cos.notes, fellBack: [false, false],
+      slots: spec.tanks.map((t, i) => ({
+        build: { rules_version: 1, levels: levelsOf(t.loadout), behavior: { kind: "scripted", id: t.behavior } },
+        look: cos.looks[i], name: cos.names[i],
+      })),
+    };
+  },
+
   /** The viewer query for {seed, slots: [{build, look, name}]}. */
   query(engine, { seed, slots }) {
     const q = plainQuery(engine, { seed, slots });
@@ -42,7 +59,8 @@ export default {
     const m = engine.wasm.WasmMatch.tank(plainQuery(engine, match));
     const looks = match.slots.map((s) => s.look || null);
     const seeds = match.slots.map((s, i) => s.id || s.name || `tank-${i}`);
-    const names = match.slots.map((s, i) => s.name || this.slots.names[i]);
+    // Unnamed Nyborgs go by their behavior, as the viewer's cards do ("Kiter").
+    const names = match.slots.map((s) => s.name || s.build.behavior.id[0].toUpperCase() + s.build.behavior.id.slice(1));
     const facingById = new Map();
     let state = JSON.parse(m.stateJson());
     return {

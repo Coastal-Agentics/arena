@@ -113,8 +113,20 @@ function setGame(g) {
   restart();
 }
 
+// The same match in the Nyborg app (#/watch?<this query>), where its Nyborgs can be saved.
+// Viewer extras (speed, paused, tab, sprites) stay behind; built-in bot duels have no Nyborgs.
+function syncAppLink() {
+  const a = $("open-app");
+  if (!a) return;
+  if (!isRacing() && spec.mode !== "tank") { a.parentElement.hidden = true; return; }
+  a.parentElement.hidden = false;
+  const cos = isRacing() ? "" : cosmeticsQuery([0, 1].map((i) => ({ look: tankCosmetics.looks[i], name: tankCosmetics.names[i] })));
+  a.href = "play/#/watch?" + (isRacing() ? queryFromRaceSpec(spec, {}, raceEngine.catalog) : queryFromSpec(spec) + (cos ? `&${cos}` : ""));
+}
+
 function syncUrl() {
   if (!spec) return;
+  syncAppLink();
   if (isRacing()) {
     history.replaceState(null, "", "?" + queryFromRaceSpec(spec, {
       speed: speed !== 1 ? speed : 0,

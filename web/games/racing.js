@@ -1,6 +1,7 @@
 // Racing on the Ring, as an app game module (docs/design/nyborg-app.md §6). Links are the
 // viewer's racing format (nyborg-link.js): ?game=racing&seed=S&cars=…&looks=…&nameN=….
-import { raceQuery } from "../nyborg-link.js";
+import { raceQuery, parseRaceQuery } from "../nyborg-link.js";
+import { defaultRaceBuilds } from "../race-ui.js";
 import { drawTrack, drawRaceCar, drawFinishBanner, lookForCar } from "../race-ui.js";
 import { drawYouMarker } from "../app/marker.js";
 
@@ -15,6 +16,20 @@ export default {
   slots: { min: 2, max: 4, names: ["Car 1", "Car 2", "Car 3", "Car 4"] },
   /** House Nyborgs (app/house.js) after yours on the default grid: a follower, a cutter and a blocker. */
   house: ["house-biscuit", "house-noodle", "house-captain-fuzz"],
+
+  /**
+   * A viewer racing link (?game=racing&seed=…&cars=…&looks=…&nameN=…) as a match. Bad builds
+   * race the default build, exactly as the viewer does; `fellBack[i]` marks them.
+   */
+  parseQuery(engine, params) {
+    const raceEngine = { catalog: engine.catalog("racing"), defaultBuild: () => engine.defaultBuild("racing"), validateBuild: (b) => engine.validateBuild("racing", b) };
+    const spec = parseRaceQuery(params, raceEngine, defaultRaceBuilds());
+    const fellBack = spec.builds.map((_, i) => spec.notes.some((n) => n.startsWith(`Car ${i + 1} (`)));
+    return {
+      seed: spec.seed, notes: spec.notes, fellBack,
+      slots: spec.builds.map((build, i) => ({ build, look: spec.looks[i] || null, name: spec.names[i] || null })),
+    };
+  },
 
   query(engine, { seed, slots }) {
     return raceQuery(engine.catalog("racing"), {

@@ -43,3 +43,9 @@ export function quickMatch(engine, mod, nyborg, seed = "42") {
 export function viewerLink(engine, mod, match, base = "../arena.html") {
   return `${base}?${mod.query(engine, match)}`;
 }
+
+/** The arena a viewer link plays: ?game=<id>, else Tank (the viewer's default). */
+export function gameForQuery(engine, params, modules = GAME_MODULES) {
+  const id = params.get("game") || "tank";
+  return arenas(engine, modules).find((m) => m.id === id) || null;
+}

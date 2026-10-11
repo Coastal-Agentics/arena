@@ -17,6 +17,7 @@ const ROUTES = [
   { pattern: "", screen: home },
   { pattern: "new", screen: hatch },
   { pattern: "play/:game", screen: setup },
+  { pattern: "watch", screen: watch }, // someone's match link: #/watch?<viewer query>
   { pattern: "watch/:game", screen: watch },
   { pattern: "nyborg/:id", screen: edit },
   { pattern: "backup", screen: backup },
