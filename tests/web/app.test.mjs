@@ -113,3 +113,28 @@ test("tank quick match: you are Blue against Pepper; cosmetics stay out of the t
   assert.ok(!plain.includes("looks") && !plain.includes("name"));
   assert.deepEqual(runTank(plain), runTank(q.split("&looks")[0]));
 });
+
+test("watch sessions: the app plays the same race and tank match as the engine, and reads the result", () => {
+  const n = pip();
+  for (const mod of GAME_MODULES) {
+    for (const seed of ["42", "7", "18446744073709551615"]) {
+      const match = quickMatch(engine, mod, n, seed);
+      const s = mod.start(engine, match);
+      assert.ok(s.width > 0 && s.height > 0 && !s.over() && s.result() === null);
+      assert.equal(s.board().length, match.slots.length);
+      let guard = 0;
+      while (!s.over() && guard++ < 10_000) s.step(37); // uneven steps, like frames
+      assert.ok(s.over(), `${mod.id} ${seed} ends`);
+      const direct = mod.id === "racing"
+        ? runRace(seed, match.slots.map((x) => x.build))[0]
+        : runTank(mod.query(engine, match).split("&looks")[0])[0];
+      assert.equal(s.hash(), direct, `${mod.id} seed ${seed}: same final state as a direct run`);
+      const res = s.result();
+      assert.deepEqual([...res.order].sort(), match.slots.map((_, i) => i), "every slot placed once");
+      if (res.winner != null) { assert.equal(res.order[0], res.winner); assert.equal(res.place(res.winner), 1); }
+      assert.ok(typeof res.headline === "string" && res.seconds > 0);
+      for (const slot of res.order) assert.equal(typeof res.detail(slot), "string");
+      s.free();
+    }
+  }
+});

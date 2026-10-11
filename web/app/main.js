@@ -7,12 +7,15 @@ import { startRouter } from "./router.js";
 import home from "./screens/home.js";
 import hatch from "./screens/hatch.js";
 import setup from "./screens/setup.js";
-import { viewerLink } from "../games/index.js";
+import watch from "./screens/watch.js";
+import { href } from "./router.js";
+import { matchQuery } from "./match.js";
 
 const ROUTES = [
   { pattern: "", screen: home },
   { pattern: "new", screen: hatch },
   { pattern: "play/:game", screen: setup },
+  { pattern: "watch/:game", screen: watch },
 ];
 
 const banners = document.getElementById("banners");
@@ -40,8 +43,10 @@ else if (lib.migration) banner(`New hair! ${lib.migration.count === 1 ? "Your Ny
 
 const app = {
   engine, lib, storage, banner, safe,
-  /** Where Start goes for a match: the viewer, with looks and names for the drawing only. */
-  matchHref: (mod, match) => viewerLink(engine, mod, match),
+  /** Where Start goes: the watch screen, inside the app. */
+  matchHref: (mod, match, ids) => href(["watch", mod.id], matchQuery(ids, match.seed)),
+  /** Where "Tweak" goes for one of your Nyborgs. */
+  tweakHref: () => "../customizer.html",
   // Both fire hashchange, so the router shows the new screen; replace keeps Back sensible.
   go(hash, { replace = false } = {}) {
     if (replace) location.replace(hash); else location.hash = hash;
