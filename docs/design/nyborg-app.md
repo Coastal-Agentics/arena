@@ -222,7 +222,7 @@ Small PRs, each one shippable and visible on GitHub Pages the moment it merges. 
 | 4 | **Edit in the app** | Look and per-arena build tabs inside the app. `customizer.html` redirects there. The viewer's Customize tab becomes "Edit in the app", and the tank triangle lives on as the tank build control. | One editor. The library tests still pass. No data loss (same keys). |
 | 5 | **New hair** | Nye's chosen style(s) everywhere: Customizer, viewer, the splash art | Save format 2 with a backup-first migration. Old links still render the same looks. Prototype tests carried over. Engine pins and `web/pkg` untouched. Can ship any time after Nye picks, independent of 1–4. |
 | 6 | **Save from a link** | Opening someone's match offers **Save Pip to my Nyborgs**. Backup moves to its own screen (shipped early, in M4). Share links point to `play/#/watch?<viewer query>`. | Saved Nyborg = the link's build (engine-checked), look and name. Clear note if a build had to fall back. |
-| 7 | **One front door** | The splash's big button is **Make your Nyborg**, its copy is refreshed, and the arena sub-nav starts with **Play** | Every page reaches the app in one click. `tools/shoot.py` link check passes. Copy matches the app. |
+| 7 | **One front door** | The splash's big button is **Make your Nyborg**, its copy is refreshed, and the arena sub-nav starts with **Play**. Welcome back (open question 7) shipped: it was cheap. | Every page reaches the app in one click. `tools/shoot.py` link check passes. Copy matches the app. |
 
 Suggested order: 1 → 2 → 3 → 4, with 5 as soon as Nye picks, and 6 and 7 after 3. Each is about one evening's PR.
 

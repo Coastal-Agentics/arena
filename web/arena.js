@@ -99,8 +99,8 @@ function setGame(g) {
   $("tank-tabs").hidden = next === "racing";
   $("race-hud").hidden = next !== "racing";
   $("blurb").textContent = next === "racing"
-    ? "The deterministic Rust engine, compiled to WebAssembly, running a Ring race with Nyborg drivers. Same link, same race, every time."
-    : "The deterministic Rust engine, compiled to WebAssembly, running a Tank Arena duel live at 60 ticks per second. Same link, same match, every time.";
+    ? "Nyborgs racing three laps of the Ring, live in your browser. Same link, same race, every time."
+    : "Two Nyborgs in tanks, live in your browser at 60 ticks per second. Same link, same match, every time.";
   $("arena").setAttribute("aria-label", next === "racing" ? "Ring race with Nyborg drivers" : "Tank Arena match with Nyborg agents");
   if (next === "racing") {
     if (!isRacing()) spec = { game: "racing", seed: (spec?.seed || "42"), builds: defaultRaceBuilds(), custom: false, looks: [], names: [], notes: [] };
@@ -544,7 +544,7 @@ $("tank-sprites").hidden = wantRacing;
 $("tank-tabs").hidden = wantRacing;
 $("race-hud").hidden = !wantRacing;
 if (wantRacing) {
-  $("blurb").textContent = "The deterministic Rust engine, compiled to WebAssembly, running a Ring race with Nyborg drivers. Same link, same race, every time.";
+  $("blurb").textContent = "Nyborgs racing three laps of the Ring, live in your browser. Same link, same race, every time.";
   $("arena").setAttribute("aria-label", "Ring race with Nyborg drivers");
 }
 if (params.has("speed")) setSpeed(Number(params.get("speed")) || 1);

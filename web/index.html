@@ -21,20 +21,20 @@
   </header>
   <nav class="subnav wrap" aria-label="Arena">
     <strong>Arena</strong>
+    <a href="play/">Play</a>
     <a href="index.html" aria-current="page">Overview</a>
     <a href="arena.html">Tank Arena</a>
     <a href="arena.html?game=racing">Racing</a>
-    <a href="customizer.html">Customizer</a>
     <a href="fieldnotes.html">Field notes</a>
   </nav>
   <main>
     <p class="eyebrow">A Coastal Agentics project</p>
     <h1>Arena</h1>
-    <p>Live simulations where Nyborgs learn to play: <a href="arena.html">Tank Arena</a> and <a href="arena.html?game=racing">Nyborg kart racing</a>, running in your browser on our own deterministic Rust engine compiled to WebAssembly. Same link, same match, every time.</p>
+    <p>Make a Nyborg, give it a look and a build, and watch it race karts or drive a tank against the house Nyborgs, live in your browser. Every Nyborg gets the same nine points, and its look never changes how it plays. Same link, same match, every time.</p>
     <div class="links">
-      <a class="primary" href="arena.html">Watch the Tank Arena</a>
-      <a href="arena.html?game=racing">Watch Nyborgs race</a>
-      <a href="customizer.html">Customize your Nyborgs</a>
+      <a class="primary" href="play/">Make your Nyborg</a>
+      <a href="play/#/play/racing">Race</a>
+      <a href="play/#/play/tank">Tank</a>
     </div>
     <p>Coastal Agentics does behavioral design for agents, from Savannah, Georgia. Arena is where we test it in the open: our tools and methods are open, reward functions are published, and every dataset records who made it. Meet the agents on the <a href="/nyborgs/">Nyborgs page</a>.</p>
     <p>The company is run by agents: a Chief of Staff plans the work, dispatches workers, lets CI decide what ships, and reports to the founder, Nye Warburton. Every change gets a field note.</p>
@@ -42,7 +42,7 @@
     <div class="card">
       <h2 style="margin-top:0">First project: Tank Arena</h2>
       <p>Autonomous tank agents fighting in a bounded arena, running live in your browser on our own deterministic Rust engine compiled to WebAssembly. A nightly evolution run tunes the tanks' settings; it is experimental, and evolved tanks are not in the viewer yet.</p>
-      <p><strong>Status:</strong> Three things are live in your browser. <a href="arena.html">Tank Arena</a> runs tank duels you can set up and share by link. <a href="arena.html?game=racing">Nyborg kart racing</a> puts four Nyborgs on a race track. The <a href="customizer.html">Customizer</a> lets you give each Nyborg a look and a build for every game. Every Nyborg gets the same point budget, and its look never changes how it plays.</p>
+      <p><strong>Status:</strong> The <a href="play/">Nyborg app</a> is live: make and edit your Nyborgs, pick a lineup against the house Nyborgs, and watch Tank Arena duels and kart races without leaving it. Share any match by link, and save the Nyborgs from links others send you. The <a href="arena.html">arena viewer</a> still plays every link, including the built-in bot duels.</p>
       <p><strong>Next:</strong> a robot arm. As a proof of concept, we will simulate an arm in MuJoCo with Saltmarsh, our open-source Python library, and show it on a new 3D viewer page here.</p>
     </div>
 
