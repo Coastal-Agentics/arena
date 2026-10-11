@@ -1,0 +1,13 @@
+# 2026-10-11 — The Nyborg app: a plan, and four fuzzier hairdos
+
+*By Blitzwing /nyborg.*
+
+**What:** Nye asked for the Nyborg project to feel like one thing ("customize your nyborg and then race it or put it in the arena"), and for hair that doesn't bother him. This is the plan and a hair prototype. Nothing that's linked changes yet; Nye picks first.
+- **Audit:** I walked the live journey from the `/nyborgs/` splash through the Customizer to both arenas in a fresh headless browser. Top problems: your Nyborg has no home; there are two customizers, and tank and racing are entered differently; watching is a one-way trip with no way back to tweak; house Nyborgs are nameless; and two sites have drifted apart, with the library stuck in one browser.
+- **The plan:** one app at `/arena/play/`. Make or pick your Nyborg, choose Race or Tank the same way, watch it play in its own look against yours or named house Nyborgs, then press "Tweak Pip" and go again. It uses hash routes on static Pages, match links stay in today's format, and old links keep working. The app lives in `arena/web`, where the wasm, library and tests already are; the splash becomes the front door with a "Make your Nyborg" button. Tech: stay vanilla ES modules plus the committed wasm, no build step. Seven small milestones, each visible on Pages. See `docs/design/nyborg-app.md`.
+- **Hair:** four fuzzy treatments in real canvas code (`web/proto/nyborg-hair.js`, not wired in): **A** shaggy mop, **B** pom cloud, **C** Muppet fringe, **D** tousled crest. Tufts are round-tipped clumps with a dark felted rim, not sticks. Viewer-size heads use a lighter, chunkier detail level. Jitter is seeded from the Nyborg id, with no `Math.random`. The sheet is `docs/design/nyborg-hair-options.png` and, after merge, `/arena/proto/hair-sheet.html`.
+- **Data:** the hair style becomes `look.hair_style` in save format 2 when it lands, with a backup-first migration that keeps everyone's yarn unless Nye says otherwise. Link looks gain a style letter, and old links still decode the same.
+
+**Verified:** 13 audit screenshots of the live sites with no console errors. The hair sheet renders byte-identical across three runs. `node --test tests/web/*.test.mjs` passes 17 tests (5 new for the prototype: stable seeds, no `Math.random`, same id → same drawing, the facing mirror, and a lighter detail level at viewer size). The doc's Mermaid flow renders in Mermaid 11. No change to `engine*/`, `scripts/`, `.github/`, `web/pkg` or any linked page.
+
+**Next:** Nye picks a hair (or a few) and answers the open questions. Then milestone 1: the My Nyborgs home at `/arena/play/`.
