@@ -25,6 +25,8 @@
     .tabs { display:flex; gap:6px; margin:18px 0 4px; border-bottom:1px solid var(--line); }
     .tabs button { background:none; border:none; border-bottom:2px solid transparent; color:var(--muted); padding:8px 14px; font:inherit; font-weight:700; }
     .tabs button[aria-selected="true"] { color:var(--text); border-bottom-color:var(--accent); }
+    .open-app { margin:6px 0 10px; font-size:.9rem; } .open-app a { color:var(--accent); font-weight:700; text-decoration:none; }
+    .tabs .app-link { margin-left:auto; align-self:center; color:var(--accent); font-weight:700; text-decoration:none; font-size:.9rem; padding:6px 4px; }
     .cards { display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:12px; margin:12px 0; }
     .tankcard { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px 14px; font-size:.9rem; }
     .tankcard h3 { margin:0 0 8px; font-size:1rem; display:flex; justify-content:space-between; align-items:center; gap:8px; }
@@ -59,16 +61,17 @@
   </header>
   <nav class="subnav wrap" aria-label="Arena">
     <strong>Arena</strong>
+    <a href="play/">Play</a>
     <a href="index.html">Overview</a>
     <a href="arena.html">Tank Arena</a>
     <a href="arena.html?game=racing">Racing</a>
-    <a href="customizer.html">Customizer</a>
     <a href="fieldnotes.html">Field notes</a>
   </nav>
   <main class="wide">
     <h1>Arena viewer</h1>
-    <p id="blurb">The deterministic Rust engine, compiled to WebAssembly, running a Tank Arena duel live at 60 ticks per second. Same link, same match, every time.</p>
+    <p id="blurb">Two Nyborgs in tanks, live in your browser at 60 ticks per second. Same link, same match, every time.</p>
 
+    <p class="open-app"><a id="open-app" href="play/">Open this match in the Nyborg app ↗</a> <span class="muted">to save its Nyborgs and race them yourself.</span></p>
     <div class="games" role="group" aria-label="Game">
       <button type="button" class="game on" data-game="tank">Tank</button>
       <button type="button" class="game" data-game="racing">Racing</button>
@@ -77,6 +80,7 @@
     <nav class="tabs" role="tablist" id="tank-tabs">
       <button type="button" role="tab" id="tab-watch" aria-controls="panel-watch" aria-selected="true">Watch</button>
       <button type="button" role="tab" id="tab-customize" aria-controls="panel-customize" aria-selected="false">Customize</button>
+      <a class="app-link" href="play/">✎ Edit your Nyborg in the app</a>
     </nav>
 
     <section id="panel-watch" role="tabpanel" aria-labelledby="tab-watch">

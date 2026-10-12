@@ -75,7 +75,7 @@ Data flow in one line each:
 | [Replay format](replay-format.md) | Tank Arena's format 4 field by field, the format 5 game envelope (`game`, `rules_version`), the setup hash, versioning (formats 2 and 3 still read), `verify`, `ReplayPlayer` |
 | [engine-cli](engine-cli.md) | Flags, output, replay files, examples |
 | [CI specs](ci-specs.md) | Workflow changes for the workflow owner to apply: the parity step for the `wasm` job, and the `engine-py` wheel workflow |
-| [Python bindings](python.md) | `engine-py` and the `saltmarsh-arena` wheel: the PettingZoo, Gymnasium and zero-copy `FlatEnv` APIs for tank and racing, the buffers, determinism tests and throughput |
+| [Python bindings](python.md) | `engine-py` and the `coastal-arena` wheel: the PettingZoo, Gymnasium and zero-copy `FlatEnv` APIs for tank and racing, the buffers, determinism tests and throughput |
 | [engine-wasm and the web viewer](wasm-and-web.md) | The JS API (including `withConfig`, `duelConfigJson` and the rules-v1 Tank Arena calls with a run example), building `web/pkg`, relative paths, the CI check, Pages deploy |
 
 Related: [ADR-001, -003, -008, -009, -014](../DECISIONS.md) in `docs/DECISIONS.md`.

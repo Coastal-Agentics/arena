@@ -1,11 +1,11 @@
-// The Nyborg library: save format 1 and its localStorage layout, per
-// docs/design/nyborg-library.md. Plain JS with no DOM, so it runs under Node too.
+// The Nyborg library: save format 2 (format 1 plus look.hair_style, docs/design/nyborg-app.md §5)
+// and its localStorage layout, per docs/design/nyborg-library.md. Format-1 libraries upgrade on load. Plain JS with no DOM, so it runs under Node too.
 // Storage and the engine's validator are passed in, never imported, which keeps this
 // testable and game-agnostic: games come from the engine's games(), not from this file.
 
-import { HAIR_PALETTE, ACCESSORIES } from "./nyborg-draw.js";
+import { HAIR_PALETTE, ACCESSORIES, HAIR_STYLES, HAIR_STYLE_IDS, DEFAULT_HAIR_STYLE } from "./nyborg-draw.js";
 
-export const FORMAT = 1; // the save format this code reads and writes
+export const FORMAT = 2; // the save format this code writes (it also reads and upgrades 1)
 export const MAX_NYBORGS = 200;
 export const MAX_IMPORT_BYTES = 1024 * 1024;
 export const KEYS = {
@@ -14,9 +14,10 @@ export const KEYS = {
   picks: "arena.nyborg.picks", // match slots
   backup: (n) => `arena.nyborg.backup.v${n}`, // one-time copy before a migration
 };
-export const DEFAULT_LOOK = Object.freeze({ hair_color: "#D9534F", strands: 3, accessories: [] });
+export const DEFAULT_LOOK = Object.freeze({ hair_style: DEFAULT_HAIR_STYLE, hair_color: "#D9534F", strands: 3, accessories: [] });
 
 const HAIR_HEXES = HAIR_PALETTE.map((c) => c.hex);
+const styleName = (id) => HAIR_STYLES.find((s) => s.id === id)?.name || id;
 const ACCESSORY_IDS = ACCESSORIES.map((a) => a.id);
 const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/;
 
@@ -42,6 +43,8 @@ export function checkShape(n) {
   const l = n.look;
   if (!l || typeof l !== "object") errs.push("look");
   else {
+    // Format 2 adds hair_style; a format-1 Nyborg has none until upgrade() gives it one.
+    if (n.format >= 2 && !HAIR_STYLE_IDS.includes(l.hair_style)) errs.push("look.hair_style");
     if (!HAIR_HEXES.includes(l.hair_color)) errs.push("look.hair_color");
     if (![2, 3, 4].includes(l.strands)) errs.push("look.strands");
     if (!Array.isArray(l.accessories) || l.accessories.some((a) => !ACCESSORY_IDS.includes(a))
@@ -49,6 +52,17 @@ export function checkShape(n) {
   }
   if (!n.builds || typeof n.builds !== "object" || Array.isArray(n.builds)) errs.push("builds");
   return errs;
+}
+
+/**
+ * Save format 1 -> 2: the look gains hair_style. Existing Nyborgs get the new default (Shaggy
+ * mop; Nye's call on #85), and keep their strand count for Classic yarn. Newer formats and
+ * format-2 Nyborgs come back unchanged.
+ */
+export function upgrade(n) {
+  if (!n || n.format !== 1) return n;
+  const { hair_color, strands, accessories, ...rest } = n.look;
+  return { ...n, format: 2, look: { hair_style: DEFAULT_HAIR_STYLE, hair_color, strands, accessories, ...rest } };
 }
 
 /**
@@ -99,8 +113,9 @@ export function sanitizeImported(engine, raw) {
   if (shape.length) return { error: `not a Nyborg (bad ${shape.join(", ")})` };
   if (raw.format > FORMAT) return { error: "made by a newer version of the Customizer" };
   const known = new Set(engine.games().map((g) => g.game));
-  const n = { format: FORMAT, id: raw.id, name: raw.name, created: raw.created, updated: raw.updated, look: clone(raw.look), builds: {} };
-  const notes = [];
+  const up = upgrade(raw);
+  const n = { format: FORMAT, id: up.id, name: up.name, created: up.created, updated: up.updated, look: clone(up.look), builds: {} };
+  const notes = raw.format === 1 ? [`new hair: ${raw.name} now has the ${styleName(DEFAULT_HAIR_STYLE)} (pick another in Look)`] : [];
   for (const [game, build] of Object.entries(raw.builds)) {
     if (!known.has(game)) { notes.push(`${game}: unknown game, left out`); continue; }
     const r = engine.validateBuild(game, build);
@@ -146,16 +161,45 @@ export class Library {
     try { index = JSON.parse(this.storage.getItem(KEYS.index) || "null"); } catch { index = null; }
     this.list = [];
     this.broken = [];
+    const raws = {};
     for (const id of index?.order || []) {
       const raw = this.storage.getItem(KEYS.nyborg(id));
       let n = null;
       try { n = JSON.parse(raw); } catch { n = null; }
       if (!n || checkShape(n).length || n.id !== id) { this.broken.push({ id, raw }); continue; }
       if (n.format > FORMAT) this.readOnly.add(id);
+      raws[id] = raw;
       this.list.push(n);
     }
     this.selected = this.list.some((n) => n.id === index?.selected) ? index.selected : this.list[0]?.id ?? null;
+    if (this.list.some((n) => n.format === 1)) this.migrate(index, raws);
     return !!index;
+  }
+
+  /**
+   * Format 1 -> 2, backup first: the whole format-1 library goes to arena.nyborg.backup.v1 (once;
+   * an earlier backup is never overwritten), then each Nyborg is upgraded and written. If the
+   * backup can't be written, nothing is written: the upgraded Nyborgs live in memory only and
+   * `migration.error` says why, so the page can ask for an export.
+   */
+  migrate(index, raws) {
+    const old = this.list.filter((n) => n.format === 1).map((n) => n.id);
+    this.list = this.list.map(upgrade);
+    this.migration = { from: 1, to: FORMAT, count: old.length, backup: KEYS.backup(1), error: null };
+    try {
+      if (this.storage.getItem(KEYS.backup(1)) === null) {
+        this.storage.setItem(KEYS.backup(1), JSON.stringify({ format: 1, backed_up: nowIso(), index, nyborgs: raws }));
+      }
+    } catch (e) {
+      this.migration.error = e;
+      return;
+    }
+    try {
+      for (const id of old) this.storage.setItem(KEYS.nyborg(id), JSON.stringify(this.get(id)));
+      this.writeIndex();
+    } catch (e) {
+      this.migration.error = e; // the backup is safe; unwritten Nyborgs upgrade again next load
+    }
   }
 
   writeIndex() {

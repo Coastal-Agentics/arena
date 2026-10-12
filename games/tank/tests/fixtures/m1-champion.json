@@ -14,58 +14,64 @@
   "format": 1,
   "generation": 99,
   "genome": {
-    "behavior": "charger",
-    "loadout": "2-5-2",
+    "behavior": "sniper",
+    "loadout": "5-2-2",
     "params": {
-      "aim_tol": 0.156,
-      "dodge_chance": 0.648,
-      "dodge_horizon": 44.494,
-      "dodge_margin": 16.958,
-      "route_margin": 31.357,
-      "stall.min_speed": 0.062,
-      "stall.reverse_ticks": 5,
-      "stall.stuck_ticks": 26,
-      "steer_tol": 0.6,
-      "stop_dist": 20.0,
-      "weave_deg": 0.0,
-      "weave_jitter": 15,
-      "weave_period": 13,
-      "weave_until": 129.563
+      "aim_tol": 0.054,
+      "arrive_radius": 3.0,
+      "blind_ticks": 195,
+      "dodge_chance": 0.61,
+      "dodge_horizon": 60.0,
+      "dodge_margin": 11.203,
+      "evade_dist": 253.767,
+      "evade_jitter": 12,
+      "evade_ticks": 10,
+      "grid_step": 47.193,
+      "obstacle_clearance": 15.688,
+      "peek_offset": 0.736,
+      "replan_every": 41,
+      "replan_gain": 161.142,
+      "route_margin": 40.0,
+      "stall.min_speed": 0.432,
+      "stall.reverse_ticks": 32,
+      "stall.stuck_ticks": 9,
+      "steer_tol": 0.379,
+      "wall_margin": 30.0
     }
   },
   "held_out": {
-    "digest": "d15709d4b3bd6953",
+    "digest": "0a2f3a7e2e498278",
     "matches": 6000,
     "seed_base": "9000000000",
     "seeds": 1000,
     "status": "experimental",
     "vs_wdl": {
       "charger": [
-        1936,
-        6,
-        58
+        1986,
+        4,
+        10
       ],
       "kiter": [
-        1825,
-        29,
-        146
+        1927,
+        72,
+        1
       ],
       "sniper": [
-        1539,
-        139,
-        322
+        1825,
+        80,
+        95
       ]
     },
-    "win_rate": 0.8833,
-    "wins": 5300
+    "win_rate": 0.9563,
+    "wins": 5738
   },
-  "label": "charger-2-5-2",
+  "label": "sniper-5-2-2",
   "promotion": "win rate vs Gen 0 >= 65% to promote; above 70% the champion is held from promotion and labeled experimental, and the CoS tells Nye",
   "training": {
-    "damage": 0.9727,
-    "fitness": 0.706,
+    "damage": 0.8491,
+    "fitness": 0.6463,
     "matches": 176,
     "seed_base": "1000000",
-    "vs_scripted": 0.875
+    "vs_scripted": 0.9583
   }
 }

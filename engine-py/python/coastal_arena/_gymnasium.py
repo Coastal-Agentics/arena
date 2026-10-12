@@ -1,4 +1,4 @@
-"""The Gymnasium env (extra ``saltmarsh-arena[gym]``); see ``_episode.py``."""
+"""The Gymnasium env (extra ``coastal-arena[gym]``); see ``_episode.py``."""
 
 from __future__ import annotations
 

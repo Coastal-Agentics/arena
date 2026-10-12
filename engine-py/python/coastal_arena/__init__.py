@@ -9,9 +9,9 @@ Three layers, thinnest first:
 - :class:`FlatEnv`: one match over numpy views of buffers the Rust side owns
   (zero-copy, no allocation per step). Use it for speed or a custom loop.
 - :func:`parallel_env`: a PettingZoo ``ParallelEnv`` (every learning agent at once).
-  Needs ``pip install "saltmarsh-arena[pettingzoo]"``.
+  Needs ``pip install "coastal-arena[pettingzoo]"``.
 - :func:`gym_env`: a Gymnasium ``Env`` with one learning agent; the others play
-  their build's scripted behavior in Rust. Needs ``pip install "saltmarsh-arena[gym]"``.
+  their build's scripted behavior in Rust. Needs ``pip install "coastal-arena[gym]"``.
 
 The base install needs only numpy: :class:`FlatEnv`, the catalog calls and
 :func:`verify_replay` never import Gymnasium or PettingZoo. The env modules are
@@ -90,15 +90,15 @@ _EXTRAS = {
 
 
 def _env_module(name: str) -> ModuleType:
-    """Import ``saltmarsh_arena.<name>``, or raise MissingExtraError naming the extra."""
+    """Import ``coastal_arena.<name>``, or raise MissingExtraError naming the extra."""
     try:
         return importlib.import_module(f".{name}", __name__)
     except ImportError as exc:
         extra, what = _EXTRAS[name]
         raise MissingExtraError(
-            f"this env needs {what}, which the base saltmarsh-arena install leaves out "
-            f'({exc}). Install it with: pip install "saltmarsh-arena[{extra}]" '
-            f'(or "saltmarsh-arena[all]")'
+            f"this env needs {what}, which the base coastal-arena install leaves out "
+            f'({exc}). Install it with: pip install "coastal-arena[{extra}]" '
+            f'(or "coastal-arena[all]")'
         ) from exc
 
 

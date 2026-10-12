@@ -13,13 +13,39 @@ This repo is the **arena**: a small deterministic Rust engine, the Tank Arena an
 
 Status: **Phase 2 (Tank Arena)**. Rules-v1 is live (#18) with 9-point loadouts, Charger/Kiter/Sniper policies, and the Customize tab with shareable links. The Watch-tab fix is in (#20), and the viewer browser check runs in CI (#21). See [docs/STATE.md](docs/STATE.md).
 
+## How the repos fit
+
+Coastal Agentics has four public repos. They all live in the [Coastal-Agentics](https://github.com/Coastal-Agentics) GitHub org, and their sites are served together under one host.
+
+```mermaid
+flowchart LR
+    site["coastal-agentics.github.io<br/>company site at /"]
+    nyborgs["nyborgs<br/>Nyborgs landing page at /nyborgs/"]
+    arena["arena<br/>Rust engine + games, web viewer, Customizer at /arena/"]
+    saltmarsh["saltmarsh<br/>Python robotics library"]
+    site --> nyborgs
+    site --> arena
+    site --> saltmarsh
+    nyborgs -- "play and customize" --> arena
+    arena -. "coastal-arena wheel (planned)" .-> saltmarsh
+```
+
+| Repo | What it is | Owner |
+| --- | --- | --- |
+| [coastal-agentics.github.io](https://github.com/Coastal-Agentics/coastal-agentics.github.io) | The company site, served at `/` ([site](https://coastal-agentics.github.io/)) | Soundwave (legal pages: Onslaught) |
+| [nyborgs](https://github.com/Coastal-Agentics/nyborgs) | The Nyborgs landing page, served at `/nyborgs/` ([site](https://coastal-agentics.github.io/nyborgs/)) | Blitzwing |
+| [arena](https://github.com/Coastal-Agentics/arena) | The Rust engine (`engine`, `engine-cli`, `engine-wasm`, and `engine-py`, the `coastal-arena` Python wheel) plus the Tank Arena and racing games, the web viewer and the Nyborg Customizer, served at `/arena/` ([site](https://coastal-agentics.github.io/arena/)) | Engine: Shockwave. Games, web viewer and Customizer: Blitzwing |
+| [saltmarsh](https://github.com/Coastal-Agentics/saltmarsh) | The Python robotics library: MuJoCo simulation, datasets, behavior and evaluation, and the robot arm demo | Shockwave |
+
+"Saltmarsh" means only the Python robotics library. The engine is the Arena engine, and it lives in `arena`.
+
 ## Layout
 ```
 engine/        Rust sim core: deterministic 60 Hz, replays (also compiles to wasm); today it also
                holds the tank step rules, TankParams and observations/actions (ADR-009, ADR-014)
 engine-cli/    headless runner: N matches -> JSON (source of truth for CI)
 engine-wasm/   browser bindings for the viewer (wasm-bindgen), built into web/pkg
-engine-py/     Python bindings (pyo3, maturin): the saltmarsh-arena wheel, its own Cargo workspace
+engine-py/     Python bindings (pyo3, maturin): the coastal-arena wheel, its own Cargo workspace
 games/tank/    Tank Arena rules v1: loadouts, arena and spawns, scripted policies, and the
                placeholder bots Chaser and Wanderer used by engine-cli and the viewer's built-in-bot mode
 web/           the GitHub Pages site: viewer + field notes (static; the only generated file is

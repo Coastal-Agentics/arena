@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Nyborg hair options (prototype) · Arena · Coastal Agentics</title>
+  <meta name="robots" content="noindex">
+  <link rel="icon" href="../favicon.svg" type="image/svg+xml">
+  <style>
+    body { margin: 0; background: #EEF2F6; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #1F3147; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <canvas id="sheet"></canvas>
+  <script type="module">
+    // Draws the hair comparison sheet (docs/design/nyborg-hair-options.png) with the real drawing.
+    import { HAIR_PALETTE, HAIR_STYLES, drawNyborg as drawNyborgHair } from "../nyborg-draw.js";
+    const BLURBS = {
+      mop: "A big soft mop of short fur, hanging over the sides with a messy fringe. The default.",
+      pom: "A round fluffy pom-pom cloud sitting on the crown.",
+      fringe: "A fuzzy bowl with heavy bangs falling to just above the eyes.",
+      crest: "A tousled crest of soft fur tufts, swept back as if running.",
+    };
+    const HAIR_OPTIONS = HAIR_STYLES.filter((s) => s.id !== "yarn").map((s) => ({ ...s, blurb: BLURBS[s.id] }));
+
+    const ROWS = [
+      { id: "yarn", letter: "Yarn", name: "Classic yarn", blurb: "2-4 chunky yarn strands, still an option." },
+      ...HAIR_OPTIONS,
+    ];
+    const COLORS = [["Yarn Red", "#D9534F"], ["Cobalt", "#3F6FD8"], ["Sunny", "#F2C14E"]];
+    const LARGE = [
+      { c: 0, acc: [], f: 1, note: "plain" },
+      { c: 1, acc: ["glasses"], f: -1, note: "glasses, facing left" },
+      { c: 2, acc: ["hat"], f: 1, note: "hat" },
+      { c: 0, acc: ["glasses", "hat"], f: -1, note: "both, facing left" },
+    ];
+    const LABEL_W = 230, CELL = 168, ROW_H = 250, TOP = 92, PAD = 24;
+    const DARK_W = 390, PAL_W = 330;
+    const W = PAD + LABEL_W + LARGE.length * CELL + 16 + DARK_W + 16 + PAL_W + PAD;
+    const H = TOP + ROWS.length * ROW_H + 40;
+    const cv = document.getElementById("sheet");
+    cv.width = W; cv.height = H; cv.style.width = W + "px"; cv.style.height = H + "px";
+    const ctx = cv.getContext("2d");
+    ctx.fillStyle = "#EEF2F6"; ctx.fillRect(0, 0, W, H);
+
+    const text = (s, x, y, { size = 14, weight = 400, color = "#1F3147", align = "left" } = {}) => {
+      ctx.font = `${weight} ${size}px -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif`;
+      ctx.fillStyle = color; ctx.textAlign = align; ctx.fillText(s, x, y);
+    };
+    const wrap = (s, x, y, w, lh, opts) => {
+      const words = s.split(" "); let line = "";
+      ctx.font = `${opts?.weight || 400} ${opts?.size || 14}px -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif`;
+      for (const word of words) {
+        const t = line ? line + " " + word : word;
+        if (ctx.measureText(t).width > w && line) { text(line, x, y, opts); y += lh; line = word; } else line = t;
+      }
+      if (line) text(line, x, y, opts);
+    };
+    const nyborg = (x, y, opts) => { ctx.save(); ctx.translate(x, y); drawNyborgHair(ctx, opts); ctx.restore(); };
+
+    text("Nyborg hair styles", PAD, 38, { size: 24, weight: 700 });
+    text("Same round cream head, two dot eyes, no mouth. Seeded by Nyborg id, no Math.random. Large = Customizer size; small = true viewer size on the dark arena (tank 0.72, kart 0.42).", PAD, 64, { size: 13.5, color: "#4F6277" });
+
+    const xLarge = PAD + LABEL_W, xDark = xLarge + LARGE.length * CELL + 16, xPal = xDark + DARK_W + 16;
+    text("Customizer size", xLarge + 8, TOP - 8, { size: 12, weight: 600, color: "#34557B" });
+    text("Viewer size, actual pixels", xDark + 8, TOP - 8, { size: 12, weight: 600, color: "#34557B" });
+    text("All 10 palette colours", xPal + 8, TOP - 8, { size: 12, weight: 600, color: "#34557B" });
+
+    ROWS.forEach((row, ri) => {
+      const y0 = TOP + ri * ROW_H;
+      ctx.fillStyle = ri % 2 ? "#F7F9FB" : "#FFFFFF";
+      ctx.beginPath(); ctx.roundRect(PAD - 8, y0 + 4, W - 2 * PAD + 16, ROW_H - 10, 14); ctx.fill();
+      // Label.
+      text(row.letter, PAD + 8, y0 + 52, { size: row.letter.length > 1 ? 26 : 40, weight: 800, color: row.id === "yarn" ? "#8A97A6" : "#34557B" });
+      text(row.name, PAD + 8, y0 + 84, { size: 17, weight: 700 });
+      wrap(row.blurb, PAD + 8, y0 + 108, LABEL_W - 24, 18, { size: 13, color: "#4F6277" });
+      const id = `sheet-${row.id}`;
+      // Large, on the Customizer's light panel.
+      LARGE.forEach((cell, ci) => {
+        const cx = xLarge + ci * CELL + CELL / 2;
+        ctx.fillStyle = "#EEF2F6"; ctx.beginPath(); ctx.arc(cx, y0 + 112, 70, 0, Math.PI * 2); ctx.fill();
+        nyborg(cx, y0 + 150, { style: row.id, id, hair: COLORS[cell.c][1], accessories: cell.acc, facing: cell.f, scale: 2.0 });
+        text(`${COLORS[cell.c][0]} · ${cell.note}`, cx, y0 + 214, { size: 11.5, color: "#4F6277", align: "center" });
+      });
+      // Small, true size, on the arena's dark canvas.
+      ctx.fillStyle = "#0e1219"; ctx.beginPath(); ctx.roundRect(xDark, y0 + 18, DARK_W, ROW_H - 46, 10); ctx.fill();
+      ctx.fillStyle = "#2a3140"; ctx.fillRect(xDark + 10, y0 + 128, DARK_W - 20, 70); // a strip of track
+      COLORS.forEach(([, hex], k) => {
+        nyborg(xDark + 44 + k * 122, y0 + 84, { style: row.id, id: id + k, hair: hex, scale: 0.72, facing: 1 });
+        nyborg(xDark + 96 + k * 122, y0 + 84, { style: row.id, id: id + k, hair: hex, scale: 0.72, facing: -1, accessories: ["glasses", "hat"] });
+        nyborg(xDark + 50 + k * 122, y0 + 172, { style: row.id, id: id + k, hair: hex, scale: 0.42, facing: 1 });
+        nyborg(xDark + 86 + k * 122, y0 + 172, { style: row.id, id: id + k, hair: hex, scale: 0.42, facing: -1, accessories: ["glasses", "hat"] });
+      });
+      text("tank 0.72", xDark + 8, y0 + 34, { size: 10.5, color: "#9aa3b5" });
+      text("kart 0.42", xDark + 8, y0 + 142, { size: 10.5, color: "#9aa3b5" });
+      // Palette strip.
+      HAIR_PALETTE.forEach(({ hex }, k) => {
+        const px = xPal + 34 + (k % 5) * 64, py = y0 + 92 + Math.floor(k / 5) * 96;
+        nyborg(px, py, { style: row.id, id: `${id}-p${k}`, hair: hex, scale: 0.95, facing: k % 2 ? -1 : 1 });
+      });
+    });
+    text("Drawn by web/nyborg-draw.js + web/nyborg-hair.js, the same code as the viewer and the Customizer. docs/design/nyborg-app.md §8.", PAD, H - 16, { size: 12, color: "#4F6277" });
+    window.__sheetDone = true;
+  </script>
+</body>
+</html>

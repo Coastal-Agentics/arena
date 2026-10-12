@@ -8,13 +8,13 @@ opponent, then plays one deterministic episode and verifies its replay natively.
 import sys
 import time
 
-import saltmarsh_arena as sa
+import coastal_arena as ca
 from stable_baselines3 import PPO
 
 game = sys.argv[1] if len(sys.argv) > 1 else "tank"
 steps = int(sys.argv[2]) if len(sys.argv) > 2 else 10_000
 
-env = sa.gym_env(game)
+env = ca.gym_env(game)
 t = time.perf_counter()
 model = PPO("MlpPolicy", env, n_steps=1024, batch_size=256, seed=0, device="cpu", verbose=0)
 model.learn(total_timesteps=steps)
@@ -27,6 +27,6 @@ while not done:
     obs, reward, term, trunc, info = env.step(action)
     ret += reward
     done = term or trunc
-assert sa.verify_replay(game, env.replay_json()) == info["final_hash"]
+assert ca.verify_replay(game, env.replay_json()) == info["final_hash"]
 print(f"{game}: PPO {steps} steps in {train:.1f}s; eval return {ret:.3f}, "
       f"{info.get('reason', 'agent left play')}, final_hash {info['final_hash']} verified")

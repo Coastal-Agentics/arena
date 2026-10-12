@@ -4,7 +4,7 @@
 //! `Replay::verify`. Prints `ok <file> <final_hash>`, and exits 1 on any failure.
 //!
 //! CI uses it on the replays the Python determinism tests write
-//! (`SALTMARSH_ARENA_REPLAY_DIR`), so "the Python `final_hash` equals Rust's
+//! (`COASTAL_ARENA_REPLAY_DIR`), so "the Python `final_hash` equals Rust's
 //! `Replay::verify`" is checked by a binary with no Python in it.
 
 use engine::generic::{Replay, Rules};

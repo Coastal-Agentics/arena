@@ -1393,7 +1393,7 @@ fn duel_instrumented(blue: &Genome, orange: &Genome, seed: u64) -> evolve::Duel 
 
 #[test]
 fn m1_champion_duels_are_unchanged_with_obs_and_reward_each_tick() {
-    // The pinned held-out digest (d15709d4b3bd6953) is checked on the plain runs in
+    // The pinned held-out digest (0a2f3a7e2e498278) is checked on the plain runs in
     // tests/evolve_m1.rs; here a sample of the same held-out duels must match exactly.
     let (g, _) = champion();
     let field = evolve::scripted_field();

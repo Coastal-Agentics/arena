@@ -11,34 +11,34 @@ need("pettingzoo")
 from gymnasium.utils.env_checker import check_env  # noqa: E402
 from pettingzoo.test import parallel_api_test, parallel_seed_test  # noqa: E402
 
-import saltmarsh_arena as sa  # noqa: E402
+import coastal_arena as ca  # noqa: E402
 
 SETUPS = [
     ("tank", None, None),
     ("tank", None, [1]),
     ("racing", None, None),
-    ("racing", [sa.default_build("racing")] * 3, [0, 2]),
-    ("racing", [sa.default_build("racing")], None),
+    ("racing", [ca.default_build("racing")] * 3, [0, 2]),
+    ("racing", [ca.default_build("racing")], None),
 ]
 
 
 @pytest.mark.parametrize("game,builds,learning", SETUPS)
 def test_parallel_api(game, builds, learning):
-    parallel_api_test(sa.parallel_env(game, builds, learning), num_cycles=400)
+    parallel_api_test(ca.parallel_env(game, builds, learning), num_cycles=400)
 
 
 @pytest.mark.parametrize("game,builds,learning", SETUPS)
 def test_parallel_seed(game, builds, learning):
-    parallel_seed_test(lambda: sa.parallel_env(game, builds, learning))
+    parallel_seed_test(lambda: ca.parallel_env(game, builds, learning))
 
 
 @pytest.mark.parametrize("game", ["tank", "racing"])
 def test_gymnasium_checker(game):
-    check_env(sa.gym_env(game), skip_render_check=True)
+    check_env(ca.gym_env(game), skip_render_check=True)
 
 
 def test_parallel_episode_shape():
-    env = sa.parallel_env("tank", learning=[0, 1], frame_skip=8)
+    env = ca.parallel_env("tank", learning=[0, 1], frame_skip=8)
     obs, infos = env.reset(seed=3)
     assert env.agents == ["blue_0", "orange_1"]
     assert set(infos["blue_0"]) == {"seed", "tick", "setup_hash"}
@@ -55,7 +55,7 @@ def test_parallel_episode_shape():
         assert all(space.contains(o) for o in obs.values())
     end = next(iter(infos.values()))
     assert {"final_hash", "reason", "winner", "winner_team", "ticks"} <= set(end)
-    assert end["final_hash"] == sa.verify_replay("tank", env.replay_json())
+    assert end["final_hash"] == ca.verify_replay("tank", env.replay_json())
     assert end["winner"] in {None, "blue_0", "orange_1"}
     if end["reason"] == "tick_limit":
         assert all(trunc.values()) or any(term.values())
@@ -65,7 +65,7 @@ def test_parallel_episode_shape():
 
 def test_racing_cars_leave_as_they_finish():
     # Car 1 learns and sits still; three scripted cars finish and the race ends.
-    env = sa.parallel_env("racing", [sa.default_build("racing")] * 4, learning=[1])
+    env = ca.parallel_env("racing", [ca.default_build("racing")] * 4, learning=[1])
     env.reset(seed=1)
     while env.agents:
         _, _, term, trunc, infos = env.step({"car_1": np.zeros(2, np.float32)})
@@ -75,4 +75,4 @@ def test_racing_cars_leave_as_they_finish():
 
 def test_render_modes_are_rejected():
     with pytest.raises(ValueError, match="render"):
-        sa.parallel_env("tank", render_mode="human")
+        ca.parallel_env("tank", render_mode="human")

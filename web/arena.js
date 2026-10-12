@@ -18,7 +18,7 @@ import {
   PLACEHOLDER_BOTS, TRI, specFromQuery, queryFromSpec, pointToWeights, weightsToPoint,
   loadoutWeights, readout, presetName,
 } from "./tank-ui.js";
-import { drawNyborg, hairColor, idleBob, facingFromHeading } from "./nyborg.js";
+import { TEAM_COLORS, drawTankScene } from "./tank-draw.js";
 import { parseCosmetics, cosmeticsQuery } from "./nyborg-link.js";
 import {
   defaultRaceBuilds, raceSpecFromQuery, queryFromRaceSpec,
@@ -26,9 +26,7 @@ import {
 } from "./race-ui.js";
 
 const TICK_HZ = 60;
-const TEAM_COLORS = ["#4da3ff", "#ff6b3d"];
 const TEAM_NAMES = ["Blue", "Orange"];
-const TANK_RADIUS = 16; // engine TankParams::default().radius (shared by every tank)
 const TRAINING_TIP = "Hand-written policy. Once the Phase 3 evolution loop runs, this shows the generation, win rate vs the other policies and a fitness sparkline.";
 
 const $ = (id) => document.getElementById(id);
@@ -101,8 +99,8 @@ function setGame(g) {
   $("tank-tabs").hidden = next === "racing";
   $("race-hud").hidden = next !== "racing";
   $("blurb").textContent = next === "racing"
-    ? "The deterministic Rust engine, compiled to WebAssembly, running a Ring race with Nyborg drivers. Same link, same race, every time."
-    : "The deterministic Rust engine, compiled to WebAssembly, running a Tank Arena duel live at 60 ticks per second. Same link, same match, every time.";
+    ? "Nyborgs racing three laps of the Ring, live in your browser. Same link, same race, every time."
+    : "Two Nyborgs in tanks, live in your browser at 60 ticks per second. Same link, same match, every time.";
   $("arena").setAttribute("aria-label", next === "racing" ? "Ring race with Nyborg drivers" : "Tank Arena match with Nyborg agents");
   if (next === "racing") {
     if (!isRacing()) spec = { game: "racing", seed: (spec?.seed || "42"), builds: defaultRaceBuilds(), custom: false, looks: [], names: [], notes: [] };
@@ -115,8 +113,20 @@ function setGame(g) {
   restart();
 }
 
+// The same match in the Nyborg app (#/watch?<this query>), where its Nyborgs can be saved.
+// Viewer extras (speed, paused, tab, sprites) stay behind; built-in bot duels have no Nyborgs.
+function syncAppLink() {
+  const a = $("open-app");
+  if (!a) return;
+  if (!isRacing() && spec.mode !== "tank") { a.parentElement.hidden = true; return; }
+  a.parentElement.hidden = false;
+  const cos = isRacing() ? "" : cosmeticsQuery([0, 1].map((i) => ({ look: tankCosmetics.looks[i], name: tankCosmetics.names[i] })));
+  a.href = "play/#/watch?" + (isRacing() ? queryFromRaceSpec(spec, {}, raceEngine.catalog) : queryFromSpec(spec) + (cos ? `&${cos}` : ""));
+}
+
 function syncUrl() {
   if (!spec) return;
+  syncAppLink();
   if (isRacing()) {
     history.replaceState(null, "", "?" + queryFromRaceSpec(spec, {
       speed: speed !== 1 ? speed : 0,
@@ -443,34 +453,10 @@ function draw() {
   }
   const { width: W, height: H } = state;
   if (canvas.width !== W || canvas.height !== H) { canvas.width = W; canvas.height = H; }
-  const Y = (y) => H - y;
-
-  ctx.fillStyle = "#0e1219";
-  ctx.fillRect(0, 0, W, H);
-  ctx.strokeStyle = "#161c27";
-  ctx.lineWidth = 1;
-  for (let x = 50; x < W; x += 50) { ctx.beginPath(); ctx.moveTo(x + 0.5, 0); ctx.lineTo(x + 0.5, H); ctx.stroke(); }
-  for (let y = 50; y < H; y += 50) { ctx.beginPath(); ctx.moveTo(0, y + 0.5); ctx.lineTo(W, y + 0.5); ctx.stroke(); }
-
-  ctx.fillStyle = "#2a3244";
-  ctx.strokeStyle = "#3a4560";
-  for (const r of state.obstacles) {
-    ctx.fillRect(r.x, Y(r.y + r.h), r.w, r.h);
-    ctx.strokeRect(r.x + 0.5, Y(r.y + r.h) + 0.5, r.w - 1, r.h - 1);
-  }
-
-  for (const p of state.projectiles) {
-    const color = TEAM_COLORS[p.team] || "#fff";
-    ctx.strokeStyle = color;
-    ctx.globalAlpha = 0.35;
-    ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(p.x - p.vx * 2, Y(p.y - p.vy * 2)); ctx.lineTo(p.x, Y(p.y)); ctx.stroke();
-    ctx.globalAlpha = 1;
-    ctx.fillStyle = "#fff";
-    ctx.beginPath(); ctx.arc(p.x, Y(p.y), 3, 0, Math.PI * 2); ctx.fill();
-  }
-
-  for (const t of state.tanks) drawTank(t, Y);
+  // Fur jitter is keyed by the link's name for this slot (links carry no Nyborg id), else the team.
+  drawTankScene(ctx, state, {
+    looks: tankCosmetics.looks, seeds: [0, 1].map((i) => tankCosmetics.names[i] || `tank-${i}`), facingById, sprites: spriteMode,
+  });
 }
 
 function drawRace() {
@@ -498,93 +484,6 @@ function drawRace() {
 function setSpriteMode(mode) {
   spriteMode = mode === "classic" ? "classic" : "nyborg";
   document.querySelectorAll(".sprites").forEach((b) => b.classList.toggle("on", b.dataset.sprites === spriteMode));
-}
-
-function drawTank(t, Y) {
-  if (spriteMode === "classic") drawClassicTank(t, Y);
-  else drawNyborgTank(t, Y);
-}
-
-function drawNyborgTank(t, Y) {
-  const color = TEAM_COLORS[t.team] || "#ccc";
-  const r = TANK_RADIUS;
-  const prev = facingById.get(t.id) ?? 1;
-  const facing = facingFromHeading(t.heading, prev);
-  facingById.set(t.id, facing);
-  const bob = t.alive ? idleBob(state?.tick) : 0;
-
-  ctx.save();
-  ctx.translate(t.x, Y(t.y));
-  ctx.globalAlpha = t.alive ? 1 : 0.3;
-
-  // Nyborg body (replaces the classic hull). Hair colour is team-primary unless the link
-  // carries this Nyborg's look; flip on heading x. Team colour stays on the turret hub.
-  const look = tankCosmetics.looks[t.team];
-  drawNyborg(ctx, look
-    ? { hair: look.hair_color, strands: look.strands, accessories: look.accessories, facing, bob, scale: 0.72 }
-    : { hair: hairColor(t.team), facing, bob, scale: 0.72 });
-
-  // Compact aim indicator (turret barrel) so aim direction stays readable.
-  ctx.save();
-  ctx.rotate(-t.turret);
-  ctx.fillStyle = "#e6e8ee";
-  ctx.fillRect(4, -2, r + 6, 4);
-  ctx.fillStyle = color;
-  ctx.beginPath(); ctx.arc(0, 0, 4.5, 0, Math.PI * 2); ctx.fill();
-  ctx.restore();
-
-  drawHpOrX(t, r);
-  ctx.restore();
-}
-
-function drawClassicTank(t, Y) {
-  const color = TEAM_COLORS[t.team] || "#ccc";
-  const r = TANK_RADIUS;
-  ctx.save();
-  ctx.translate(t.x, Y(t.y));
-  ctx.globalAlpha = t.alive ? 1 : 0.3;
-
-  // Hull (rotated with heading; canvas angles are clockwise, so negate).
-  ctx.save();
-  ctx.rotate(-t.heading);
-  ctx.fillStyle = color;
-  ctx.strokeStyle = "#0b0d12";
-  ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.rect(-r, -r * 0.8, r * 2, r * 1.6); ctx.fill(); ctx.stroke();
-  ctx.fillStyle = "rgba(0,0,0,.35)"; // treads
-  ctx.fillRect(-r, -r * 0.8, r * 2, r * 0.35);
-  ctx.fillRect(-r, r * 0.45, r * 2, r * 0.35);
-  ctx.fillStyle = "rgba(255,255,255,.6)"; // nose marker
-  ctx.beginPath(); ctx.moveTo(r, 0); ctx.lineTo(r - 6, -4); ctx.lineTo(r - 6, 4); ctx.fill();
-  ctx.restore();
-
-  // Turret.
-  ctx.save();
-  ctx.rotate(-t.turret);
-  ctx.fillStyle = "#e6e8ee";
-  ctx.fillRect(0, -2.5, r + 8, 5);
-  ctx.beginPath(); ctx.arc(0, 0, r * 0.45, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = color;
-  ctx.beginPath(); ctx.arc(0, 0, r * 0.28, 0, Math.PI * 2); ctx.fill();
-  ctx.restore();
-
-  drawHpOrX(t, r);
-  ctx.restore();
-}
-
-function drawHpOrX(t, r) {
-  // HP bar (screen-aligned, above the agent).
-  if (t.alive) {
-    const w = 36, frac = Math.max(0, t.hp / t.max_hp);
-    ctx.fillStyle = "#000a";
-    ctx.fillRect(-w / 2, -r - 14, w, 5);
-    ctx.fillStyle = frac > 0.5 ? "#3ddc84" : frac > 0.25 ? "#ffcc33" : "#ff4d4d";
-    ctx.fillRect(-w / 2, -r - 14, w * frac, 5);
-  } else {
-    ctx.strokeStyle = "#fff";
-    ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.moveTo(-8, -8); ctx.lineTo(8, 8); ctx.moveTo(8, -8); ctx.lineTo(-8, 8); ctx.stroke();
-  }
 }
 
 // --- loop ----------------------------------------------------------------------------
@@ -645,7 +544,7 @@ $("tank-sprites").hidden = wantRacing;
 $("tank-tabs").hidden = wantRacing;
 $("race-hud").hidden = !wantRacing;
 if (wantRacing) {
-  $("blurb").textContent = "The deterministic Rust engine, compiled to WebAssembly, running a Ring race with Nyborg drivers. Same link, same race, every time.";
+  $("blurb").textContent = "Nyborgs racing three laps of the Ring, live in your browser. Same link, same race, every time.";
   $("arena").setAttribute("aria-label", "Ring race with Nyborg drivers");
 }
 if (params.has("speed")) setSpeed(Number(params.get("speed")) || 1);

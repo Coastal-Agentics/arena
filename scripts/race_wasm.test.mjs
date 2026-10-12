@@ -4,7 +4,7 @@
 // - the same seed and builds give the native final_hash (pinned in
 //   engine-py/tests/fixtures/determinism.json by engine-py's native Rust test);
 // - racing replays written from Python (engine-py's test_determinism.py with
-//   SALTMARSH_ARENA_REPLAY_DIR set; scripts/fixtures/python-racing/) verify in wasm.
+//   COASTAL_ARENA_REPLAY_DIR set; scripts/fixtures/python-racing/) verify in wasm.
 // The same cases run natively in engine-wasm's race tests (cargo test). No npm deps.
 import { test } from "node:test";
 import assert from "node:assert/strict";

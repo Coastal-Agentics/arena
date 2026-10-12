@@ -64,8 +64,20 @@ macro_rules! stall_genes {
 const CHARGER: [Gene<ChargerParams>; 14] = {
     let [s0, s1, s2] = stall_genes!(ChargerParams);
     [
-        fg!(ChargerParams, "steer_tol", steer_tol, 0.05, 0.6),
-        fg!(ChargerParams, "stop_dist", stop_dist, 20.0, 300.0),
+        fg!(
+            ChargerParams,
+            "steer_tol",
+            steer_tol,
+            0.05,
+            CHARGER_STEER_TOL_MAX
+        ),
+        fg!(
+            ChargerParams,
+            "stop_dist",
+            stop_dist,
+            CHARGER_STOP_DIST_MIN,
+            300.0
+        ),
         fg!(ChargerParams, "aim_tol", aim_tol, 0.005, 0.2),
         fg!(ChargerParams, "route_margin", route_margin, 0.0, 40.0),
         fg!(ChargerParams, "weave_deg", weave_deg, 0.0, 60.0),
@@ -167,6 +179,15 @@ const SNIPER: [Gene<SniperParams>; 20] = {
 /// that still clear 65% (88.3% seed 1, 71.1% seed 2). Evidence: field note
 /// `docs/fieldnotes/2026-10-02-dodge-cap.md`.
 pub const DODGE_CHANCE_MAX: [f32; 3] = [0.65, 0.95, 0.61];
+
+/// Lower bound of the Charger's `stop_dist` gene: its shipped 60 u. Below 32 u (two
+/// radii) an evolved Charger never stops driving into its target; see
+/// `docs/design/tank-balance-2026-10.md`. Like [`DODGE_CHANCE_MAX`], evolution may make
+/// a Charger more careful than its scripted self, never more reckless.
+pub const CHARGER_STOP_DIST_MIN: f32 = 60.0;
+
+/// Upper bound of the Charger's `steer_tol` gene: its shipped 0.2 (was 0.6).
+pub const CHARGER_STEER_TOL_MAX: f32 = 0.2;
 
 /// Kiter's range band keeps at least this width (`max_dist >= min_dist + KITER_BAND`).
 pub const KITER_BAND: f32 = 20.0;

@@ -3,8 +3,8 @@ import json
 import numpy as np
 import pytest
 
-import saltmarsh_arena as sa
-from saltmarsh_arena import _core
+import coastal_arena as ca
+from coastal_arena import _core
 
 
 def tank(a, s, d, behavior="kiter"):
@@ -18,26 +18,26 @@ def car(p, t, g, behavior="follower"):
 
 
 def test_games_and_catalogs():
-    assert [(g["game"], g["obs_len"], g["action_len"], g["min_agents"], g["max_agents"]) for g in sa.games()] == [
+    assert [(g["game"], g["obs_len"], g["action_len"], g["min_agents"], g["max_agents"]) for g in ca.games()] == [
         ("tank", 176, 4, 2, 2),
         ("racing", 43, 2, 1, 4),
     ]
     for g in ("tank", "racing"):
-        cat = sa.catalog(g)
-        assert cat["default_build"] == sa.default_build(g)
-        v = sa.validate_build(g, sa.default_build(g))
+        cat = ca.catalog(g)
+        assert cat["default_build"] == ca.default_build(g)
+        v = ca.validate_build(g, ca.default_build(g))
         assert v["ok"] and v["game"] == g and v["points"] == cat["budget"]
-    bad = sa.validate_build("tank", tank(5, 3, 3))
+    bad = ca.validate_build("tank", tank(5, 3, 3))
     assert bad == {"ok": False, "errors": [{"code": "over_budget", "key": "levels"}]}
-    assert sa.validate_build("chess", "{}")["errors"][0]["code"] == "wrong_game"
-    assert sa.validate_build("racing", "not json")["errors"][0]["code"] == "invalid_json"
+    assert ca.validate_build("chess", "{}")["errors"][0]["code"] == "wrong_game"
+    assert ca.validate_build("racing", "not json")["errors"][0]["code"] == "invalid_json"
     with pytest.raises(ValueError, match="unknown game"):
-        sa.catalog("chess")
-    assert sa.engine_version()
+        ca.catalog("chess")
+    assert ca.engine_version()
 
 
 def test_flat_env_buffers_are_views():
-    f = sa.FlatEnv("racing", [car(3, 3, 3), car(5, 2, 2, "cutter"), car(2, 2, 5, "blocker")], learning=[2, 0])
+    f = ca.FlatEnv("racing", [car(3, 3, 3), car(5, 2, 2, "cutter"), car(2, 2, 5, "blocker")], learning=[2, 0])
     assert f.obs.shape == (2, 43) and f.obs.dtype == np.float32
     assert f.actions.shape == (2, 2) and f.rewards.shape == (2,)
     assert f.agent_names == ["car_0", "car_1", "car_2"] and f.learning == [2, 0]
@@ -59,35 +59,35 @@ def test_flat_env_buffers_are_views():
 
 def test_errors_name_the_problem():
     with pytest.raises(ValueError, match="unknown game"):
-        sa.FlatEnv("chess")
+        ca.FlatEnv("chess")
     with pytest.raises(ValueError, match="tank takes 2 builds, got 1"):
-        sa.FlatEnv("tank", [tank(3, 3, 3)])
+        ca.FlatEnv("tank", [tank(3, 3, 3)])
     with pytest.raises(ValueError, match=r"builds\[1\] is invalid: .*over_budget"):
-        sa.FlatEnv("tank", [tank(3, 3, 3), tank(5, 3, 3)])
+        ca.FlatEnv("tank", [tank(3, 3, 3), tank(5, 3, 3)])
     with pytest.raises(ValueError, match="racing takes 1 to 4 builds, got 5"):
-        sa.FlatEnv("racing", [car(3, 3, 3)] * 5)
+        ca.FlatEnv("racing", [car(3, 3, 3)] * 5)
     with pytest.raises(ValueError, match="out of range"):
-        sa.FlatEnv("tank", learning=[2])
+        ca.FlatEnv("tank", learning=[2])
     with pytest.raises(ValueError, match="listed twice"):
-        sa.FlatEnv("tank", learning=[0, 0])
+        ca.FlatEnv("tank", learning=[0, 0])
     with pytest.raises(ValueError, match="frame_skip"):
-        sa.FlatEnv("tank", frame_skip=0)
+        ca.FlatEnv("tank", frame_skip=0)
     champ = {**tank(3, 3, 3), "behavior": {"kind": "champion", "ref": "gen-1"}}
     with pytest.raises(ValueError, match="champion build"):
-        sa.FlatEnv("tank", [tank(3, 3, 3), champ], learning=[0])
-    sa.FlatEnv("tank", [tank(3, 3, 3), champ], learning=[1])  # a learning champion is fine
+        ca.FlatEnv("tank", [tank(3, 3, 3), champ], learning=[0])
+    ca.FlatEnv("tank", [tank(3, 3, 3), champ], learning=[1])  # a learning champion is fine
     with pytest.raises(ValueError, match="verify|mismatch|hash"):
-        f = sa.FlatEnv("tank")
+        f = ca.FlatEnv("tank")
         f.step()
         bad = json.loads(f.replay_json())
         bad["final_hash"] = "0" * 16
-        sa.verify_replay("tank", json.dumps(bad))
+        ca.verify_replay("tank", json.dumps(bad))
     with pytest.raises(ValueError):
-        sa.verify_replay("racing", sa.FlatEnv("tank").replay_json())
+        ca.verify_replay("racing", ca.FlatEnv("tank").replay_json())
 
 
 def test_scripted_match_and_outcome():
-    f = sa.FlatEnv("tank", [tank(5, 3, 1, "kiter"), tank(4, 1, 4, "charger")], learning=[], seed=42)
+    f = ca.FlatEnv("tank", [tank(5, 3, 1, "kiter"), tank(4, 1, 4, "charger")], learning=[], seed=42)
     steps = 0
     while not f.step():
         steps += 1
@@ -95,13 +95,13 @@ def test_scripted_match_and_outcome():
     assert o["reason"] in {"last_standing", "all_destroyed", "tick_limit"}
     assert f.tick == o["ticks"] and f.is_over
     assert f.step() is True and f.tick == o["ticks"]  # a no-op once over
-    assert sa.verify_replay("tank", f.replay_json()) == f.state_hash()
+    assert ca.verify_replay("tank", f.replay_json()) == f.state_hash()
     replay = json.loads(f.replay_json())
     assert replay["seed"] == "42" and replay["setup_hash"] == f.setup_hash()
 
 
 def test_reset_repeats_a_seed():
-    f = sa.FlatEnv("racing", [car(3, 3, 3)] * 2)
+    f = ca.FlatEnv("racing", [car(3, 3, 3)] * 2)
     runs = []
     for seed in (5, 6, 5):
         f.reset(seed)
@@ -112,7 +112,7 @@ def test_reset_repeats_a_seed():
 
 
 def test_large_seed_and_nan_actions():
-    f = sa.FlatEnv("tank", seed=2**64 - 1)
+    f = ca.FlatEnv("tank", seed=2**64 - 1)
     assert f.seed == 2**64 - 1
     f.actions[:] = np.nan
     f.step()

@@ -1,4 +1,4 @@
-"""The PettingZoo env (extra ``saltmarsh-arena[pettingzoo]``); see ``_episode.py``."""
+"""The PettingZoo env (extra ``coastal-arena[pettingzoo]``); see ``_episode.py``."""
 
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ class ArenaParallelEnv(ParallelEnv):  # type: ignore[misc]
     PettingZoo agents.
     """
 
-    metadata = {"name": "saltmarsh_arena_v0", "render_modes": [], "is_parallelizable": True}
+    metadata = {"name": "coastal_arena_v0", "render_modes": [], "is_parallelizable": True}
 
     def __init__(
         self,
@@ -36,7 +36,7 @@ class ArenaParallelEnv(ParallelEnv):  # type: ignore[misc]
             raise ValueError("no render modes; watch the replay in the viewer")
         self.render_mode = None
         self.flat = FlatEnv(game, builds, learning, frame_skip)
-        self.metadata = {**self.metadata, "name": f"saltmarsh_arena_{game}_v0"}
+        self.metadata = {**self.metadata, "name": f"coastal_arena_{game}_v0"}
         names = self.flat.agent_names
         self.possible_agents = [names[a] for a in self.flat.learning]
         self.agents: list[str] = []

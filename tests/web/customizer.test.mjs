@@ -8,7 +8,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { initSync, games, catalogJson, defaultBuild, validateBuild } from "../../web/pkg/engine_wasm.js";
 import {
-  FORMAT, KEYS, DEFAULT_LOOK, Library, MemoryStorage, checkShape, cleanName, createNyborg,
+  FORMAT, KEYS, DEFAULT_LOOK, upgrade, Library, MemoryStorage, checkShape, cleanName, createNyborg,
   duplicateNyborg, nextFreeName, sanitizeImported, parseImport, exportOne, exportAll, fileNameFor, buildStatus,
 } from "../../web/nyborg-library.js";
 import { tabModel, pointsSpent, setLevel, applyPreset, setBehavior, summaryLine, friendlyErrors, readoutFor } from "../../web/build-tabs.js";
@@ -54,7 +54,7 @@ const fakeEngine = {
   },
 };
 
-test("save format 1: create, store, reload, byte-equal", () => {
+test("save format 2: create, store, reload, byte-equal", () => {
   const s = new MemoryStorage();
   const lib = new Library(s);
   assert.equal(lib.load(), false, "empty storage has no index");
@@ -68,12 +68,12 @@ test("save format 1: create, store, reload, byte-equal", () => {
   assert.equal(lib.seedIfEmpty(wasmEngine), null, "seeds only once");
 
   const second = createNyborg(wasmEngine, nextFreeName(lib.list));
-  second.look = { hair_color: "#3F6FD8", strands: 4, accessories: ["glasses", "hat"] };
+  second.look = { hair_style: "pom", hair_color: "#3F6FD8", strands: 4, accessories: ["glasses", "hat"] };
   second.builds.tank = { rules_version: 1, levels: { attack: 4, speed: 3, defense: 2 }, behavior: { kind: "scripted", id: "kiter" } };
   lib.save(second);
 
   const index = JSON.parse(s.getItem("arena.nyborg.index"));
-  assert.deepEqual(index, { format: 1, order: [starter.id, second.id], selected: starter.id });
+  assert.deepEqual(index, { format: 2, order: [starter.id, second.id], selected: starter.id });
   assert.equal(s.getItem(`arena.nyborg.p.${second.id}`), JSON.stringify(second));
   assert.equal(KEYS.picks, "arena.nyborg.picks");
   assert.equal(KEYS.backup(1), "arena.nyborg.backup.v1");
@@ -86,7 +86,7 @@ test("save format 1: create, store, reload, byte-equal", () => {
   // Export and import round trip, one and all.
   assert.deepEqual(JSON.parse(exportOne(second)), second);
   const all = JSON.parse(exportAll(again.list));
-  assert.equal(all.format, 1);
+  assert.equal(all.format, 2);
   assert.deepEqual(parseImport(exportAll(again.list)).items, [starter, second]);
   assert.deepEqual(sanitizeImported(wasmEngine, JSON.parse(exportOne(second))), { nyborg: second, notes: [] });
   assert.equal(fileNameFor({ name: "Pip the 2nd!" }), "pip-the-2nd.nyborg.json");
@@ -136,7 +136,7 @@ test("import: shape checks, bad builds replaced, rules mismatch kept, newer form
   assert.deepEqual(r.notes, ["tank: invalid build replaced with the default", "racing: rebuild needed", "chess: unknown game, left out"]);
   assert.equal(buildStatus(wasmEngine, r.nyborg, "racing").status, "rebuild");
 
-  assert.match(sanitizeImported(wasmEngine, { ...good, format: 2 }).error, /newer version/);
+  assert.match(sanitizeImported(wasmEngine, { ...good, format: 3 }).error, /newer version/);
   assert.match(sanitizeImported(wasmEngine, [1, 2]).error, /not a Nyborg/);
   assert.match(parseImport("{nope").error, /valid JSON/);
   assert.match(parseImport(JSON.stringify({ nyborgs: Array(201).fill(good) })).error, /at most 200/);
@@ -205,4 +205,67 @@ test("build tab: a third game needs no Customizer change", () => {
   const cheat = structuredClone(n);
   cheat.builds.kite.levels.line_length = 5;
   assert.deepEqual(sanitizeImported(fakeEngine, cheat).nyborg.builds.kite, KITE.default_build);
+});
+
+test("format 1 -> 2: backup first, every Nyborg gets the Shaggy mop, strands kept", () => {
+  const s = new MemoryStorage();
+  const v1 = (id, name, look) => ({ format: 1, id, name, created: "2026-10-06T22:00:00Z", updated: "2026-10-06T22:00:00Z", look, builds: { tank: wasmEngine.defaultBuild("tank") } });
+  const a = v1("a-1", "Pip", { hair_color: "#3F6FD8", strands: 4, accessories: ["hat"] });
+  const b = v1("b-2", "Juno", { hair_color: "#F2C14E", strands: 2, accessories: [] });
+  const index = { format: 1, order: ["a-1", "b-2"], selected: "b-2" };
+  s.setItem(KEYS.index, JSON.stringify(index));
+  s.setItem(KEYS.nyborg("a-1"), JSON.stringify(a));
+  s.setItem(KEYS.nyborg("b-2"), JSON.stringify(b));
+  const rawA = s.getItem(KEYS.nyborg("a-1"));
+  // Record write order: the backup must land before any Nyborg is rewritten.
+  const writes = [];
+  const spy = { getItem: (k) => s.getItem(k), removeItem: (k) => s.removeItem(k), setItem: (k, v) => { writes.push(k); s.setItem(k, v); } };
+  const lib = new Library(spy);
+  lib.load();
+  assert.equal(writes[0], "arena.nyborg.backup.v1");
+  assert.deepEqual(writes.slice(1), [KEYS.nyborg("a-1"), KEYS.nyborg("b-2"), KEYS.index]);
+  const backup = JSON.parse(s.getItem("arena.nyborg.backup.v1"));
+  assert.deepEqual(backup.index, index);
+  assert.equal(backup.nyborgs["a-1"], rawA, "the backup holds the exact format-1 text");
+  const up = JSON.parse(s.getItem(KEYS.nyborg("a-1")));
+  assert.deepEqual(up, { ...a, format: 2, look: { hair_style: "mop", hair_color: "#3F6FD8", strands: 4, accessories: ["hat"] } });
+  assert.equal(lib.selected, "b-2");
+  assert.deepEqual(lib.migration, { from: 1, to: 2, count: 2, backup: "arena.nyborg.backup.v1", error: null });
+  assert.equal(JSON.parse(s.getItem(KEYS.index)).format, 2);
+  // Loading again: nothing to migrate, and the backup is never overwritten.
+  const again = new Library(spy);
+  writes.length = 0;
+  again.load();
+  assert.deepEqual(writes, []);
+  assert.equal(again.migration, undefined);
+  assert.deepEqual(again.list.map((n) => n.look.hair_style), ["mop", "mop"]);
+  // upgrade() leaves format 2 alone.
+  assert.equal(upgrade(up), up);
+});
+
+test("format 1 -> 2: if the backup can't be written, nothing is written", () => {
+  const s = new MemoryStorage();
+  const n = { format: 1, id: "a-1", name: "Pip", created: "2026-10-06T22:00:00Z", updated: "2026-10-06T22:00:00Z", look: { hair_color: "#3F6FD8", strands: 3, accessories: [] }, builds: {} };
+  s.setItem(KEYS.index, JSON.stringify({ format: 1, order: ["a-1"], selected: "a-1" }));
+  s.setItem(KEYS.nyborg("a-1"), JSON.stringify(n));
+  const before = new Map(s.m);
+  const full = { getItem: (k) => s.getItem(k), removeItem: () => {}, setItem: () => { const e = new Error("full"); e.name = "QuotaExceededError"; throw e; } };
+  const lib = new Library(full);
+  lib.load();
+  assert.equal(lib.migration.error.name, "QuotaExceededError");
+  assert.equal(lib.get("a-1").look.hair_style, "mop", "upgraded in memory");
+  assert.deepEqual(new Map(s.m), before, "storage untouched");
+});
+
+test("format 2 shape: hair_style required and checked; format-1 imports upgrade with a note", () => {
+  const n = createNyborg(wasmEngine, "Pip");
+  assert.deepEqual(checkShape(n), []);
+  assert.ok(checkShape({ ...n, look: { ...n.look, hair_style: "broccoli" } }).includes("look.hair_style"));
+  const { hair_style, ...v1look } = n.look;
+  assert.ok(checkShape({ ...n, look: v1look }).includes("look.hair_style"));
+  assert.deepEqual(checkShape({ ...n, format: 1, look: v1look }), [], "format 1 needs no hair_style");
+  const r = sanitizeImported(wasmEngine, { ...n, format: 1, look: { ...v1look, strands: 2 } });
+  assert.equal(r.nyborg.format, 2);
+  assert.deepEqual(r.nyborg.look, { hair_style: "mop", hair_color: n.look.hair_color, strands: 2, accessories: [] });
+  assert.match(r.notes[0], /Shaggy mop/);
 });

@@ -1,5 +1,5 @@
-//! The `saltmarsh_arena._core` module (`python` feature). Thin: the Python package
-//! (`python/saltmarsh_arena`) builds the numpy views and the PettingZoo and
+//! The `coastal_arena._core` module (`python` feature). Thin: the Python package
+//! (`python/coastal_arena`) builds the numpy views and the PettingZoo and
 //! Gymnasium envs on top.
 //!
 //! **Buffers.** [`Arena`] owns four `bytearray`s, made once at construction:
@@ -147,8 +147,8 @@ fn write_f32s(values: &[f32], bytes: &mut [u8]) {
 }
 
 /// One match of a game for a training tool: see the module docs and
-/// `saltmarsh_arena/_core.pyi`.
-#[pyclass(module = "saltmarsh_arena._core", unsendable)]
+/// `coastal_arena/_core.pyi`.
+#[pyclass(module = "coastal_arena._core", unsendable)]
 struct Arena {
     game: &'static str,
     made: Made,

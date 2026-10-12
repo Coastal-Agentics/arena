@@ -6,19 +6,18 @@ the Rust test engine-py/tests/fixture.rs.
 """
 
 import json
-import os
 import pathlib
 
 import pytest
 
-import saltmarsh_arena as sa
-from saltmarsh_arena import _core
-from conftest import need, reference_actions
+import coastal_arena as ca
+from coastal_arena import _core
+from conftest import arena_env, need, reference_actions
 
 
 def record(name, replay):
     """Write a Python-run replay for the native verifier (`examples/verify_replay.rs`)."""
-    out = os.environ.get("SALTMARSH_ARENA_REPLAY_DIR")
+    out = arena_env("REPLAY_DIR")
     if out:
         path = pathlib.Path(out)
         path.mkdir(parents=True, exist_ok=True)
@@ -36,7 +35,7 @@ def native(case, max_steps=None):
 
 
 def run_flat(case):
-    f = sa.FlatEnv(case["game"], case["builds"], case["learning"], case["frame_skip"], seed=case["seed"])
+    f = ca.FlatEnv(case["game"], case["builds"], case["learning"], case["frame_skip"], seed=case["seed"])
     rows, n = len(case["learning"]), f.core.action_len
     limit = case["max_steps"] if case["max_steps"] is not None else 2**32
     step = 0
@@ -49,7 +48,7 @@ def run_flat(case):
 
 
 def run_parallel(case):
-    env = sa.parallel_env(case["game"], case["builds"], case["learning"], case["frame_skip"])
+    env = ca.parallel_env(case["game"], case["builds"], case["learning"], case["frame_skip"])
     env.reset(seed=case["seed"])
     rows, n = len(case["learning"]), env.flat.core.action_len
     limit = case["max_steps"] if case["max_steps"] is not None else 2**32
@@ -75,7 +74,7 @@ def test_python_run_equals_native_run(cases, name):
     record(name, replay)
     assert replay == ref
     assert final == case["final_hash"] == json.loads(ref)["final_hash"]
-    assert sa.verify_replay(case["game"], replay) == case["final_hash"]
+    assert ca.verify_replay(case["game"], replay) == case["final_hash"]
     r = json.loads(replay)
     assert r["outcome"] == case["outcome"]
     assert len(r["actions"]) == case["ticks"]
@@ -100,13 +99,13 @@ def test_parallel_env_run_equals_native_run(cases, name):
         assert final == case["final_hash"]
         if case["outcome"] is not None:
             assert {i["final_hash"] for i in infos.values()} == {case["final_hash"]}
-    assert sa.verify_replay(case["game"], replay) == final
+    assert ca.verify_replay(case["game"], replay) == final
 
 
 def test_gym_env_run_equals_native_run(cases):
     need("gymnasium")
     case = next(c for c in cases if c["name"] == "tank-blue-learning-vs-charger")
-    env = sa.gym_env("tank", case["builds"], agent=0, frame_skip=case["frame_skip"])
+    env = ca.gym_env("tank", case["builds"], agent=0, frame_skip=case["frame_skip"])
     env.reset(seed=case["seed"])
     step, done = 0, False
     while not done:

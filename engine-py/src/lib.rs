@@ -1,4 +1,4 @@
-//! Python bindings for the arena games: the `saltmarsh-arena` wheel
+//! Python bindings for the arena games: the `coastal-arena` wheel
 //! (`docs/design/game-system.md` §6, M4; GATE-003 §6).
 //!
 //! The crate has two layers:
@@ -8,7 +8,7 @@
 //!   [`Flat`] view. It reads actions from a `&[f32]` slice, writes observations and
 //!   rewards into caller-owned slices, and does frame-skip and the early stop in Rust.
 //!   Tank Arena and Racing both go through it, and a new game is one [`Game`] impl.
-//! - **The Python module** `saltmarsh_arena._core` (`python` feature, pyo3 with the
+//! - **The Python module** `coastal_arena._core` (`python` feature, pyo3 with the
 //!   stable ABI, `abi3-py310`). It is off by default, so `cargo build`, `test` and
 //!   `clippy --workspace` never compile pyo3 or link Python. maturin turns on
 //!   `extension-module` (see `pyproject.toml`).

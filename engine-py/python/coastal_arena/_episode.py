@@ -1,4 +1,4 @@
-"""Shared by the PettingZoo and Gymnasium envs over :class:`~saltmarsh_arena.FlatEnv`
+"""Shared by the PettingZoo and Gymnasium envs over :class:`~coastal_arena.FlatEnv`
 (``docs/design/game-system.md`` §6; GATE-003 §6).
 
 - Spaces: ``Box(-1, 1, (obs_len,), float32)`` and ``Box(-1, 1, (action_len,),
@@ -15,7 +15,7 @@
   ``None``) and ``winner_team``.
 
 Observations are copies, so they stay valid after the next step. Use
-:class:`~saltmarsh_arena.FlatEnv` for the zero-copy path.
+:class:`~coastal_arena.FlatEnv` for the zero-copy path.
 """
 
 from __future__ import annotations
