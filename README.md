@@ -1,6 +1,6 @@
 # Arena, a Coastal Agentics project
 
-**Coastal Agentics: behavioral design for agents.** Coastal Agentics is an open source robotics company in Savannah, Georgia: we train agents in simulation and move them onto physical robots. Our tools and methods are open, reward functions are published, and every dataset records who made it.
+**Coastal Agentics: behavioral design for agents.** Coastal Agentics, LLC is an agentic software development company in Savannah, Georgia: we design and test how AI agents act before they meet the world. Our tools and methods are open, reward functions are published, and every dataset records who made it.
 
 Founded October 1, 2026.
 
@@ -22,7 +22,7 @@ flowchart LR
     site["coastal-agentics.github.io<br/>company site at /"]
     nyborgs["nyborgs<br/>Nyborgs landing page at /nyborgs/"]
     arena["arena<br/>Rust engine + games, web viewer, Customizer at /arena/"]
-    saltmarsh["saltmarsh<br/>Python robotics library"]
+    saltmarsh["saltmarsh<br/>Python agent library"]
     site --> nyborgs
     site --> arena
     site --> saltmarsh
@@ -35,9 +35,9 @@ flowchart LR
 | [coastal-agentics.github.io](https://github.com/Coastal-Agentics/coastal-agentics.github.io) | The company site, served at `/` ([site](https://coastal-agentics.github.io/)) | Soundwave (legal pages: Onslaught) |
 | [nyborgs](https://github.com/Coastal-Agentics/nyborgs) | The Nyborgs landing page, served at `/nyborgs/` ([site](https://coastal-agentics.github.io/nyborgs/)) | Blitzwing |
 | [arena](https://github.com/Coastal-Agentics/arena) | The Rust engine (`engine`, `engine-cli`, `engine-wasm`, and `engine-py`, the `coastal-arena` Python wheel) plus the Tank Arena and racing games, the web viewer and the Nyborg Customizer, served at `/arena/` ([site](https://coastal-agentics.github.io/arena/)) | Engine: Shockwave. Games, web viewer and Customizer: Blitzwing |
-| [saltmarsh](https://github.com/Coastal-Agentics/saltmarsh) | The Python robotics library: MuJoCo simulation, datasets, behavior and evaluation, and the robot arm demo | Shockwave |
+| [saltmarsh](https://github.com/Coastal-Agentics/saltmarsh) | The Python library: simulation, datasets, behavior and evaluation | Shockwave |
 
-"Saltmarsh" means only the Python robotics library. The engine is the Arena engine, and it lives in `arena`.
+"Saltmarsh" means only the Python library. The engine is the Arena engine, and it lives in `arena`.
 
 ## Layout
 ```
