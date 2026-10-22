@@ -1,5 +1,5 @@
 {
-  "commit": "510b7a74d940b424250c5b893fde921cc6ed3e91",
+  "commit": "f93fcd9f4f12c7849b92622a143b79b1064ed266",
   "config": {
     "elite": 4,
     "gene_rate": 0.25,
@@ -13,66 +13,66 @@
   },
   "fitness_function": "mean over matches of (win 1, draw 0.25, loss 0); opponents: Charger, Kiter and Sniper at defaults and 3/3/3, plus the last 8 champions; fixed training seeds, both spawn sides; ties: more damage dealt, then lower population index",
   "format": 1,
-  "generation": 899,
+  "generation": 999,
   "genome": {
     "behavior": "sniper",
-    "loadout": "5-2-2",
+    "loadout": "5-3-1",
     "params": {
-      "aim_tol": 0.058,
+      "aim_tol": 0.056,
       "arrive_radius": 3.0,
-      "blind_ticks": 287,
-      "dodge_chance": 0.61,
-      "dodge_horizon": 57.833,
-      "dodge_margin": 17.103,
-      "evade_dist": 221.273,
-      "evade_jitter": 25,
-      "evade_ticks": 10,
-      "grid_step": 41.947,
-      "obstacle_clearance": 23.07,
-      "peek_offset": 0.0,
-      "replan_every": 10,
-      "replan_gain": 224.952,
-      "route_margin": 27.108,
-      "stall.min_speed": 0.278,
-      "stall.reverse_ticks": 60,
-      "stall.stuck_ticks": 12,
-      "steer_tol": 0.177,
-      "wall_margin": 30.19
+      "blind_ticks": 400,
+      "dodge_chance": 0.605,
+      "dodge_horizon": 60.0,
+      "dodge_margin": 15.966,
+      "evade_dist": 82.288,
+      "evade_jitter": 23,
+      "evade_ticks": 14,
+      "grid_step": 43.032,
+      "obstacle_clearance": 11.88,
+      "peek_offset": 22.841,
+      "replan_every": 11,
+      "replan_gain": 250.0,
+      "route_margin": 32.155,
+      "stall.min_speed": 0.371,
+      "stall.reverse_ticks": 54,
+      "stall.stuck_ticks": 8,
+      "steer_tol": 0.245,
+      "wall_margin": 30.0
     }
   },
   "held_out": {
-    "digest": "7db6bcba31a89c7b",
+    "digest": "fb1d6a9d0b68d359",
     "matches": 6000,
     "seed_base": "9000000000",
     "seeds": 1000,
     "status": "experimental",
     "vs_wdl": {
       "charger": [
-        1983,
+        1958,
         0,
-        17
+        42
       ],
       "kiter": [
-        1986,
-        12,
-        2
+        1990,
+        1,
+        9
       ],
       "sniper": [
-        1858,
-        120,
-        22
+        1965,
+        6,
+        29
       ]
     },
-    "win_rate": 0.9712,
-    "wins": 5827
+    "win_rate": 0.9855,
+    "wins": 5913
   },
-  "label": "sniper-5-2-2",
+  "label": "sniper-5-3-1",
   "promotion": "win rate vs Gen 0 >= 65% to promote; above 70% the champion is held from promotion and labeled experimental, and the CoS tells Nye",
   "training": {
-    "damage": 0.7496,
-    "fitness": 0.5639,
+    "damage": 0.8376,
+    "fitness": 0.6563,
     "matches": 176,
     "seed_base": "1000000",
-    "vs_scripted": 0.9792
+    "vs_scripted": 0.9375
   }
 }
