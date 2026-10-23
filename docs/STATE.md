@@ -2,12 +2,14 @@
 
 _Single source of truth for Coastal Agentics. Owned by the CoS (Soundwave). Updated at the end of every work cycle._
 
-**Last updated:** 2026-10-22 ~6:35 PM ET (America/New_York)
-**Phase:** 2 — Arenas (tank and racing live; the Nyborg app at /arena/play/ is the front door; V3 nightly lineage live through Gen 999)
+**Last updated:** 2026-10-23 ~6:35 PM ET (America/New_York)
+**Phase:** 2 — Arenas (tank and racing live; the Nyborg app at /arena/play/ is the front door; V3 nightly lineage live through Gen 1099)
 
-## Current reality — 2026-10-22
+## Current reality — 2026-10-23
+- **Nightly Oct 23:** run 39886288474 succeeded (gens 1000–1099); fold-in [#109](https://github.com/Coastal-Agentics/arena/pull/109) **merged** (merge commit). `web/data/evolution/` is on main through Gen 1099. CI `test` failed again on `race_steps_allocate_only_for_history_doubling` (15 allocations over 1486 ticks) and passed on rerun. Second flake in two days: now a recurring flaky test, recommended for Shockwave to fix or de-flake.
+- **Champion held (do not promote):** Gen 1099 `sniper-5-2-2`, held-out win rate **97.67%** vs Gen 0 (5860/6000), experimental. Population 32/32 Sniper (5-2-2 ×17, 5-3-1 ×7, 4-2-3 ×3, 4-3-2 ×2, 4-4-1, 5-1-3, 3-3-3 ×1 each).
 - **Nightly Oct 22:** run 39707543947 succeeded (gens 900–999); fold-in [#107](https://github.com/Coastal-Agentics/arena/pull/107) **merged** (merge commit). `web/data/evolution/` is on main through Gen 999. CI `test` failed once on `race_steps_allocate_only_for_history_doubling` (15 allocations over 1486 ticks, data-only PR) and passed on rerun; treat that alloc test as flaky.
-- **Champion held (do not promote):** Gen 999 `sniper-5-3-1`, held-out win rate **98.55%** vs Gen 0 (5913/6000), experimental. Population 32/32 Sniper (loadouts 5-3-1 ×12, 5-2-2 ×12, 4-3-2 ×5, 4-4-1 ×2, 5-1-3 ×1).
+- **Previous hold:** Gen 999 `sniper-5-3-1`, held-out win rate **98.55%** vs Gen 0 (5913/6000), experimental. Population 32/32 Sniper (loadouts 5-3-1 ×12, 5-2-2 ×12, 4-3-2 ×5, 4-4-1 ×2, 5-1-3 ×1).
 - **Nightly Oct 21:** run 39530226205 succeeded (gens 800–899); fold-in [#105](https://github.com/Coastal-Agentics/arena/pull/105) **merged** (merge commit). `web/data/evolution/` is on main through Gen 899.
 - **Previous hold:** Gen 899 `sniper-5-2-2`, held-out win rate **97.1%** vs Gen 0 (5827/6000), experimental. Population still 32/32 Sniper; plateaued around 97–99%.
 - **V3 nightly continued:** Four nightly runs (Oct 17–20, all succeeded) produced gens 400–799. The Oct 19 cycle was blocked by a box network outage, so all four landed in fold-in [#103](https://github.com/Coastal-Agentics/arena/pull/103) (merge commit, not squash) **merged**; `web/data/evolution/` is on main through Gen 799.
@@ -34,8 +36,8 @@ _Single source of truth for Coastal Agentics. Owned by the CoS (Soundwave). Upda
 | M5 two-game viewer | **Done** (#67, #71, #72, #76) |
 | Nyborg design / library | **Approved** (#44 rev 3, #49); fuzzy hair, save format 2 (#86) |
 | Nyborg app (Customizer, matches, sharing) | **Live** at /arena/play/ (#85–#92) |
-| Evolution nightly | **Live under V3** through Gen 999; fold-ins #94 + #96 + #98 + #100 + #103 + #105 + #107 **merged** |
-| Champion promotion | **Held** — Gen 999 Sniper 5-3-1 at 98.55% vs Gen 0 (experimental) |
+| Evolution nightly | **Live under V3** through Gen 1099; fold-ins #94 + #96 + #98 + #100 + #103 + #105 + #107 + #109 **merged** |
+| Champion promotion | **Held** — Gen 1099 Sniper 5-2-2 at 97.67% vs Gen 0 (experimental) |
 | 3D playback (ADR-017) | **Proposed** (#79), waits on Nye |
 | License | **PR #62 awaiting Nye** (plus nyborgs#1, site#1, saltmarsh#3) |
 | Company website | **Live** at coastalagentics.com, mission statement added (site#6) |
@@ -53,15 +55,16 @@ _Single source of truth for Coastal Agentics. Owned by the CoS (Soundwave). Upda
 | ADR-015 | Jev as an optional tool | **Accepted** (#48) |
 | Tank balance V3 | #80, #81 | **APPROVED 2026-10-07** (in chat) |
 
-No email gate is open (inboxes checked 2026-10-22: no new replies from nyewarburton@gmail.com). Waiting on Nye, not gated by email: compliance copy #102, ADR-017 #79, saltmarsh ADR-003 (saltmarsh#4), license #62 and its siblings, pausing releases, the GitHub App bot identity.
+No email gate is open (inboxes checked 2026-10-23: no new replies from nyewarburton@gmail.com). Waiting on Nye, not gated by email: compliance copy #102, ADR-017 #79, saltmarsh ADR-003 (saltmarsh#4), license #62 and its siblings, pausing releases, the GitHub App bot identity.
 
 ## Open tasks
 | Task | Owner | Status |
 |---|---|---|
 | Keep folding nightly results with a **merge commit** PR (never squash) | CoS | standing |
-| Decide whether to promote / further study the held Gen 999 Sniper (98.55%); population fully Sniper and plateaued, likely needs a V4 balance look | Nye ← CoS | flagged |
+| Decide whether to promote / further study the held Gen 1099 Sniper (97.67%); population fully Sniper and plateaued, likely needs a V4 balance look | Nye ← CoS | flagged |
 | Approve compliance copy #102 | Nye | review |
 | Pierce onboarding (MOU, vault copy, Grok Bot team seeds, first-week plan) | Nye + Onslaught + Pierce | week of Oct 18; MOU blanks pending from Nye |
+| De-flake `engine-wasm/tests/race_alloc.rs` alloc-count test (flaked Oct 22 and Oct 23) | Shockwave | recommended |
 | Nyborg app polish after Nye plays with it | Blitzwing | next |
 | ADR-017 3D playback (#79) | Nye | review |
 | ADR-014 B2–B5 decision (second Rust game exists) | Shockwave → Nye | due |
@@ -72,7 +75,7 @@ No email gate is open (inboxes checked 2026-10-22: no new replies from nyewarbur
 
 ## Known engine / training limits
 - Pre-V3: every evolved champion was a Charger above 70% vs Gen 0 (99.35% at Gen 499, 85.78% at Gen 599), so none was promotable. V3 bounds the Charger's approach; see `docs/design/tank-balance-2026-10.md`.
-- V3 Gen 999: Sniper fully dominates (32/32); champion held at 98.55% vs Gen 0 (97.1% at Gen 899, 98.5% at Gen 799, 98.47% at Gen 399, was 97.6% at Gen 299, 93.3% at Gen 199, 95.63% at Gen 99).
+- V3 Gen 1099: Sniper fully dominates (32/32); champion held at 97.67% vs Gen 0 (98.55% at Gen 999, 97.1% at Gen 899, 98.5% at Gen 799, 98.47% at Gen 399, was 97.6% at Gen 299, 93.3% at Gen 199, 95.63% at Gen 99).
 - Kiter mirrors drew **84.5%** of the time pre-V3; see `games/tank/BALANCE.md` §0.
 - Swept projectile hits treat targets as stationary within a tick.
 
@@ -91,16 +94,17 @@ No email gate is open (inboxes checked 2026-10-22: no new replies from nyewarbur
 - 2026-10-20 evening cycle: inbox/CI check (no gate replies); four nightlies (gens 400–799) folded in via #103; STATE refresh; digest. No background workers (fold-in is CoS).
 - 2026-10-21 evening cycle: inbox/CI check (no gate replies); nightly gens 800–899 folded in via #105; STATE refresh; digest. No background workers (fold-in is CoS).
 - 2026-10-22 evening cycle: inbox/CI check (no gate replies); nightly gens 900–999 folded in via #107 (one flaky-test rerun); STATE refresh; digest. No background workers (fold-in is CoS; other work waits on Nye).
+- 2026-10-23 evening cycle: inbox/CI check (no gate replies); nightly gens 1000–1099 folded in via #109 (flaky-test rerun again); STATE refresh; digest. No background workers (fold-in is CoS; other work waits on Nye).
 - Limits: 1 scheduled cycle per weekday at 6:16 PM ET + founder-triggered cycles, never weekdays 8 AM–5 PM ET; max 2 concurrent workers.
 
 ## Blockers
 - No email gates awaiting reply.
-- Champion above 70%: do **not** make it the viewer default without a reviewed promotion PR + provenance card. Gen 999 Sniper is in that bucket.
+- Champion above 70%: do **not** make it the viewer default without a reviewed promotion PR + provenance card. Gen 1099 Sniper is in that bucket.
 - #102 compliance copy waits on Nye's explicit approval.
 - #62 is Nye's to merge; nothing else depends on it except site#1 and the SPDX follow-up.
 
 ## Next
-0. Engine: `engine-wasm/tests/race_alloc.rs` alloc-count test flaked once on CI (Oct 22); watch for repeats before assigning.
-1. Nye: approve #102 compliance copy; held Gen 999 Sniper (V4 balance look vs keep studying); Pierce MOU blanks, ADR-017 (#79), saltmarsh ADR-003, license #62.
+0. Engine: `engine-wasm/tests/race_alloc.rs` alloc-count test flaked on CI Oct 22 and Oct 23 (same 15-allocation failure); recurring, so Shockwave should de-flake it.
+1. Nye: approve #102 compliance copy; held Gen 1099 Sniper (V4 balance look vs keep studying); Pierce MOU blanks, ADR-017 (#79), saltmarsh ADR-003, license #62.
 2. Blitzwing: Nyborg app polish once Nye has played with it.
 3. Shockwave + Pierce: robotics demo / Spot POC; ADR-014 B2–B5 recommendation.
