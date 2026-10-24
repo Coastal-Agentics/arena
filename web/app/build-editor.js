@@ -1,8 +1,8 @@
 // The schema-driven build editor: one stepper and pip row per stat from the engine's catalog,
 // presets and behavior, and the engine's own validator for the verdict (the Customizer's build
 // tab, moved here). Games without their own editor in web/games/ get this one.
-import { el } from "./ui.js?v=20261024a2";
-import { tabModel, setLevel, applyPreset, setBehavior, friendlyErrors } from "../build-tabs.js?v=20261024a2";
+import { el } from "./ui.js?v=20261024b";
+import { tabModel, setLevel, applyPreset, setBehavior, friendlyErrors } from "../build-tabs.js?v=20261024b";
 
 /** Build status for `build`: {ok, text, errors}. */
 export function verdict(engine, game, build) {

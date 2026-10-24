@@ -1,7 +1,7 @@
 // A match from the hash: ?slots=<id>,<id>…&seed=N, shared by match setup and watch. Ids are your
 // Nyborgs or house Nyborgs; unknown ids drop out and the lineup tops up from the house.
-import { lineup, matchFor } from "../games/index.js?v=20261024a2";
-import { houseById, isHouse } from "./house.js?v=20261024a2";
+import { lineup, matchFor } from "../games/index.js?v=20261024b";
+import { houseById, isHouse } from "./house.js?v=20261024b";
 
 const U64_MAX = 18446744073709551615n;
 export const seedOk = (s) => /^\d{1,20}$/.test(String(s)) && BigInt(s) <= U64_MAX;

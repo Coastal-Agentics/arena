@@ -2,12 +2,12 @@
 // you go (only builds the engine accepts are stored). Games bring their own build control
 // through web/games/ (the tank triangle), else the schema-driven pips. Then: try it, duplicate,
 // delete.
-import { el, face, fill } from "../ui.js?v=20261024a2";
-import { HAIR_PALETTE, HAIR_STYLES, ACCESSORIES } from "../../nyborg-draw.js?v=20261024a2";
-import { buildFor, cleanName, duplicateNyborg, touch } from "../../nyborg-library.js?v=20261024a2";
-import { arenas } from "../../games/index.js?v=20261024a2";
-import { pipsEditor } from "../build-editor.js?v=20261024a2";
-import { href } from "../router.js?v=20261024a2";
+import { el, face, fill } from "../ui.js?v=20261024b";
+import { HAIR_PALETTE, HAIR_STYLES, ACCESSORIES } from "../../nyborg-draw.js?v=20261024b";
+import { buildFor, cleanName, duplicateNyborg, touch } from "../../nyborg-library.js?v=20261024b";
+import { arenas } from "../../games/index.js?v=20261024b";
+import { pipsEditor } from "../build-editor.js?v=20261024b";
+import { href } from "../router.js?v=20261024b";
 
 export default {
   title: (args, app) => `Edit ${app.lib.get(args.id)?.name || "Nyborg"}`,

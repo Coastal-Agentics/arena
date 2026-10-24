@@ -1,8 +1,8 @@
 // Backup (#/backup): export your Nyborgs (all, or one) as .json files and import them back,
 // plus any saved entries the browser couldn't read. Formats: docs/design/nyborg-library.md.
-import { el, face } from "../ui.js?v=20261024a2";
-import { exportAll, exportOne, fileNameFor, parseImport, sanitizeImported, newId } from "../../nyborg-library.js?v=20261024a2";
-import { href } from "../router.js?v=20261024a2";
+import { el, face } from "../ui.js?v=20261024b";
+import { exportAll, exportOne, fileNameFor, parseImport, sanitizeImported, newId } from "../../nyborg-library.js?v=20261024b";
+import { href } from "../router.js?v=20261024b";
 
 function download(name, text) {
   const a = el("a", { href: URL.createObjectURL(new Blob([text], { type: "application/json" })), download: name });

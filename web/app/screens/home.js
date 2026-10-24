@@ -1,11 +1,11 @@
 // Home: My Nyborgs (docs/design/nyborg-app.md §3). Your selected Nyborg in the spotlight with a
 // button per arena, then every Nyborg as a card. A first visit goes to Hatch instead.
-import { el, face, titleCase } from "../ui.js?v=20261024a2";
-import { buildFor, buildStatus } from "../../nyborg-library.js?v=20261024a2";
-import { summaryLine } from "../../build-tabs.js?v=20261024a2";
-import { arenas } from "../../games/index.js?v=20261024a2";
-import { HOUSE } from "../house.js?v=20261024a2";
-import { href } from "../router.js?v=20261024a2";
+import { el, face, titleCase } from "../ui.js?v=20261024b";
+import { buildFor, buildStatus } from "../../nyborg-library.js?v=20261024b";
+import { summaryLine } from "../../build-tabs.js?v=20261024b";
+import { arenas } from "../../games/index.js?v=20261024b";
+import { HOUSE } from "../house.js?v=20261024b";
+import { href } from "../router.js?v=20261024b";
 
 export default {
   title: () => "Your Nyborgs",

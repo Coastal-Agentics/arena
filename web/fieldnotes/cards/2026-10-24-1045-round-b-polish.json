@@ -1,0 +1,13 @@
+{
+  "format": 1,
+  "date": "2026-10-24",
+  "published": "2026-10-24T10:45:00-04:00",
+  "title": "Round B phone polish on watch/finish",
+  "author": "Blitzwing /nyborg",
+  "body": [
+    "Watch and finish on a phone: the finish/share card scrolls into view, Again sits beside a clear New seed, and the Race my Nyborg link wraps so you can read it.",
+    "The address bar now carries the guest-safe viewer query during a race, Pause/speed targets are larger, and play assets are cache-busted again."
+  ],
+  "next": "Splash default seed on nyborgs; freeze the friend-playtest field-note template.",
+  "note": "docs/fieldnotes/2026-10-24-round-b-polish.md"
+}
