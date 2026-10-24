@@ -189,7 +189,7 @@ Today, `tank-ui.js` and `race-ui.js` are already most of the way there. `arena.j
 
 ## 8. Hair options
 
-Nye's direction: primary colours, Muppet-like, fuzzy and shaggy, never vegetable-like. The head stays the same round cream head with two dot eyes and no mouth. Here are four fuzzy treatments, drawn by real canvas code in [`web/proto/nyborg-hair.js`](../../web/proto/nyborg-hair.js). It's a prototype module that nothing imports yet.
+Nye's direction: primary colours, Muppet-like, fuzzy and shaggy, never vegetable-like. The head stays the same round cream head with two dot eyes and no mouth. Here are four fuzzy treatments, drawn by real canvas code in [`web/nyborg-hair.js`](../../web/nyborg-hair.js) (production; the original `web/proto/` sheet was removed once the styles shipped).
 
 ![Hair options A–D next to today's yarn: large and viewer size, three colours, glasses and hat, all ten palette colours](nyborg-hair-options.png)
 
@@ -203,9 +203,9 @@ Nye's direction: primary colours, Muppet-like, fuzzy and shaggy, never vegetable
 
 **How the fuzz works.** Every tuft is a filled, tapered clump with a *round* tip (pointed tips read as spikes, and stroked lines read as sticks). Each style is drawn in three passes: all the clumps a little larger in a dark tint of the hair colour, then a soft base mass, then the clumps in the hair colour. Only the outer edge keeps the dark rim, and at Customizer size a few micro-hairs past each tip make that rim look felted. Viewer-size heads (about 20–30 px) skip the micro-hairs and texture and use fatter clumps, so each style still reads as one clear shaggy shape. Tones are computed from the hair colour, so all ten palette colours work, Navy included.
 
-**Rules it keeps.** No `Math.random`: jitter comes from mulberry32 seeded by an FNV-1a hash of the Nyborg id. The sheet renders byte-identical every time, and `tests/web/hair-proto.test.mjs` checks the same id → same drawing, another id → different tufts, no `Math.random`, and the facing −1 mirror. Facing flips the whole Nyborg, so the bangs' sweep and the crest's lean turn with it. The hat sits on top of each style.
+**Rules it keeps.** No `Math.random`: jitter comes from mulberry32 seeded by an FNV-1a hash of the Nyborg id. The sheet renders byte-identical every time, and `tests/web/hair.test.mjs` checks the same id → same drawing, another id → different tufts, no `Math.random`, and the facing −1 mirror. Facing flips the whole Nyborg, so the bangs' sweep and the crest's lean turn with it. The hat sits on top of each style.
 
-**See it live:** after merge, the sheet page is at `/arena/proto/hair-sheet.html` (not linked from anywhere, `noindex`).
+**See it live:** the styles are the Customizer and app hair picker; the comparison PNG is `docs/design/nyborg-hair-options.png`.
 
 **My suggestion (Nye decides):** **A** as the new default, because it's the most Muppet. Offer **B** and **D** as extra styles you can pick in the Look tab, since they're the most distinct from each other and from A. Keep **yarn** as "classic" so nobody's Nyborg has to change. **C** is close to A at viewer size, so pick one of A or C rather than both.
 
@@ -215,7 +215,7 @@ Small PRs, each one shippable and visible on GitHub Pages the moment it merges. 
 
 | # | Name | What Nye sees | Acceptance |
 | --- | --- | --- | --- |
-| 0 | **Strategy + hair sheet** (this PR) | This doc, and the hair sheet at `/arena/proto/hair-sheet.html` | Docs and prototype only. CI green. No change to any page that's linked. |
+| 0 | **Strategy + hair sheet** (shipped) | This doc, and the hair comparison PNG | Docs and a prototype that later became `web/nyborg-hair.js`. |
 | 1 | **My Nyborgs home** | `/arena/play/` opens on your Nyborgs as cards with **Race** and **Tank** buttons. A first visit hatches your first Nyborg. The buttons open today's viewer with your Nyborg against house Nyborgs. | Fresh browser → watching your Nyborg in either arena in ≤ 3 clicks. Works at 390 px. Same storage keys, no migration. Node tests for the router and match-link building. |
 | 2 | **House Nyborgs + match setup** | One match setup screen for both arenas: you plus opponents (yours or named house Nyborgs). The racing grid fills itself. 🎲 seed. | Built from `games()` and the game modules (no game-name branches). Links in today's format. Same link → same state hash. No duplicate names on the board. |
 | 3 | **Watch in the app** | The match plays inside the app, your Nyborg wears a "you" marker, and the finish card offers Tweak / Rematch / New seed / Share. | Every existing `arena.html` link still plays the identical match (state-hash test against today). `arena.js` game branches moved behind the plug-in contract. |
@@ -248,4 +248,4 @@ Suggested order: 1 → 2 → 3 → 4, with 5 as soon as Nye picks, and 6 and 7 a
 
 ---
 
-*What this PR doesn't change:* no linked page, no save format, no engine, no pins. The prototype sits in `web/proto/` and nothing imports it.
+*What the strategy PR didn't change:* no linked page, no save format, no engine, no pins. The prototype lived in `web/proto/` until the hair styles shipped, then was removed.
