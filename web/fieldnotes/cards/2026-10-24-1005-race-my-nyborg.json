@@ -9,5 +9,6 @@
     "Start CTA hardening: el() never dumps a function as button text, and play assets are cache-busted so Pages cannot mix stale modules after the mobile pass."
   ],
   "next": "Splash default seed on nyborgs; freeze the friend-playtest field-note template.",
-  "note": "docs/fieldnotes/2026-10-24-race-my-nyborg.md"
+  "note": "docs/fieldnotes/2026-10-24-race-my-nyborg.md",
+  "pr": 113
 }
