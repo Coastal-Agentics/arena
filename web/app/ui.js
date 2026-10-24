@@ -1,16 +1,21 @@
 // Small DOM helpers for the Nyborg app: el(), one animation loop for every Nyborg preview, and
 // the library opener (localStorage when allowed, else this session only). No framework.
-import { drawNyborg, idleBob } from "../nyborg-draw.js";
-import { Library, MemoryStorage } from "../nyborg-library.js";
+import { drawNyborg, idleBob } from "../nyborg-draw.js?v=20261024a2";
+import { Library, MemoryStorage } from "../nyborg-library.js?v=20261024a2";
 
-/** el("button", {class, text, onclick, ...attrs}, ...children); null/false children are skipped. */
+/** el("button", {class, text, onclick, ...attrs}, ...children); null/false children are skipped.
+ *  `text` and non-on* attrs never coerce a function (that stringifies to source and has dumped
+ *  arena `start()` into the Start CTA when a label key collided with the method). */
 export function el(tag, attrs = {}, ...kids) {
   const e = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs)) {
     if (k === "class") e.className = v;
-    else if (k === "text") e.textContent = v;
-    else if (k.startsWith("on") && typeof v === "function") e.addEventListener(k.slice(2), v);
-    else if (v !== false && v != null) e.setAttribute(k, v === true ? "" : v);
+    else if (k === "text") {
+      if (typeof v === "string" || typeof v === "number") e.textContent = String(v);
+    } else if (k.startsWith("on") && typeof v === "function") e.addEventListener(k.slice(2), v);
+    else if (v !== false && v != null && typeof v !== "function" && typeof v !== "object") {
+      e.setAttribute(k, v === true ? "" : String(v));
+    }
   }
   for (const k of kids.flat()) if (k != null && k !== false) e.append(k);
   return e;

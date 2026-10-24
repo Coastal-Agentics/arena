@@ -1,9 +1,9 @@
 // Racing on the Ring, as an app game module (docs/design/nyborg-app.md §6). Links are the
 // viewer's racing format (nyborg-link.js): ?game=racing&seed=S&cars=…&looks=…&nameN=….
-import { raceQuery, parseRaceQuery } from "../nyborg-link.js";
-import { defaultRaceBuilds } from "../race-ui.js";
-import { drawTrack, drawRaceCar, drawFinishBanner, lookForCar } from "../race-ui.js";
-import { drawYouMarker } from "../app/marker.js";
+import { raceQuery, parseRaceQuery } from "../nyborg-link.js?v=20261024a2";
+import { defaultRaceBuilds } from "../race-ui.js?v=20261024a2";
+import { drawTrack, drawRaceCar, drawFinishBanner, lookForCar } from "../race-ui.js?v=20261024a2";
+import { drawYouMarker } from "../app/marker.js?v=20261024a2";
 
 
 export default {

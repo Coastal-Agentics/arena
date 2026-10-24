@@ -4,14 +4,14 @@
 // - #/watch?<viewer query>: someone's match link (the exact query arena.html reads). Its
 //   Nyborgs can be saved to yours: build (engine-checked), look and name.
 // The game module runs the engine; the screen never names a game.
-import { el, face, fill } from "../ui.js";
-import { arenas, matchFor, gameForQuery } from "../../games/index.js";
-import { createNyborg, DEFAULT_LOOK, touch } from "../../nyborg-library.js";
-import { HAIR_PALETTE } from "../../nyborg-draw.js";
-import { isHouse } from "../house.js";
-import { href } from "../router.js";
-import { resolveMatch, freshSeed, matchQuery, seedOk } from "../match.js";
-import { mountPlayer } from "../player.js";
+import { el, face, fill } from "../ui.js?v=20261024a2";
+import { arenas, matchFor, gameForQuery } from "../../games/index.js?v=20261024a2";
+import { createNyborg, DEFAULT_LOOK, touch } from "../../nyborg-library.js?v=20261024a2";
+import { HAIR_PALETTE } from "../../nyborg-draw.js?v=20261024a2";
+import { isHouse } from "../house.js?v=20261024a2";
+import { href } from "../router.js?v=20261024a2";
+import { resolveMatch, freshSeed, matchQuery, seedOk } from "../match.js?v=20261024a2";
+import { mountPlayer } from "../player.js?v=20261024a2";
 
 const ordinal = (n) => {
   const s = ["th", "st", "nd", "rd"], v = n % 100;
@@ -119,11 +119,17 @@ export default {
         : res.winner == null ? `${fav.n.name} held on for a draw.`
         : favPlace === 1 ? `${fav.n.name} took it in ${(res.time(favIndex) ?? res.seconds).toFixed(1)}s. Nicely built.`
         : `${fav.n.name} finished ${ordinal(favPlace)} of ${entries.length}. Tweak the build and go again?`;
-      const copyBtn = el("button", { type: "button", class: "btn", id: "share", text: "Copy share link" });
+      // Share pack: invite copy is exactly "Race my Nyborg". The URL is the viewer query
+      // (#/watch?game=…&cars|blue=…&looks=…&nameN=…), so a guest with an empty library still
+      // gets the sharer's lineup — not the in-app ?slots=<id> hash (unknown ids drop to house).
+      const url = shareUrl();
+      const shareInput = el("input", { class: "share-url", id: "share-url", value: url, readonly: true,
+        "aria-label": "Race my Nyborg link", onfocus: (e) => e.target.select() });
+      const copyBtn = el("button", { type: "button", class: "btn primary", id: "share", text: "Race my Nyborg" });
       copyBtn.addEventListener("click", async () => {
-        const url = shareUrl();
+        shareInput.select();
         try { await navigator.clipboard.writeText(url); copyBtn.textContent = "Copied!"; }
-        catch { copyBtn.replaceWith(el("input", { class: "share-url", value: url, readonly: true, onfocus: (e) => e.target.select() })); }
+        catch { /* input stays selectable for long-press copy */ }
       });
       fill(result, el("section", { class: "finish-card", "aria-labelledby": "finish-h" },
         el("p", { class: "eyebrow", text: "Finish" }),
@@ -138,10 +144,14 @@ export default {
           el("button", { type: "button", class: "btn primary", id: "again", text: "Again ▶", title: "Same seed, same match", onclick: run }),
           el("button", { type: "button", class: "btn", id: "new-seed", text: "🎲 New seed", onclick: () => { seed = freshSeed(); run(); } }),
           fav ? el("a", { class: "btn", id: "tweak", href: app.tweakHref(fav.id), text: `Tweak ${fav.n.name}`, onclick: () => app.safe(() => lib.select(fav.id)) }) : null,
-          lineup.lineupHref ? el("a", { class: "btn", href: lineup.lineupHref(seed), text: "Change lineup" }) : null,
-          copyBtn),
-        el("p", { class: "muted small", text: "The share link opens this exact match for anyone, looks and names included." })));
+          lineup.lineupHref ? el("a", { class: "btn", href: lineup.lineupHref(seed), text: "Change lineup" }) : null),
+        el("div", { class: "share-pack" },
+          el("label", { class: "h3", for: "share-url", text: "Race my Nyborg" }),
+          shareInput,
+          copyBtn,
+          el("p", { class: "muted small", text: "Anyone who opens this link watches your lineup — looks, names and builds — even with no Nyborgs of their own." }))));
       result.querySelector("h2")?.focus?.({ preventScroll: true });
+      result.querySelector(".finish-card")?.scrollIntoView?.({ block: "nearest", behavior: "smooth" });
     }
 
     // Save from a link: each of their Nyborgs with a name or a look can join yours.

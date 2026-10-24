@@ -2,13 +2,20 @@
 // The default is your Nyborg against the house Nyborgs; any slot can swap to one of yours or
 // another house Nyborg, and racing grids take 2-4 cars. The hash keeps the setup, so reload and
 // Back land where you were. Start opens the match.
-import { el, face, titleCase } from "../ui.js";
-import { buildFor, buildStatus } from "../../nyborg-library.js";
-import { summaryLine } from "../../build-tabs.js";
-import { arenas, matchFor } from "../../games/index.js";
-import { HOUSE, isHouse } from "../house.js";
-import { href } from "../router.js";
-import { resolveMatch, seedOk, freshSeed, matchQuery } from "../match.js";
+import { el, face, titleCase } from "../ui.js?v=20261024a2";
+import { buildFor, buildStatus } from "../../nyborg-library.js?v=20261024a2";
+import { summaryLine } from "../../build-tabs.js?v=20261024a2";
+import { arenas, matchFor } from "../../games/index.js?v=20261024a2";
+import { HOUSE, isHouse } from "../house.js?v=20261024a2";
+import { href } from "../router.js?v=20261024a2";
+import { resolveMatch, seedOk, freshSeed, matchQuery } from "../match.js?v=20261024a2";
+
+/** Button label for Start — never the arena `start(engine, match)` method. */
+function startCtaLabel(mod) {
+  if (typeof mod.startLabel === "string" && mod.startLabel.trim()) return mod.startLabel;
+  if (typeof mod.button === "string" && mod.button.trim()) return mod.button;
+  return "Start ▶";
+}
 
 export default {
   title: (args, app) => `${arenas(app.engine).find((m) => m.id === args.game)?.title || "Play"} setup`,
@@ -73,7 +80,7 @@ export default {
           el("label", { for: "seed", class: "h3", text: "Seed" }), seedIn,
           el("button", { type: "button", class: "btn small", text: "🎲 Shuffle", onclick: () => { seed = freshSeed(); seedError = ""; render(); } }),
           el("span", { id: "seed-help", class: seedError ? "error small" : "muted small", text: seedError || "Same seed and builds, same match, every time." })),
-        el("div", { class: "row gap start-row" }, el("a", { class: "btn primary big", id: "start", href: start(), text: mod.startLabel })),
+        el("div", { class: "row gap start-row" }, el("a", { class: "btn primary big", id: "start", href: start(), text: startCtaLabel(mod) })),
       ].filter(Boolean));
     };
     render();

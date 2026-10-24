@@ -210,3 +210,31 @@ test("save from a link: a bad build falls back and is flagged; bot duels are ref
   assert.equal(gameForQuery(engine, new URLSearchParams("seed=1")).id, "tank");
   assert.equal(gameForQuery(engine, new URLSearchParams("game=chess")), null);
 });
+
+test("share query: racing match encodes looks and names so a guest needs no library", () => {
+  const racing = GAME_MODULES.find((m) => m.id === "racing");
+  const n = pip();
+  const biscuit = houseById("house-biscuit");
+  const match = matchFor(engine, racing, [n, biscuit], "42");
+  const q = racing.query(engine, match);
+  assert.match(q, /game=racing/);
+  assert.match(q, /cars=/);
+  assert.match(q, /name1=Pip/);
+  assert.match(q, /looks=/);
+  assert.equal(q.includes("slots="), false);
+  const parsed = racing.parseQuery(engine, new URLSearchParams(q));
+  assert.equal(parsed.seed, "42");
+  assert.equal(parsed.slots.length, 2);
+  assert.equal(parsed.slots[0].name, "Pip");
+  assert.ok(parsed.slots[0].look);
+  assert.equal(parsed.slots[1].name, biscuit.name);
+});
+
+test("startLabel stays a string even though start is the run method", () => {
+  for (const m of GAME_MODULES) {
+    assert.equal(typeof m.startLabel, "string");
+    assert.equal(typeof m.start, "function");
+    assert.notEqual(m.startLabel, m.start);
+    assert.ok(m.startLabel.length < 40, `${m.id} label must be short UI copy, not source`);
+  }
+});

@@ -1,0 +1,14 @@
+{
+  "format": 1,
+  "date": "2026-10-24",
+  "published": "2026-10-24T10:05:00-04:00",
+  "title": "Race my Nyborg share pack",
+  "author": "Blitzwing /nyborg",
+  "body": [
+    "The finish card now invites with exactly Race my Nyborg and a copyable watch link that encodes looks, names and builds, so a guest with no library still sees the sharer's lineup.",
+    "Start CTA hardening: el() never dumps a function as button text, and play assets are cache-busted so Pages cannot mix stale modules after the mobile pass."
+  ],
+  "next": "Splash default seed on nyborgs; freeze the friend-playtest field-note template.",
+  "note": "docs/fieldnotes/2026-10-24-race-my-nyborg.md",
+  "pr": 113
+}

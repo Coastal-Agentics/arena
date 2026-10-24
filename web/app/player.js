@@ -1,7 +1,7 @@
 // The match player: a canvas, Play/Pause, Restart and speed, driving a game session from a game
 // module's start() (docs/design/nyborg-app.md §6). 60 ticks a second times the speed, catch-up
 // capped so a background tab doesn't fast-forward. Calls onTick for the board and onFinish once.
-import { el } from "./ui.js";
+import { el } from "./ui.js?v=20261024a2";
 
 const TICK_HZ = 60;
 
