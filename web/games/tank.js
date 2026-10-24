@@ -1,12 +1,12 @@
 // Tank Arena, as an app game module (docs/design/nyborg-app.md §6): its slots, its house
 // opponent and how a match link is written. Links are exactly the viewer's tank format:
 // ?seed=S&blue=<behavior>-<a>-<s>-<d>&orange=…, then looks and names for the drawing only.
-import { encodeBuild, cosmeticsQuery, parseCosmetics } from "../nyborg-link.js";
-import { drawTankScene, TEAM_COLORS, TANK_RADIUS } from "../tank-draw.js";
-import { drawYouMarker } from "../app/marker.js";
-import { TRI, pointToWeights, weightsToPoint, loadoutWeights, readout, presetName, specFromQuery } from "../tank-ui.js";
-import { el } from "../app/ui.js";
-import { verdict, statusLine } from "../app/build-editor.js";
+import { encodeBuild, cosmeticsQuery, parseCosmetics } from "../nyborg-link.js?v=20261024a2";
+import { drawTankScene, TEAM_COLORS, TANK_RADIUS } from "../tank-draw.js?v=20261024a2";
+import { drawYouMarker } from "../app/marker.js?v=20261024a2";
+import { TRI, pointToWeights, weightsToPoint, loadoutWeights, readout, presetName, specFromQuery } from "../tank-ui.js?v=20261024a2";
+import { el } from "../app/ui.js?v=20261024a2";
+import { verdict, statusLine } from "../app/build-editor.js?v=20261024a2";
 
 /** "4-3-2" <-> {attack: 4, speed: 3, defense: 2} (the tank loadout order is A/S/D). */
 export const loadoutOf = (levels) => `${levels.attack}-${levels.speed}-${levels.defense}`;

@@ -1,17 +1,17 @@
 // The Nyborg app (docs/design/nyborg-app.md): one page at /arena/play/ with hash routes.
 // Make your Nyborg, send it into an arena, come back and tweak it. Plain ES modules + the
 // committed wasm, no build step. Looks and names never reach the engine.
-import { loadEngine } from "./engine.js";
-import { openLibrary, el } from "./ui.js";
-import { startRouter } from "./router.js";
-import home from "./screens/home.js";
-import hatch from "./screens/hatch.js";
-import setup from "./screens/setup.js";
-import watch from "./screens/watch.js";
-import edit from "./screens/edit.js";
-import backup from "./screens/backup.js";
-import { href } from "./router.js";
-import { matchQuery } from "./match.js";
+import { loadEngine } from "./engine.js?v=20261024a2";
+import { openLibrary, el } from "./ui.js?v=20261024a2";
+import { startRouter } from "./router.js?v=20261024a2";
+import home from "./screens/home.js?v=20261024a2";
+import hatch from "./screens/hatch.js?v=20261024a2";
+import setup from "./screens/setup.js?v=20261024a2";
+import watch from "./screens/watch.js?v=20261024a2";
+import edit from "./screens/edit.js?v=20261024a2";
+import backup from "./screens/backup.js?v=20261024a2";
+import { href } from "./router.js?v=20261024a2";
+import { matchQuery } from "./match.js?v=20261024a2";
 
 const ROUTES = [
   { pattern: "", screen: home },

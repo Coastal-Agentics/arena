@@ -1,8 +1,8 @@
 // Hatch: make a new Nyborg in one screen (name, hair style, hair colour), then home.
-import { el, face } from "../ui.js";
-import { HAIR_PALETTE, HAIR_STYLES } from "../../nyborg-draw.js";
-import { DEFAULT_LOOK, cleanName, createNyborg, nextFreeName } from "../../nyborg-library.js";
-import { href } from "../router.js";
+import { el, face } from "../ui.js?v=20261024a2";
+import { HAIR_PALETTE, HAIR_STYLES } from "../../nyborg-draw.js?v=20261024a2";
+import { DEFAULT_LOOK, cleanName, createNyborg, nextFreeName } from "../../nyborg-library.js?v=20261024a2";
+import { href } from "../router.js?v=20261024a2";
 
 export default {
   title: () => "Hatch a Nyborg",

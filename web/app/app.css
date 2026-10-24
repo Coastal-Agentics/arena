@@ -111,7 +111,10 @@ canvas.match { width: 100%; height: auto; display: block; border-radius: 10px; }
 .podium .tag { justify-self: start; }
 .podium .muted { grid-column: 3 / -1; }
 .finish-acts { margin-bottom: 6px; }
-.share-url { font: inherit; font-size: .8rem; width: 100%; padding: 5px 8px; border: 1.5px solid var(--line-2); border-radius: 8px; }
+.share-url { font: inherit; font-size: .85rem; width: 100%; padding: 8px 10px; border: 1.5px solid var(--line-2); border-radius: 8px; }
+.share-pack { display: grid; gap: 8px; margin: 10px 0 6px; padding: 12px; background: var(--panel); border: 1.5px solid var(--line); border-radius: 12px; }
+.share-pack .h3 { margin: 0; font-weight: 800; font-size: .95rem; color: var(--ink); }
+.share-pack .btn { width: 100%; justify-content: center; }
 @media (max-width: 900px) { .watch { grid-template-columns: 1fr; } }
 
 /* Edit. */
@@ -209,6 +212,8 @@ canvas.match { width: 100%; height: auto; display: block; border-radius: 10px; }
   .finish-acts .btn { width: 100%; min-height: 48px; }
   .finish-acts .btn.primary { grid-column: 1 / -1; }
   .share-url { min-height: 44px; font-size: .9rem; padding: 8px 10px; }
+  .share-pack { padding: 12px; }
+  .share-pack .btn { min-height: 48px; }
 
   /* Edit entry (look panel) stays reachable without a mile of scroll. */
   .edit-grid .panel { padding: 12px 14px; }
