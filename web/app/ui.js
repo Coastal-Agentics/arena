@@ -1,7 +1,7 @@
 // Small DOM helpers for the Nyborg app: el(), one animation loop for every Nyborg preview, and
 // the library opener (localStorage when allowed, else this session only). No framework.
-import { drawNyborg, idleBob } from "../nyborg-draw.js?v=20261024a2";
-import { Library, MemoryStorage } from "../nyborg-library.js?v=20261024a2";
+import { drawNyborg, idleBob } from "../nyborg-draw.js?v=20261024b";
+import { Library, MemoryStorage } from "../nyborg-library.js?v=20261024b";
 
 /** el("button", {class, text, onclick, ...attrs}, ...children); null/false children are skipped.
  *  `text` and non-on* attrs never coerce a function (that stringifies to source and has dumped

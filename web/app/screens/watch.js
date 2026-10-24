@@ -4,14 +4,14 @@
 // - #/watch?<viewer query>: someone's match link (the exact query arena.html reads). Its
 //   Nyborgs can be saved to yours: build (engine-checked), look and name.
 // The game module runs the engine; the screen never names a game.
-import { el, face, fill } from "../ui.js?v=20261024a2";
-import { arenas, matchFor, gameForQuery } from "../../games/index.js?v=20261024a2";
-import { createNyborg, DEFAULT_LOOK, touch } from "../../nyborg-library.js?v=20261024a2";
-import { HAIR_PALETTE } from "../../nyborg-draw.js?v=20261024a2";
-import { isHouse } from "../house.js?v=20261024a2";
-import { href } from "../router.js?v=20261024a2";
-import { resolveMatch, freshSeed, matchQuery, seedOk } from "../match.js?v=20261024a2";
-import { mountPlayer } from "../player.js?v=20261024a2";
+import { el, face, fill } from "../ui.js?v=20261024b";
+import { arenas, matchFor, gameForQuery } from "../../games/index.js?v=20261024b";
+import { createNyborg, DEFAULT_LOOK, touch } from "../../nyborg-library.js?v=20261024b";
+import { HAIR_PALETTE } from "../../nyborg-draw.js?v=20261024b";
+import { isHouse } from "../house.js?v=20261024b";
+import { href } from "../router.js?v=20261024b";
+import { resolveMatch, freshSeed, matchQuery, seedOk } from "../match.js?v=20261024b";
+import { mountPlayer } from "../player.js?v=20261024b";
 
 const ordinal = (n) => {
   const s = ["th", "st", "nd", "rd"], v = n % 100;
@@ -78,7 +78,9 @@ export default {
       player?.stop();
       session?.free();
       finished = false;
-      history.replaceState(null, "", lineup.hash(seed));
+      // Prefer the portable viewer query in the address bar so copying it (not only the
+      // share box) keeps the lineup for a guest. replaceState does not remount the screen.
+      history.replaceState(null, "", `#/watch?${mod.query(engine, lineup.match(seed))}`);
       title.textContent = `${mod.title} · seed ${seed}`;
       try {
         session = mod.start(engine, { ...lineup.match(seed), you: entries.map((e, i) => (e.kind === "yours" ? i : -1)).filter((i) => i >= 0) });
@@ -123,13 +125,14 @@ export default {
       // (#/watch?game=…&cars|blue=…&looks=…&nameN=…), so a guest with an empty library still
       // gets the sharer's lineup — not the in-app ?slots=<id> hash (unknown ids drop to house).
       const url = shareUrl();
-      const shareInput = el("input", { class: "share-url", id: "share-url", value: url, readonly: true,
-        "aria-label": "Race my Nyborg link", onfocus: (e) => e.target.select() });
+      const shareInput = el("textarea", { class: "share-url", id: "share-url", rows: "4", readonly: true,
+        "aria-label": "Race my Nyborg link — copy this, not a slots URL", onfocus: (e) => e.target.select() });
+      shareInput.value = url;
       const copyBtn = el("button", { type: "button", class: "btn primary", id: "share", text: "Race my Nyborg" });
       copyBtn.addEventListener("click", async () => {
-        shareInput.select();
+        shareInput.focus(); shareInput.select();
         try { await navigator.clipboard.writeText(url); copyBtn.textContent = "Copied!"; }
-        catch { /* input stays selectable for long-press copy */ }
+        catch { /* textarea stays selectable for long-press copy */ }
       });
       fill(result, el("section", { class: "finish-card", "aria-labelledby": "finish-h" },
         el("p", { class: "eyebrow", text: "Finish" }),
@@ -141,17 +144,20 @@ export default {
           el("span", { class: "nm", text: name(slot) }), tag(entries[slot]),
           el("span", { class: "muted small", text: res.detail(slot) })))),
         el("div", { class: "row gap finish-acts" },
-          el("button", { type: "button", class: "btn primary", id: "again", text: "Again ▶", title: "Same seed, same match", onclick: run }),
-          el("button", { type: "button", class: "btn", id: "new-seed", text: "🎲 New seed", onclick: () => { seed = freshSeed(); run(); } }),
+          el("button", { type: "button", class: "btn", id: "again", text: "Again · same seed", title: "Same seed, same match", onclick: run }),
+          el("button", { type: "button", class: "btn primary", id: "new-seed", text: "🎲 New seed", title: "Fresh seed, same lineup", onclick: () => { seed = freshSeed(); run(); } }),
           fav ? el("a", { class: "btn", id: "tweak", href: app.tweakHref(fav.id), text: `Tweak ${fav.n.name}`, onclick: () => app.safe(() => lib.select(fav.id)) }) : null,
           lineup.lineupHref ? el("a", { class: "btn", href: lineup.lineupHref(seed), text: "Change lineup" }) : null),
         el("div", { class: "share-pack" },
           el("label", { class: "h3", for: "share-url", text: "Race my Nyborg" }),
           shareInput,
           copyBtn,
-          el("p", { class: "muted small", text: "Anyone who opens this link watches your lineup — looks, names and builds — even with no Nyborgs of their own." }))));
+          el("p", { class: "muted small", text: "Copy from this box (or the address bar — both are the guest-safe link). Anyone who opens it watches your lineup — looks, names and builds — even with no Nyborgs of their own." }))));
+      const card = result.querySelector(".finish-card");
       result.querySelector("h2")?.focus?.({ preventScroll: true });
-      result.querySelector(".finish-card")?.scrollIntoView?.({ block: "nearest", behavior: "smooth" });
+      // Bring the finish/share card into view on phone (nearest often no-ops when partially visible).
+      card?.scrollIntoView?.({ block: "start", behavior: "smooth" });
+      requestAnimationFrame(() => card?.scrollIntoView?.({ block: "start", behavior: "smooth" }));
     }
 
     // Save from a link: each of their Nyborgs with a name or a look can join yours.

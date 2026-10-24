@@ -2,13 +2,13 @@
 // The default is your Nyborg against the house Nyborgs; any slot can swap to one of yours or
 // another house Nyborg, and racing grids take 2-4 cars. The hash keeps the setup, so reload and
 // Back land where you were. Start opens the match.
-import { el, face, titleCase } from "../ui.js?v=20261024a2";
-import { buildFor, buildStatus } from "../../nyborg-library.js?v=20261024a2";
-import { summaryLine } from "../../build-tabs.js?v=20261024a2";
-import { arenas, matchFor } from "../../games/index.js?v=20261024a2";
-import { HOUSE, isHouse } from "../house.js?v=20261024a2";
-import { href } from "../router.js?v=20261024a2";
-import { resolveMatch, seedOk, freshSeed, matchQuery } from "../match.js?v=20261024a2";
+import { el, face, titleCase } from "../ui.js?v=20261024b";
+import { buildFor, buildStatus } from "../../nyborg-library.js?v=20261024b";
+import { summaryLine } from "../../build-tabs.js?v=20261024b";
+import { arenas, matchFor } from "../../games/index.js?v=20261024b";
+import { HOUSE, isHouse } from "../house.js?v=20261024b";
+import { href } from "../router.js?v=20261024b";
+import { resolveMatch, seedOk, freshSeed, matchQuery } from "../match.js?v=20261024b";
 
 /** Button label for Start — never the arena `start(engine, match)` method. */
 function startCtaLabel(mod) {

@@ -1,9 +1,9 @@
 // The app's arenas. A game shows up in the app when the engine lists it (games()) AND it has a
 // module here; nothing in the app's screens names a game. Order: how the home screen lists them.
-import racing from "./racing.js?v=20261024a2";
-import tank from "./tank.js?v=20261024a2";
-import { buildFor } from "../nyborg-library.js?v=20261024a2";
-import { HOUSE, houseById } from "../app/house.js?v=20261024a2";
+import racing from "./racing.js?v=20261024b";
+import tank from "./tank.js?v=20261024b";
+import { buildFor } from "../nyborg-library.js?v=20261024b";
+import { HOUSE, houseById } from "../app/house.js?v=20261024b";
 
 export const GAME_MODULES = [racing, tank];
 
