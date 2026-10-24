@@ -9,5 +9,6 @@
     "The address bar now carries the guest-safe viewer query during a race, Pause/speed targets are larger, and play assets are cache-busted again."
   ],
   "next": "Splash default seed on nyborgs; freeze the friend-playtest field-note template.",
-  "note": "docs/fieldnotes/2026-10-24-round-b-polish.md"
+  "note": "docs/fieldnotes/2026-10-24-round-b-polish.md",
+  "pr": 114
 }
