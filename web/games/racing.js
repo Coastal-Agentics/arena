@@ -10,7 +10,7 @@ export default {
   id: "racing",
   title: "Racing",
   button: "Race ▶",
-  start: "Start the race ▶",
+  startLabel: "Start the race ▶",
   setup: "Set up the grid",
   blurb: "Up to four Nyborgs, three laps of the Ring. Finished Nyborgs coast as ghosts.",
   slots: { min: 2, max: 4, names: ["Car 1", "Car 2", "Car 3", "Car 4"] },
