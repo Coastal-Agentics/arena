@@ -23,7 +23,7 @@ export default {
   id: "tank",
   title: "Tank Arena",
   button: "Tank ▶",
-  start: "Start the match ▶",
+  startLabel: "Start the match ▶",
   setup: "Pick your opponent",
   blurb: "Two Nyborgs, two tanks, one arena. Last tank standing wins.",
   slots: { min: 2, max: 2, names: ["Blue", "Orange"] },

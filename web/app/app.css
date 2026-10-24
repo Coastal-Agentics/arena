@@ -151,3 +151,66 @@ canvas.match { width: 100%; height: auto; display: block; border-radius: 10px; }
 .save-list li { display: grid; grid-template-columns: 44px 1fr; gap: 2px 10px; align-items: center; }
 .save-list .btn { grid-column: 2; justify-self: start; }
 .link-notes { margin: 4px 0 0; }
+
+/* Phone pass (~390px): bigger taps, less scroll on hatch/home entry, finish card usable.
+   Scoped under .app so the Customizer/viewer keep their desktop sizing. Sim/pins untouched. */
+@media (max-width: 480px) {
+  main.app.wrap { padding-inline: 14px; padding-top: 12px; }
+  .app .intro { margin: 4px 0 12px; }
+  .app .intro .muted { font-size: .9rem; }
+  .app h1 { font-size: 1.35rem; }
+
+  /* Touch targets. */
+  .app .btn { min-height: 44px; padding: 10px 14px; font-size: .95rem; }
+  .app .btn.small { min-height: 40px; padding: 8px 12px; font-size: .88rem; }
+  .app .btn.big { min-height: 48px; padding: 12px 18px; font-size: 1.08rem; }
+  .app a.btn { justify-content: center; }
+  .app .swatch { width: 40px; height: 40px; }
+  .app .swatches { gap: 10px; }
+  .app .style-btn { min-height: 44px; padding: 6px 2px 8px; font-size: .7rem; }
+  .app .style-btn canvas { width: 44px; height: 44px; }
+  .app select { min-height: 40px; font-size: 1rem; }
+  .app input[type="text"] { min-height: 44px; font-size: 1rem; }
+
+  /* Home: denser grid, bigger play row. */
+  .spotlight { padding: 12px; gap: 12px; }
+  .stage { max-width: 200px; }
+  .me-name { font-size: 1.45rem; }
+  .actions { margin: 10px 0 6px; gap: 10px; }
+  .actions .btn { flex: 1 1 auto; }
+  .ny-grid { grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 10px; }
+  .ny-card .mini .btn { min-height: 40px; width: 100%; justify-content: center; }
+  .cast-row li { width: 72px; }
+  .cast-face { width: 64px; height: 64px; }
+
+  /* Hatch: smaller face, tighter choices → less scroll. */
+  .hatch { padding: 12px; gap: 14px; }
+  .hatch .stage { max-width: 168px; }
+  .hatch .styles { max-width: none; }
+  .hatch .actions { margin-top: 8px; width: 100%; }
+  .hatch .actions .btn { flex: 1 1 auto; }
+
+  /* Match setup: usable selects + Start. */
+  .slot { padding: 10px; gap: 10px; }
+  .slot-acts { width: 100%; gap: 8px; }
+  .slot-acts select { flex: 1 1 auto; min-width: 0; width: 100%; max-width: 100%; }
+  .seed-row { flex-wrap: wrap; gap: 8px; align-items: center; }
+  .seed-row input { width: 100%; max-width: 18ch; min-height: 44px; }
+  .start-row { margin-top: 14px; }
+  .start-row .btn { width: 100%; }
+
+  /* Watch + finish card. */
+  .match-stage { padding: 8px; }
+  .match-stage .controls { gap: 6px; }
+  .match-stage .btn { min-height: 40px; }
+  .match-side { padding: 12px; }
+  .finish-card h2 { font-size: 1.25rem; }
+  .finish-acts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; margin-top: 4px; }
+  .finish-acts .btn { width: 100%; min-height: 48px; }
+  .finish-acts .btn.primary { grid-column: 1 / -1; }
+  .share-url { min-height: 44px; font-size: .9rem; padding: 8px 10px; }
+
+  /* Edit entry (look panel) stays reachable without a mile of scroll. */
+  .edit-grid .panel { padding: 12px 14px; }
+  .edit-grid .stage { max-width: 180px; }
+}

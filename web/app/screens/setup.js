@@ -73,7 +73,7 @@ export default {
           el("label", { for: "seed", class: "h3", text: "Seed" }), seedIn,
           el("button", { type: "button", class: "btn small", text: "🎲 Shuffle", onclick: () => { seed = freshSeed(); seedError = ""; render(); } }),
           el("span", { id: "seed-help", class: seedError ? "error small" : "muted small", text: seedError || "Same seed and builds, same match, every time." })),
-        el("div", { class: "row gap start-row" }, el("a", { class: "btn primary big", id: "start", href: start(), text: mod.start })),
+        el("div", { class: "row gap start-row" }, el("a", { class: "btn primary big", id: "start", href: start(), text: mod.startLabel })),
       ].filter(Boolean));
     };
     render();

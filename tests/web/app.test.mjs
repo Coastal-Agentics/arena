@@ -46,7 +46,11 @@ test("routes: parse, build and match hash routes", () => {
 
 test("arenas: every engine game with a module, in app order; a third game plugs in", () => {
   assert.deepEqual(arenas(engine).map((m) => m.id), ["racing", "tank"]);
-  for (const m of GAME_MODULES) for (const k of ["id", "title", "button", "start", "setup", "blurb", "slots", "house", "query"]) assert.ok(k in m, `${m.id}.${k}`);
+  for (const m of GAME_MODULES) for (const k of ["id", "title", "button", "startLabel", "setup", "blurb", "slots", "house", "query"]) assert.ok(k in m, `${m.id}.${k}`);
+  for (const m of GAME_MODULES) {
+    assert.equal(typeof m.startLabel, "string", `${m.id}.startLabel`);
+    assert.equal(typeof m.start, "function", `${m.id}.start`);
+  }
   const third = { id: "golf", title: "Golf", button: "Golf ▶", slots: { min: 1, max: 1, names: ["You"] }, house: [], query: () => "game=golf" };
   const fakeEngine = { ...engine, games: () => [...engine.games(), { game: "golf", rules_version: 1 }] };
   assert.deepEqual(arenas(fakeEngine, [...GAME_MODULES, third]).map((m) => m.id), ["racing", "tank", "golf"]);
