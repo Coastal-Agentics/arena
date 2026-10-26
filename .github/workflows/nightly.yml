@@ -107,7 +107,9 @@ jobs:
           total=$(cat "$OUT"/*.json | wc -c)
           if [ "$total" -gt 5000000 ]; then echo "::error::$OUT is $total B (cap 5 MB)"; exit 1; fi
           git add -A web/data
-          changed=$(git diff --cached --name-only --diff-filter=d -- web/data | xargs -r cat | wc -c)
+          # Measure the actual diff, not the full size of every touched file:
+          # history.json only grows, so whole-file bytes crossed 200 KB on 2026-10-25.
+          changed=$(git diff --cached --unified=0 -- web/data | wc -c)
           if [ "$changed" -gt 200000 ]; then echo "::error::nightly change is $changed B (cap 200 KB)"; exit 1; fi
           status=$(jq -r .held_out.status "$OUT/champion.json")
           label=$(jq -r .label "$OUT/champion.json")
