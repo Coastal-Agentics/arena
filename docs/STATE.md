@@ -2,10 +2,12 @@
 
 _Single source of truth for Coastal Agentics. Owned by the CoS (Soundwave). Updated at the end of every work cycle._
 
-**Last updated:** 2026-10-28 ~6:40 PM ET (America/New_York)
-**Phase:** 2 — Arenas (tank and racing live; the Nyborg app at /arena/play/ is the front door; V3 nightly lineage live through Gen 1399)
+**Last updated:** 2026-10-29 ~6:35 PM ET (America/New_York)
+**Phase:** 2 — Arenas (tank and racing live; the Nyborg app at /arena/play/ is the front door; V3 nightly lineage live through Gen 1499)
 
-## Current reality — 2026-10-28
+## Current reality — 2026-10-29
+- **Nightly Oct 29:** run 40808240102 succeeded (gens 1400–1499). Fold-in [#122](https://github.com/Coastal-Agentics/arena/pull/122) **merged** (merge commit). `web/data/evolution/` is on main through Gen 1499. CI green first try.
+- **Champion held (do not promote):** Gen 1499 `sniper-5-3-1`, held-out win rate **93.9%** vs Gen 0 (5634/6000), experimental.
 - **Nightly Oct 28:** run 40621574416 succeeded (gens 1300–1399). Fold-in [#120](https://github.com/Coastal-Agentics/arena/pull/120) **merged** (merge commit). `web/data/evolution/` is on main through Gen 1399. CI green first try.
 - **Champion held (do not promote):** Gen 1399 `sniper-5-2-2`, held-out win rate **97.33%** vs Gen 0 (5840/6000), experimental.
 - **Nightly Oct 27:** run 40438033113 succeeded (gens 1200–1299), the first to pass the reworked size check (#116). Fold-in [#118](https://github.com/Coastal-Agentics/arena/pull/118) **merged** (merge commit). `web/data/evolution/` is on main through Gen 1299. CI green first try (no alloc-test flake).
@@ -44,8 +46,8 @@ _Single source of truth for Coastal Agentics. Owned by the CoS (Soundwave). Upda
 | M5 two-game viewer | **Done** (#67, #71, #72, #76) |
 | Nyborg design / library | **Approved** (#44 rev 3, #49); fuzzy hair, save format 2 (#86) |
 | Nyborg app (Customizer, matches, sharing) | **Live** at /arena/play/ (#85–#92) |
-| Evolution nightly | **Live under V3** through Gen 1399; fold-ins #94 + #96 + #98 + #100 + #103 + #105 + #107 + #109 + #115 + #118 + #120 **merged**; size-cap fix #116 |
-| Champion promotion | **Held** — Gen 1399 Sniper 5-2-2 at 97.33% vs Gen 0 (experimental) |
+| Evolution nightly | **Live under V3** through Gen 1499; fold-ins #94 + #96 + #98 + #100 + #103 + #105 + #107 + #109 + #115 + #118 + #120 + #122 **merged**; size-cap fix #116 |
+| Champion promotion | **Held** — Gen 1499 Sniper 5-3-1 at 93.9% vs Gen 0 (experimental) |
 | 3D playback (ADR-017) | **Proposed** (#79), waits on Nye |
 | License | **PR #62 awaiting Nye** (plus nyborgs#1, site#1, saltmarsh#3) |
 | Company website | **Live** at coastalagentics.com, mission statement added (site#6) |
@@ -63,13 +65,13 @@ _Single source of truth for Coastal Agentics. Owned by the CoS (Soundwave). Upda
 | ADR-015 | Jev as an optional tool | **Accepted** (#48) |
 | Tank balance V3 | #80, #81 | **APPROVED 2026-10-07** (in chat) |
 
-No email gate is open (inboxes checked 2026-10-28: no new replies from nyewarburton@gmail.com). Waiting on Nye, not gated by email: compliance copy #102, ADR-017 #79, saltmarsh ADR-003 (saltmarsh#4), license #62 and its siblings, pausing releases, the GitHub App bot identity.
+No email gate is open (inboxes checked 2026-10-29: no new replies from nyewarburton@gmail.com). Waiting on Nye, not gated by email: compliance copy #102, ADR-017 #79, saltmarsh ADR-003 (saltmarsh#4), license #62 and its siblings, pausing releases, the GitHub App bot identity.
 
 ## Open tasks
 | Task | Owner | Status |
 |---|---|---|
 | Keep folding nightly results with a **merge commit** PR (never squash) | CoS | standing |
-| Decide whether to promote / further study the held Gen 1399 Sniper (97.33%); population fully Sniper and plateaued, likely needs a V4 balance look | Nye ← CoS | flagged |
+| Decide whether to promote / further study the held Gen 1499 Sniper (93.9%); population fully Sniper and plateaued, likely needs a V4 balance look | Nye ← CoS | flagged |
 | Approve compliance copy #102 | Nye | review |
 | Pierce onboarding (MOU, vault copy, Grok Bot team seeds, first-week plan) | Nye + Onslaught + Pierce | week of Oct 18; MOU blanks pending from Nye |
 | De-flake `engine-wasm/tests/race_alloc.rs` alloc-count test (flaked Oct 22 and Oct 23) | Shockwave | recommended |
@@ -84,7 +86,7 @@ No email gate is open (inboxes checked 2026-10-28: no new replies from nyewarbur
 
 ## Known engine / training limits
 - Pre-V3: every evolved champion was a Charger above 70% vs Gen 0 (99.35% at Gen 499, 85.78% at Gen 599), so none was promotable. V3 bounds the Charger's approach; see `docs/design/tank-balance-2026-10.md`.
-- V3 Gen 1399: champion held at 97.33% vs Gen 0 (97.92% at Gen 1299, 94.6% at Gen 1199, 97.67% at Gen 1099, 98.55% at Gen 999, 97.1% at Gen 899, 98.5% at Gen 799, 98.47% at Gen 399, was 97.6% at Gen 299, 93.3% at Gen 199, 95.63% at Gen 99).
+- V3 Gen 1499: champion held at 93.9% vs Gen 0 (97.33% at Gen 1399, 97.92% at Gen 1299, 94.6% at Gen 1199, 97.67% at Gen 1099, 98.55% at Gen 999, 97.1% at Gen 899, 98.5% at Gen 799, 98.47% at Gen 399, was 97.6% at Gen 299, 93.3% at Gen 199, 95.63% at Gen 99).
 - Kiter mirrors drew **84.5%** of the time pre-V3; see `games/tank/BALANCE.md` §0.
 - Swept projectile hits treat targets as stationary within a tick.
 
@@ -107,17 +109,18 @@ No email gate is open (inboxes checked 2026-10-28: no new replies from nyewarbur
 - 2026-10-26 evening cycle: inbox/CI check (no gate replies); found Oct 25/26 nightlies failing the size cap, fixed via #116; folded gens 1100–1199 via #115; STATE refresh; digest. No background workers (all CoS-sized).
 - 2026-10-27 evening cycle: inbox/CI check (no gate replies); Oct 27 nightly passed the #116 size check; gens 1200–1299 folded in via #118; STATE refresh; digest. No background workers (all CoS-sized; other work waits on Nye).
 - 2026-10-28 evening cycle: inbox/CI check (no gate replies); nightly gens 1300–1399 folded in via #120; STATE refresh; digest. No background workers (all CoS-sized; other work waits on Nye).
+- 2026-10-29 evening cycle: inbox/CI check (no gate replies); nightly gens 1400–1499 folded in via #122; STATE refresh; digest. No background workers (all CoS-sized; other work waits on Nye).
 - Limits: 1 scheduled cycle per weekday at 6:16 PM ET + founder-triggered cycles, never weekdays 8 AM–5 PM ET; max 2 concurrent workers.
 
 ## Blockers
 - No email gates awaiting reply.
-- Champion above 70%: do **not** make it the viewer default without a reviewed promotion PR + provenance card. Gen 1399 Sniper is in that bucket.
+- Champion above 70%: do **not** make it the viewer default without a reviewed promotion PR + provenance card. Gen 1499 Sniper is in that bucket.
 - #102 compliance copy waits on Nye's explicit approval.
 - #62 is Nye's to merge; nothing else depends on it except site#1 and the SPDX follow-up.
 
 ## Next
-0a. CoS: keep folding nightlies (Oct 27 and Oct 28 passed the #116 size check).
+0a. CoS: keep folding nightlies (Oct 27–29 passed the #116 size check).
 0. Engine: `engine-wasm/tests/race_alloc.rs` alloc-count test flaked on CI Oct 22 and Oct 23 (same 15-allocation failure); recurring, so Shockwave should de-flake it.
-1. Nye: approve #102 compliance copy; held Gen 1399 Sniper (V4 balance look vs keep studying); Pierce MOU blanks, ADR-017 (#79), saltmarsh ADR-003, license #62.
+1. Nye: approve #102 compliance copy; held Gen 1499 Sniper (V4 balance look vs keep studying); Pierce MOU blanks, ADR-017 (#79), saltmarsh ADR-003, license #62.
 2. Blitzwing: Nyborg app polish once Nye has played with it.
 3. Shockwave + Pierce: robotics demo / Spot POC; ADR-014 B2–B5 recommendation.
