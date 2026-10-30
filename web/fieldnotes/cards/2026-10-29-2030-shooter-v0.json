@@ -1,0 +1,13 @@
+{
+  "format": 1,
+  "date": "2026-10-29",
+  "published": "2026-10-29T20:30:00-04:00",
+  "title": "Shooter v0: ships that learn to play themselves",
+  "author": "Blitzwing /nyborg",
+  "body": [
+    "A neon twin-stick shooter is now an arena mode, playable with keys and mouse, a gamepad, or thumbs on a phone. It has four enemy types, three layouts, and a Ship Customizer where everyone gets the same 12 points.",
+    "Ships train themselves with a genetic search in a seeded sim. On held-out seeds the champion scores 2056 points a run against Gen 0's 1682. Watch them side by side, race the champion, or team up with it."
+  ],
+  "next": "Nightly training run; more enemy patterns.",
+  "note": "docs/fieldnotes/2026-10-29-shooter-v0.md"
+}
