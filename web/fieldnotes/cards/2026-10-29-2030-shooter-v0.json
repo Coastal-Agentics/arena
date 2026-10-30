@@ -9,5 +9,6 @@
     "Ships train themselves with a genetic search in a seeded sim. On held-out seeds the champion scores 2056 points a run against Gen 0's 1682. Watch them side by side, race the champion, or team up with it."
   ],
   "next": "Nightly training run; more enemy patterns.",
-  "note": "docs/fieldnotes/2026-10-29-shooter-v0.md"
+  "note": "docs/fieldnotes/2026-10-29-shooter-v0.md",
+  "pr": 124
 }
