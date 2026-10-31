@@ -1,0 +1,102 @@
+{
+  "format": 1,
+  "trained": {
+    "seed": 7,
+    "pop": 24,
+    "gens": 20,
+    "evalSeeds": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "maxTime": 90,
+    "heldOutSeeds": [
+      101,
+      102,
+      103,
+      104,
+      105,
+      106,
+      107,
+      108,
+      109,
+      110
+    ],
+    "heldOutMaxTime": 90
+  },
+  "genes": {
+    "lead": 0.577,
+    "dodge": 0.283,
+    "strafe": 0.144,
+    "keep": 0.155,
+    "prioNear": 0.154,
+    "prioThreat": 0.48,
+    "edge": 0.722
+  },
+  "gen0": {
+    "genes": {
+      "lead": 0.5,
+      "dodge": 0.5,
+      "strafe": 0.5,
+      "keep": 0.5,
+      "prioNear": 0.5,
+      "prioThreat": 0.5,
+      "edge": 0.5
+    },
+    "overall": {
+      "fitness": 2020.058,
+      "score": 1681.5,
+      "waves": 8,
+      "time": 67.712
+    },
+    "layouts": {
+      "open": {
+        "fitness": 2380.208,
+        "score": 2032.5,
+        "waves": 8.5,
+        "time": 69.542
+      },
+      "maze": {
+        "fitness": 1672.033,
+        "score": 1306.5,
+        "waves": 8,
+        "time": 73.107
+      },
+      "ring": {
+        "fitness": 2007.933,
+        "score": 1705.5,
+        "waves": 7.5,
+        "time": 60.487
+      }
+    }
+  },
+  "champion": {
+    "overall": {
+      "fitness": 2442.364,
+      "score": 2055.667,
+      "waves": 9,
+      "time": 77.339
+    },
+    "layouts": {
+      "open": {
+        "fitness": 2896.55,
+        "score": 2480.5,
+        "waves": 9.8,
+        "time": 83.21
+      },
+      "maze": {
+        "fitness": 1985.925,
+        "score": 1597.5,
+        "waves": 8.5,
+        "time": 77.685
+      },
+      "ring": {
+        "fitness": 2444.617,
+        "score": 2089,
+        "waves": 8.7,
+        "time": 71.123
+      }
+    }
+  }
+}
