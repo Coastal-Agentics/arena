@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Shooter · Arena · Coastal Agentics</title>
+  <meta name="description" content="A neon twin-stick shooter where ships learn to play themselves. Build a ship on an equal point budget, then play, watch the AI, or team up with it. A Coastal Agentics project.">
+  <meta name="theme-color" content="#EEF2F6">
+  <meta http-equiv="Cache-Control" content="no-cache">
+  <link rel="icon" href="../favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../customizer.css?v=20261024b">
+  <link rel="stylesheet" href="../customizer-race.css?v=20261024b">
+  <link rel="stylesheet" href="shooter.css?v=20261029a">
+</head>
+<body>
+  <header class="site-header wrap">
+    <a class="brand" href="/" aria-label="Coastal Agentics home"><img src="../logo-wordmark.svg" alt="Coastal Agentics" width="206" height="40"></a>
+    <nav aria-label="Coastal Agentics">
+      <a href="/">Home</a>
+      <a href="/nyborgs/">Nyborgs</a>
+      <a href="/arena/" aria-current="page">Arena</a>
+    </nav>
+  </header>
+  <nav class="subnav wrap" aria-label="Arena">
+    <strong>Arena</strong>
+    <a href="../play/">Play</a>
+    <a href="./" aria-current="page">Shooter</a>
+    <a href="../index.html">Overview</a>
+    <a href="../arena.html">Tank Arena</a>
+    <a href="../arena.html?game=racing">Racing</a>
+    <a href="../fieldnotes.html">Field notes</a>
+  </nav>
+
+    <main class="shooter wrap">
+    <section id="menu" class="sh-screen">
+      <h1>Shooter</h1>
+      <p class="sh-note">Twin-stick, neon, short. Ships learn to play themselves: watch the trained champion, race it, or team up with it.</p>
+      <div class="sh-modes">
+        <button class="primary" data-mode="play">Play<small>You vs the waves</small></button>
+        <button data-mode="watch">Watch AI<small>The champion vs the waves</small></button>
+        <button data-mode="compare">Gen 0 vs champion<small>Same seed, side by side</small></button>
+        <button data-mode="versus">Play vs AI<small>Same waves, higher score wins</small></button>
+        <button data-mode="coop">Co-op with AI<small>One team, one score</small></button>
+      </div>
+      <div class="sh-row">
+        <label>Layout <select id="layout"><option value="open">Open field</option><option value="maze">Asteroid maze</option><option value="ring">Shrinking ring</option></select></label>
+        <label>Seed <input id="seed" type="number" min="1" max="99999" value="1" inputmode="numeric" style="width:6.5rem"></label>
+        <button class="sh-btn" id="go-custom">Customize ship</button>
+        <button class="sh-btn" id="go-train">Train</button>
+      </div>
+      <p class="sh-note" id="ship-line"></p>
+      <p class="sh-note">Keys: WASD to move, mouse to aim, hold the button to fire. Gamepad: left stick moves, right stick aims and fires. Phone: left thumb moves, right thumb aims and fires. P or Esc pauses.</p>
+    </section>
+
+    <section id="custom" class="sh-screen" hidden>
+      <h1>Ship Customizer</h1>
+      <p class="sh-note">Every ship gets the same <strong>12 points</strong>. Hull, color and trail are just for looks. They never change stats.</p>
+      <div class="sh-cust">
+        <canvas id="preview" class="sh-preview" width="360" height="240" aria-label="Ship preview"></canvas>
+        <div>
+          <div class="sh-row"><label>Name <input id="ship-name" maxlength="24" style="width:12rem"></label></div>
+          <div id="stats"></div>
+          <p class="sh-note" id="budget" aria-live="polite"></p>
+          <div class="sh-row sh-seg" id="hulls" aria-label="Hull"></div>
+          <div class="sh-row" id="colors" aria-label="Color"></div>
+          <div class="sh-row sh-seg" id="trails" aria-label="Trail"></div>
+          <div class="sh-row"><label>Pilot <select id="pilot"><option value="">No pilot</option></select></label></div>
+          <div class="sh-row"><button class="sh-btn primary" id="save-ship">Save ship</button><button class="sh-btn" data-back>Back</button></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="train" class="sh-screen" hidden>
+      <h1>Train</h1>
+      <p class="sh-note">Runs a genetic search in your browser (a background worker, CPU only). Each generation plays seeded runs on all three layouts and keeps the best behavior: aim lead, dodge radius, strafe, distance, target priority and wall margin.</p>
+      <div class="sh-row"><label>Generations <select id="gens"><option>6</option><option selected>10</option><option>20</option></select></label><button class="sh-btn primary" id="train-start">Start</button><button class="sh-btn" data-back>Back</button></div>
+      <canvas id="chart" class="sh-chart" width="720" height="160"></canvas>
+      <p class="sh-note" id="train-status" aria-live="polite">Not started. The shipped champion was trained offline with the same code.</p>
+      <div class="sh-row"><button class="sh-btn" id="train-use" hidden>Use this brain</button><button class="sh-btn" id="train-reset">Use shipped champion</button></div>
+    </section>
+
+    <section id="game" class="sh-screen" hidden>
+      <div id="stages"></div>
+      <div class="sh-row"><button class="sh-btn" id="pause">Pause</button><button class="sh-btn" data-back>Menu</button><span class="sh-note" id="game-note"></span></div>
+    </section>
+  </main>
+  <footer class="site-footer">
+    <div class="wrap footer-inner">
+      <p class="footer-brand"><img src="../logo.svg" alt="" width="32" height="32"> <span><strong>Coastal Agentics</strong> · Behavioral design for agents · Savannah, Georgia</span></p>
+      <p class="footer-links"><a href="/">Coastal Agentics</a> <a href="/nyborgs/">Nyborgs</a> <a href="/arena/">Arena</a> <a href="../fieldnotes.html">Field notes</a> <a href="https://github.com/Coastal-Agentics/arena">Source on GitHub</a></p>
+      <p class="legal-line">© 2026 Nye Warburton · Built by agents · Code: MIT OR Apache-2.0 · Nyborg art and logos: all rights reserved</p>
+    </div>
+  </footer>
+    <script type="module" src="game.js?v=20261029a"></script>
+</body>
+</html>
