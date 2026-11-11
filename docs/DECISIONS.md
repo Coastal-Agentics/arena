@@ -290,3 +290,60 @@ Recommendation: option 1. After Phase A, `engine-cli` and `engine-wasm` already 
 **URLs:** the arena site is `https://coastal-agentics.github.io/arena/` (Pages from `pages.yml`, unchanged), the Nyborgs page `https://coastal-agentics.github.io/nyborgs/` and the company site `https://coastal-agentics.github.io/`. The old org's github.io addresses no longer serve these pages (they return 404); GitHub redirects the old repo URLs. When the org site moves to `coastalagentics.com`, the project pages follow at `/arena/` and `/nyborgs/`.
 **Theme:** all three sites share the company site's tokens (ink `#1F3147`, harbor steel `#436A95`, light steel `#5F88B7`, overlap `#34557B`, background `#EEF2F6`), its system font stack, the C+A mark and favicon, one header (Home `/`, Nyborgs `/nyborgs/`, Arena `/arena/`) and a footer back to the company site. Cross-site links are root-relative so they survive the domain move; asset links in `web/` stay relative (docs/engine/wasm-and-web.md). The game canvases keep their own colours.
 **Consequences:** links to the old org's URLs in history files are left as they are and may 404. The `nightly-data` raw URLs follow the repo (GitHub redirects the transferred repo's git and raw URLs).
+
+## ADR-017 — One three.js page for 3D state-log playback (scoped revision of ADR-002)
+**Status:** Proposed (2026-10-06), for Nye with the "Saltmarsh MuJoCo world" gate. Docs only: nothing in `web/`, `engine/` or `engine-wasm/` changes with this entry. Revises ADR-002 for one new page only. Answers ADR-010. Keeps ADR-012.
+**Context:** The first Saltmarsh world is the SO-101 arm doing a pick-and-place in MuJoCo (Saltmarsh ADR-003, Proposed, [Coastal-Agentics/saltmarsh#4](https://github.com/Coastal-Agentics/saltmarsh/pull/4)). The viewer here draws only in Canvas 2D (ADR-002), and an arm moving in space needs 3D.
+- **Actions can't be replayed here.** Our Rust engine can't re-simulate MuJoCo actions. Native and wasm MuJoCo also drift with the same actions: they stopped being bit-identical at step 41 in Reflector's test (largest difference 1.7e-15 over 5,000 steps).
+- **States can.** Replaying logged states matched native poses within 4.4e-16.
+- **So Saltmarsh records state logs** (`saltmarsh.state-log` v1: per-frame qpos, qvel and body poses, plus seed, setup and final hashes), and this page plays them.
+
+**Decision:**
+1. **One 3D page, playback only.** One new page (working name `web/arm.html` + `web/arm.js`) draws with WebGL through three.js.
+   - It plays Saltmarsh state logs and nothing else. It has no live physics, no editing and no game UI beyond play, pause, scrub, speed and camera presets. A small label shows the running behavior node.
+   - No other page imports three.js. The existing 2D pages (`arena.html`, the Customizer, field notes and the rest) stay Canvas 2D, and ADR-002 is unchanged for them.
+   - A second 3D page or a second 3D world needs a new decision. That is the point to revisit Bevy (ADR-012).
+2. **engine-wasm owns the timeline.** engine-wasm gets a game-agnostic state-log reader.
+   - It parses the log once into flat buffers and checks `kind`, `version`, `log_hash` and `final_hash`. The final hash is recomputed from the parsed float bits, which proves the parse was exact.
+   - It maps the playback clock to a frame index, and hands JavaScript that frame's body poses with no per-frame allocation.
+   - It checks the log's `scene_hash` against the scene manifest's, so a log is never drawn on the wrong scene.
+   - JavaScript only draws. Poses on screen are the logged values, held per frame with no interpolation, so playback is exact by construction.
+   - The reader lives in `engine-wasm`, not in the sim core. `engine/`, the tank and racing rules, replays, hashes and parity fixtures are untouched, and the existing JS exports stay identical.
+   - The Engine Lead builds it with tests and a wasm size report, within the budget below.
+3. **How three.js is loaded.**
+   - **Pinned:** three.js **0.186.1** (MIT, latest on npm, published 2026-09-24).
+   - **Vendored, not from a CDN:** the unmodified files go under `web/vendor/three-0.186.1/`: `build/three.module.js`, `build/three.core.js`, the loader the meshes need (`STLLoader.js` or `GLTFLoader.js`) and `OrbitControls.js`. They come with three.js's `LICENSE` and a `SHA256SUMS` that matches the npm tarball. The page loads them through an import map with relative paths.
+   - **Why not a CDN:** Pages has no build step (ADR-008), and the files must work under `/arena/` and offline in the headless browser check. A CDN would add a third-party request on every visit, plus a host that can change or go down.
+   - **Licence:** MIT. The notice stays in the vendored folder and gets a row in the repo's third-party notices. MIT works with the current MIT licence and with the proposed MIT OR Apache-2.0 (#62).
+   - **Measured:** `three.module.js` is 662,772 B and `three.core.js` 1,458,113 B: 2.12 MB raw, 417,073 B with `gzip -9` (Pages gzips JavaScript). A tree-shaken, minified bundle of what the page needs measured 141,491 B with `gzip -9`. It would need a build script and a committed output checked in CI like `web/pkg`, so it is a later option, not v1.
+4. **Size budget** (transfer as served, first visit to the 3D page):
+
+   | Item | Budget |
+   |---|---|
+   | three.js | ≤ 450 KB |
+   | Display meshes | ≤ 3 MB |
+   | One state log | ≤ 1 MB (a 30 s log measured 1,225,418 B raw, 438,997 B gzipped) |
+   | engine-wasm | today's 159,219 B served, plus ≤ 20 KB for the reader |
+   | **Total** | **target ≤ 5 MB, hard cap 10 MB** |
+
+   - **Logs** are committed gzipped (`*.state.jsonl.gz`, written with `mtime=0`) and unpacked with the browser's `DecompressionStream`.
+   - **Other pages** load none of this.
+   - **Meshes:** display meshes are a decimated set derived from the Menagerie SO-101 (Apache-2.0) at the commit Saltmarsh pins. The 19 source meshes are 18.15 MB, too big to serve raw. Saltmarsh's scene exporter makes them, and they are committed under `web/arm/` with the upstream `LICENSE` and a note of what changed (Apache-2.0 section 4). Collision meshes never ship. P2 picks GLB or binary STL by measured size.
+5. **Ownership.** **Blitzwing owns `web/`.** He reviews this entry, then designs and implements the page. The Engine Lead adds the engine-wasm reader. Saltmarsh supplies the logs, the scene manifest and the meshes. The CoS takes the gate to Nye.
+6. **Later, each with its own decision:**
+   - live physics in the browser with the official `@mujoco/mujoco` bindings (2.54 MB more gzipped wasm; the single-threaded build needs no COOP/COEP headers);
+   - in-browser learned policies;
+   - Bevy as a shared 3D viewer (ADR-012).
+
+**Checks for the page PR:**
+- the headless browser check renders sampled frames and reports no console errors;
+- poses on screen equal the log's values;
+- at least 30 fps playback on Nye's Mac;
+- it works on Pages with no custom headers;
+- first-visit transfer stays within budget;
+- other pages request nothing from `web/vendor/` or `web/arm/`;
+- `check-viewer.mjs`, `check-parity.mjs` and `check-viewer-browser.py` still pass.
+
+**Why:** This is the smallest step to a 3D demo we control end to end: static files on Pages and exact playback. It reuses what arena already does well: versioned files, hashes and checks in wasm. A three.js page is days of work, while Bevy for one page is weeks and adds a large wasm bundle.
+**Cost:** A second drawing stack in `web/` (Canvas 2D and three.js), about 0.4 MB of vendored JavaScript, and committed display meshes and sample logs.
+**On acceptance:** add "Revised by ADR-017" to ADR-002, "Answered by ADR-017" to ADR-010, and a pointer from ADR-012.
