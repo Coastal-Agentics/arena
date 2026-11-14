@@ -99,3 +99,58 @@ On #133 the browser is 0.08 points below native at the same completion time. Wit
 - No console errors.
 
 **Next:** add the `assets/tbd` ↔ `web/tbd/model` match check.
+
+## Follow-up (Nov 14, 3 PM): phone pass
+
+**Brief:** make `/arena/tbd/` comfortable on a phone in both orientations. The page should fit the screen with no page scroll and no zoom, and have big thumb controls that keep clear of the vehicle. The brief also asked for a HUD that collapses and remembers its state, a progress bar for the 11 MB MuJoCo wasm, a render budget aiming for 30+ fps with 4× CPU throttle, and a rotate hint you can dismiss. The wasm controller stays the default and `?ctrl=js` still works.
+
+**Steps**
+1. **Fit:** the viewport meta now has `viewport-fit=cover` and `user-scalable=no`.
+   - `html` and `body` are `100dvh`, `position: fixed`, `overscroll-behavior: none` and `touch-action: none`. Safe-area insets go into CSS variables and pad the bar, HUD and controls.
+   - Zoom is blocked four ways: iOS `gesturestart`/`gesturechange`, `dblclick`, a `touchmove` guard (multi-touch, or anything outside the help panel) and a double-tap guard on `touchend` that leaves buttons and links alone.
+2. **Thumb controls:** the left virtual stick drives forward/back and turns; in flight its X axis strafes. The right pad grid has Q/E turn, Climb, a wide Fold/fly button and Descend.
+   - All of it is pointer events with per-pointer capture, so the stick and a pad can be held together.
+   - In landscape the buttons shrink to 58 px and the stick to 128 px. Hop, Cam and Reset move into the top bar on phones, and the help panel and footer are hidden.
+3. **View offset:** `layout()` measures the free band between the top UI (the HUD in portrait, the bar in landscape) and the controls. It then shifts the camera with `setViewOffset`, so the vehicle sits in that band instead of under a thumb. It re-runs on resize, rotation and HUD collapse.
+4. **HUD:** the ▾ toggle collapses the HUD to one line (mode · AGL · battery). The state is saved in `localStorage` (`arena.tbd.hudCollapsed`) and the save is wrapped in a try/catch for private modes. In landscape the HUD drops the thrust bars and the clock so it stays above the stick.
+5. **Wasm progress:** `fetchWithProgress` streams the wasm through a reader and hands the bytes to `loadMujoco({ wasmBinary })`.
+   - The CDN serves it brotli (content-length 2,696,116 against 11,201,302 decoded). `progressTotal` therefore trusts content-length only when the body isn't encoded; otherwise it uses the known size and grows it if the download runs past.
+   - The bar never shows 100 % before the last byte. three.js and the MuJoCo JS load in parallel with the download.
+6. **Render budget** (phones; `?quality=high` opts out):
+   - DPR is capped at 1.5 on phones and 2 on desktop. Phones get no shadows, no MSAA, Lambert instead of PBR materials, no anisotropic filtering on the ground and 16-segment round geometry.
+   - The HUD DOM updates at 10 Hz, camera vectors are reused and the eye material only changes when the mode does. `TBD.perf()` reports fps, real-time factor, DPR, shadows and orientation.
+7. **Rotate hint:** portrait phones get a "Rotate your phone for a wider view" pill. Its × dismisses it for good (`arena.tbd.rotateHintDismissed`).
+8. **Tests:** the new `tests/web/tbd-phone.test.mjs` adds 13 tests. They cover the mobile, DPR, quality, layout and view-shift helpers; progress totals for encoded vs plain bodies; `fetchWithProgress` with a fake streaming fetch (exact length, encoded with a growing total, no-stream fallback, HTTP error); flag storage with a throwing store; the fps meter; and the HTML/CSS hooks. The suite total is 100/100.
+
+**What failed along the way**
+- The first landscape layout put the HUD bottom (about 270 px) below the stick top (248 px). Dropping the thrust bars and clock from the landscape HUD fixed it.
+- Landscape fps with 4× throttle was 25.7 on the first run. Lambert materials brought it to 29.7, still short of 30. Turning off 8× anisotropic filtering on the tiled ground was the big win: it went to 53.5.
+- The double-tap guard first swallowed quick button taps, so it now skips `button` and `a`.
+- `layout()` could run before it was defined when the touch UI showed early, so it now waits for a ready flag.
+
+**Results:** headless Chrome with mobile emulation (device scale 3, touch). This is SwiftShader software GL on the box, so absolute numbers are pessimistic for a real phone GPU. Each fps figure is the mean over 4 s of flight.
+
+| run | DPR | shadows | fps | fps, 4× CPU throttle |
+|---|---|---|---|---|
+| phone portrait 390×844 (wasm) | 1.5 | off | 60.0 | 59.5 |
+| phone landscape 844×390 (wasm) | 1.5 | off | 52.5 | 53.5 |
+| phone portrait, `?ctrl=js` | 1.5 | off | 60.0 | 60.0 |
+| phone portrait, `?quality=high` | 1.5 | on | 19.7 | 15.0 |
+| desktop 1280×800 | 1 | on | 16.1 | 14.4 |
+
+The real-time factor stayed about 1.00 in every run.
+
+**Verified:**
+- `scrollHeight` equals `innerHeight` in both orientations (844/844 and 390/390).
+- Every control is inside the viewport, and the vehicle's screen point is clear of the HUD, stick and pads.
+- A pinch gesture leaves `visualViewport.scale` at 1.
+- Stick plus Climb held together strafes and climbs at once.
+- The HUD collapse survives a reload.
+- The progress bar shows during a throttled load ("1.6 MB of about 11.2 MB").
+- The rotate hint shows in portrait only and its dismissal sticks.
+- wasm is the default and `?ctrl=js` works.
+- No console errors.
+
+**Not tested:** real devices. That covers iOS Safari's gesture and toolbar behaviour, Android Chrome, real multi-touch hardware, notch safe-area insets and real-GPU frame rates.
+
+**Next:** try it on a real iPhone and Android phone, then the `assets/tbd` ↔ `web/tbd/model` match check.
