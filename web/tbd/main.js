@@ -6,8 +6,8 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { toCreasedNormals } from 'three/addons/utils/BufferGeometryUtils.js';
 import loadMujoco from 'mujoco';
-import { createJsController, Battery, readInput, deadzone, quatToRpy, KEY_ACTIONS, PAD_ACTIONS, KEY_AXES } from './controller.js?v=20261114a';
-import { pickController } from './controller-wasm.js?v=20261114a';
+import { createJsController, createHopMetrics, Battery, readInput, deadzone, quatToRpy, KEY_ACTIONS, PAD_ACTIONS, KEY_AXES } from './controller.js?v=20261114b';
+import { pickController } from './controller-wasm.js?v=20261114b';
 
 const $ = id => document.getElementById(id);
 const status = msg => { $('loading-msg').textContent = msg; console.log('[tbd]', msg); };
@@ -21,23 +21,27 @@ status('Loading MuJoCo physics (about 11 MB, first visit only)…');
 const mj = await loadMujoco();
 status('Loading TBD model…');
 mj.FS.mkdir('/tbd'); mj.FS.mkdir('/tbd/meshes');
-mj.FS.writeFile('/tbd/tbd.xml', await (await fetch('model/tbd.xml?v=20261114a')).text());
+mj.FS.writeFile('/tbd/tbd.xml', await (await fetch('model/tbd.xml?v=20261114b')).text());
 await Promise.all(MESHES.map(async n => {
-  const buf = await (await fetch(`model/meshes/${n}.stl?v=20261114a`)).arrayBuffer();
+  const buf = await (await fetch(`model/meshes/${n}.stl?v=20261114b`)).arrayBuffer();
   mj.FS.writeFile(`/tbd/meshes/${n}.stl`, new Uint8Array(buf));
 }));
 const model = mj.MjModel.from_xml_path('/tbd/tbd.xml');
 const data = new mj.MjData(model);
 const OBJ = mj.mjtObj;
 const id = (type, name) => mj.mj_name2id(model, type.value, name);
-const ACT = {}; for (const n of ['thrust_FL', 'thrust_FR', 'thrust_RL', 'thrust_RR', 'drive_FL', 'drive_FR', 'drive_RL', 'drive_RR', 'fold']) ACT[n] = id(OBJ.mjOBJ_ACTUATOR, n);
+const ACT_ORDER = ['thrust_FL', 'thrust_FR', 'thrust_RL', 'thrust_RR', 'drive_FL', 'drive_FR', 'drive_RL', 'drive_RR', 'fold'];
+const ACT = {}; for (const n of ACT_ORDER) ACT[n] = id(OBJ.mjOBJ_ACTUATOR, n);
+const ACT_IDS = ACT_ORDER.map(n => ACT[n]);
+const BODY = id(OBJ.mjOBJ_BODY, 'tbd');
 const THR = ['thrust_FL', 'thrust_FR', 'thrust_RL', 'thrust_RR'].map(n => ACT[n]);
 const FOLD_Q = model.jnt_qposadr[id(OBJ.mjOBJ_JOINT, 'fold_FL')];
 const RANGE_ADR = model.sensor_adr[id(OBJ.mjOBJ_SENSOR, 'range_down')];
 const THR_SITES = ['FL', 'FR', 'RL', 'RR'].map(c => id(OBJ.mjOBJ_SITE, `thrust_${c}`));
 const EYES = id(OBJ.mjOBJ_GEOM, 'eyes');
 const DT = model.opt.timestep;
-const ctl = await pickController(params.get('ctrl'), createJsController);
+const ctlOpts = () => ({ seed: params.get('seed') || 1, wind: params.get('wind') !== '0', dt: DT });
+let ctl = await pickController(params.get('ctrl'), createJsController, ctlOpts());
 
 // ---------------------------------------------------------------- three.js scene from MuJoCo geoms
 const renderer = new THREE.WebGLRenderer({ canvas: $('view'), antialias: true, preserveDrawingBuffer: true });
@@ -180,14 +184,18 @@ const quat = () => [data.qpos[3], data.qpos[4], data.qpos[5], data.qpos[6]];
 const vel = () => [data.qvel[0], data.qvel[1], data.qvel[2]];
 const omg = () => [data.qvel[3], data.qvel[4], data.qvel[5]];
 const agl = () => { const r = data.sensordata[RANGE_ADR]; return r < 0 ? 9.99 : Math.max(0, r - 0.014); };
-const sense = () => ({ dt: DT, pos: pos(), quat: quat(), vel: vel(), omega: omg(), agl: agl(), fold: data.qpos[FOLD_Q], battery: bat.pct() });
+const sense = () => ({ dt: DT, pos: pos(), quat: quat(), vel: vel(), omega: omg(), agl: agl(), fold: data.qpos[FOLD_Q], battery: battPct(),
+  sensors: sensors12() });
+const sensors12 = () => { const sd = data.sensordata; return Array.from({ length: 12 }, (_, i) => sd[i]); };
+const battPct = () => (lastCmd && lastCmd.battery !== undefined ? lastCmd.battery : bat.pct());
 
 function reset(key = 'ground') {
   mj.mj_resetDataKeyframe(model, data, id(OBJ.mjOBJ_KEY, key)); mj.mj_forward(model, data);
   bat = new Battery(); simTime = 0; lastCmd = null;
   ctl.reset(sense(), key === 'ground' ? 'ground' : 'flight');
 }
-function startAuto() { reset(); ctl.startAuto(sense()); }
+let hop = null;   // { metrics (JS), landedAt (wasm), result } for the current or last autopilot hop
+function startAuto() { reset(); ctl.startAuto(sense()); hop = { metrics: createHopMetrics(), landedAt: null, result: null }; }
 function act(action) {
   if (action === 'fly') ctl.press('fly');
   else if (action === 'hop') startAuto();
@@ -198,14 +206,32 @@ function act(action) {
 }
 
 function physicsStep(input) {
+  const wasAuto = ctl.auto;
   const cmd = ctl.step(sense(), input);
-  data.ctrl[ACT.drive_FL] = data.ctrl[ACT.drive_RL] = cmd.drive[0];
-  data.ctrl[ACT.drive_FR] = data.ctrl[ACT.drive_RR] = cmd.drive[1];
-  data.ctrl[ACT.fold] = cmd.fold;
-  THR.forEach((a, i) => (data.ctrl[a] = cmd.thrust[i]));
+  ACT_IDS.forEach((a, i) => (data.ctrl[a] = cmd.ctrl[i]));
+  const xf = data.xfrc_applied, w = cmd.wind || [0, 0, 0];   // world-frame wind force on body "tbd", no torque
+  for (let i = 0; i < 6; i++) xf[6 * BODY + i] = i < 3 ? w[i] : 0;
   mj.mj_step(model, data); simTime += DT;
   bat.step(DT, cmd.force, cmd.driving); lastCmd = cmd;
+  if (hop && !hop.result && wasAuto) trackHop(cmd);
 }
+
+function trackHop(cmd) {
+  if (ctl.name === 'wasm') {
+    const e = cmd.engine;
+    if (e.landed_on_landing && hop.landedAt === null) hop.landedAt = simTime;
+    if (ctl.hopResult && !ctl.auto) hop.result = { ...ctl.hopResult, landedAt: hop.landedAt, controller: 'wasm' };
+  } else {
+    hop.metrics.update(ctl.auto, pos(), quat(), simTime);
+    if (!ctl.auto) hop.result = { ...hop.metrics.result(simTime, bat.pct(), pos()[0]), completed: true, controller: 'js' };
+  }
+}
+const liveScore = () => {
+  if (!hop) return null;
+  if (hop.result) return hop.result.score;
+  if (ctl.name === 'wasm' && lastCmd && lastCmd.engine) return lastCmd.engine.score;
+  return hop.metrics.result(simTime, bat.pct(), pos()[0]).score;
+};
 
 // ---------------------------------------------------------------- camera + HUD
 let camYaw = 0;
@@ -230,7 +256,7 @@ function updateCamera(dt) {
 const MODE_LABEL = { ground: 'Ground · drive', deploying: 'Unfolding…', flight: 'Flight · assisted hover', landing: 'Landing…', stowing: 'Folding…' };
 let rtf = 1;
 function hud() {
-  const p = pos(), v = vel(), batt = bat.pct(), mode = ctl.mode;
+  const p = pos(), v = vel(), batt = battPct(), mode = ctl.mode;
   $('hud-mode').textContent = (ctl.auto ? 'Autopilot hop · ' : '') + MODE_LABEL[mode];
   $('hud-mode').dataset.mode = mode;
   $('hud-alt').textContent = `${agl().toFixed(2)} m`;
@@ -239,11 +265,16 @@ function hud() {
   $('hud-batt').textContent = `${batt.toFixed(1)} %`;
   $('batt-bar').style.width = `${batt}%`;
   $('batt-bar').classList.toggle('low', batt < 25);
-  const rem = bat.minutesLeft();
-  $('hud-power').textContent = `${bat.lastW.toFixed(0)} W · ${rem > 99 ? '>99' : rem.toFixed(1)} min left at this draw`;
+  const watts = lastCmd && lastCmd.powerW !== undefined ? lastCmd.powerW : bat.lastW;
+  const rem = watts > 1 ? batt / 100 * bat.usableWh() / watts * 60 : 0;
+  $('hud-power').textContent = `${watts.toFixed(0)} W · ${rem > 99 ? '>99' : rem.toFixed(1)} min left at this draw`;
+  const sc = liveScore();
+  $('hud-score-row').hidden = sc === null; $('hud-score').textContent = sc === null ? '' : `${sc.toFixed(1)}${hop && hop.result ? ' (final)' : ''}`;
   $('hud-fold').textContent = `${(data.qpos[FOLD_Q] * 180 / Math.PI).toFixed(0)}°`;
   (lastCmd ? lastCmd.thrust : [0, 0, 0, 0]).forEach((u, i) => ($(`thr${i}`).style.height = `${Math.round(u * 100)}%`));
-  $('hud-time').textContent = `t ${simTime.toFixed(1)} s · ${rtf.toFixed(2)}× real time · ${ctl.name} controller`;
+  $('hud-time').textContent = `t ${simTime.toFixed(1)} s · ${rtf.toFixed(2)}× real time`;
+  $('hud-ctl').textContent = ctl.name === 'wasm' ? 'wasm controller (engine)' : 'JS controller';
+  $('hud-ctl').dataset.ctl = ctl.name;
   $('fly-label').textContent = mode === 'ground' || mode === 'stowing' ? 'Fly' : 'Land';
 }
 
@@ -271,8 +302,21 @@ function frame(now) {
 }
 $('loading').classList.add('hidden');
 // Test hooks (headless checks): window.TBD.press('KeyF'), .keys.add('KeyW'), .mode, .pos()
-window.TBD = { ready: true, get mode() { return ctl.mode; }, get auto() { return ctl.auto; }, controller: ctl.name, pos, simTime: () => simTime,
-  battery: () => bat.pct(), press: code => KEY_ACTIONS[code] && act(KEY_ACTIONS[code]), act, keys, touch, startAuto, reset,
+// Run one autopilot hop synchronously (no rendering) and return its metrics.
+function runHop(maxTime = 20) {
+  startAuto();
+  const still = { fwd: 0, turn: 0, strafe: 0, climb: 0, yaw: 0 };
+  while (!hop.result && simTime < maxTime) physicsStep(still);
+  return { ...hop.result, endTime: simTime, pos: pos() };
+}
+async function useController(prefer, opts = {}) {
+  const next = await pickController(prefer, createJsController, { ...ctlOpts(), ...opts });
+  if (ctl.free) ctl.free();
+  ctl = next; hop = null; reset(); return ctl.name;
+}
+window.TBD = { ready: true, get mode() { return ctl.mode; }, get auto() { return ctl.auto; }, get controller() { return ctl.name; }, pos, simTime: () => simTime,
+  battery: () => battPct(), press: code => KEY_ACTIONS[code] && act(KEY_ACTIONS[code]), act, keys, touch, startAuto, reset, runHop, useController,
+  get hop() { return hop && hop.result; }, get engine() { return lastCmd && lastCmd.engine; },
   setCam: m => { camMode = m; orbit.enabled = m === 'orbit'; } };
 if (params.get('demo') === '1') startAuto();
 requestAnimationFrame(frame);

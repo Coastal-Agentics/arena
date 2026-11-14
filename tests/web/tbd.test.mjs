@@ -2,8 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
 import { G, P, W_MAX, STOW, quatToRpy, mix, wrap, FlightController, Battery, readInput, deadzone,
-  KEY_AXES, KEY_ACTIONS, PAD_ACTIONS, MODES, createJsController } from "../../web/tbd/controller.js";
-import { WASM_CONTROLLER_AVAILABLE, loadWasmController, pickController } from "../../web/tbd/controller-wasm.js";
+  KEY_AXES, KEY_ACTIONS, PAD_ACTIONS, MODES, createJsController, stairScore, stepHeight, createHopMetrics } from "../../web/tbd/controller.js";
+import { pickController, pilotFromInput, buildObs, createWasmController, MODE_FROM_ENGINE, PILOT_TAKEOFF } from "../../web/tbd/controller-wasm.js";
 
 const LEVEL = [1, 0, 0, 0];
 const state = (o = {}) => ({ dt: 0.002, pos: [0, 0, 0], quat: LEVEL, vel: [0, 0, 0], omega: [0, 0, 0], agl: 0, fold: STOW, battery: 100, ...o });
@@ -72,7 +72,9 @@ test("controller step: interface shape and ground skid steer", () => {
   const c = createJsController(); c.reset(state());
   assert.equal(c.name, "js"); assert.equal(c.mode, "ground");
   const cmd = c.step(state(), still);
-  assert.deepEqual(Object.keys(cmd).sort(), ["auto", "drive", "driving", "fold", "force", "mode", "thrust"]);
+  assert.deepEqual(Object.keys(cmd).sort(), ["auto", "ctrl", "drive", "driving", "fold", "force", "mode", "thrust", "wind"]);
+  assert.deepEqual(cmd.ctrl, [0, 0, 0, 0, 0, 0, 0, 0, STOW], "ctrl is in <actuator> order");
+  assert.deepEqual(cmd.wind, [0, 0, 0]);
   assert.deepEqual(cmd.drive, [0, 0]); assert.deepEqual(cmd.thrust, [0, 0, 0, 0]); assert.equal(cmd.fold, STOW);
   assert.deepEqual(c.step(state(), { ...still, fwd: 1 }).drive, [W_MAX, W_MAX]);
   assert.deepEqual(c.step(state(), { ...still, turn: 1 }).drive, [W_MAX, -W_MAX]);
@@ -119,11 +121,94 @@ test("step is deterministic for the same state/input sequence (parity reference)
   assert.equal(run(), run());
 });
 
-test("wasm adapter: stub until the Rust step lands, falls back to JS", async () => {
-  assert.equal(WASM_CONTROLLER_AVAILABLE, false);
-  assert.equal(await loadWasmController(), null);
-  assert.equal((await pickController("wasm", createJsController)).name, "js");
+test("stair-hop score matches the games/tbd formula", () => {
+  assert.equal(stepHeight(0.5), 0); assert.equal(stepHeight(0.7), 0.17); assert.equal(stepHeight(1.9), 0.68);
+  assert.equal(stairScore({ landed: false, progressX: 1.15 }), 50);
+  near(stairScore({ landed: true, duration: 10, maxTiltDeg: 20, batteryUsed: 5, minClearance: 0.3 }), 1000 - 250 - 80 - 40 + 60, 1e-9);
+  near(stairScore({ landed: true, duration: 10, maxTiltDeg: 0, batteryUsed: 0, minClearance: 2 }), 1000 - 250 + 100, 1e-9);
+  const m = createHopMetrics(); m.update("climb", [1.0, 0, 0.6], [1, 0, 0, 0], 3); m.update("touchdown", [2.3, 0, 0.68], [1, 0, 0, 0], 8); m.update("stow", [2.3, 0, 0.68], [1, 0, 0, 0], 8.4);
+  const r = m.result(10, 95, 2.8); assert.ok(r.landed); near(r.minClearance, 0.6 - 0.34, 1e-12); assert.equal(r.landedAt, 8.4);
+});
+
+test("wasm adapter: pilot channels, observation layout, mode names", () => {
+  assert.deepEqual(pilotFromInput("ground", { ...still, fwd: 1, turn: 1 }), [1, -1], "D turns right = slow the right side");
+  assert.deepEqual(pilotFromInput("ground", { ...still, turn: -1 }), [0, 1]);
+  assert.deepEqual(pilotFromInput("flight", { ...still, fwd: -1, yaw: 1 }), [-1, 1], "Q yaws left");
+  assert.deepEqual(pilotFromInput("flight", { ...still, turn: 1 }), [0, -1], "A/D yaw in flight (no strafe channel)");
+  const sensors = Array.from({ length: 12 }, (_, i) => i + 1);
+  const obs = buildObs(new Float64Array(20), state({ sensors, pos: [13, 14, 15], vel: [16, 17, 18] }), [19, 20]);
+  assert.deepEqual(Array.from(obs), Array.from({ length: 20 }, (_, i) => i + 1));
+  assert.deepEqual(Object.values(MODE_FROM_ENGINE).sort(), [...MODES].sort());
+});
+
+test("wasm adapter: falls back to JS when web/pkg has no WasmTbd", async () => {
+  assert.equal((await pickController("wasm", createJsController, { url: "data:text/javascript,export default 1" })).name, "js");
   assert.equal((await pickController(null, createJsController)).name, "js");
+});
+
+// ---- parity with the engine's WasmTbd (PR #132). Skips when web/pkg does not export it.
+const pkgUrl = new URL("../../web/pkg/engine_wasm.js", import.meta.url);
+async function loadPkg() {
+  try {
+    const mod = await import(pkgUrl.href);
+    if (typeof mod.WasmTbd !== "function") return null;
+    await mod.default({ module_or_path: readFileSync(new URL("../../web/pkg/engine_wasm_bg.wasm", import.meta.url)) });
+    return mod;
+  } catch { return null; }
+}
+const pkg = await loadPkg();
+const skip = pkg ? false : "web/pkg does not export WasmTbd (needs #132)";
+const sensorsOf = (s) => [...s.omega, 0, 0, G, ...s.quat, s.agl, s.fold];
+// Loose tolerances on purpose: the engine is about to gain voltage sag, ram drag, ground effect and a slower fold.
+const TOL = { drive: 1e-6, thrust: 0.08 };
+
+test("parity: manual ground sticks match the JS skid steer", { skip }, () => {
+  for (const input of [{ ...still, fwd: 1 }, { ...still, turn: 1 }, { ...still, fwd: 0.5, turn: -0.5 }, { ...still, fwd: -1 }]) {
+    const js = createJsController(); js.reset(state());
+    const w = createWasmController(pkg, { seed: 1, wind: false });
+    const s = state(); s.sensors = sensorsOf(s);
+    const a = js.step(s, input).ctrl, b = w.step(s, input).ctrl; w.free();
+    for (let i = 4; i < 8; i++) near(b[i], a[i], TOL.drive);
+    assert.equal(b[8], a[8]);
+  }
+});
+
+test("parity: stair-hop script phases and hover thrust match the JS autopilot (wind off)", { skip }, () => {
+  const js = createJsController(); js.startAuto(state());
+  const w = createWasmController(pkg, { seed: 1, wind: false }); w.startAuto(state());
+  // a scripted pose sequence: drive to x 0.45, brake, unfold, then hover at the start of the climb
+  const seq = [];
+  for (let i = 0; i < 10; i++) seq.push(state({ pos: [0.04 * i, 0, 0] }));
+  for (let i = 0; i < 300; i++) seq.push(state({ pos: [0.45, 0, 0] }));
+  for (let i = 0; i < 260; i++) seq.push(state({ pos: [0.45, 0, 0], fold: 0 }));
+  for (let i = 0; i < 50; i++) seq.push(state({ pos: [0.45, 0, 0.05], fold: 0 }));
+  let compared = 0, prev = js.auto;
+  for (const s of seq) {
+    s.sensors = sensorsOf(s);
+    const a = js.step(s, still), b = w.step(s, still);
+    assert.equal(w.auto, js.auto, `phase at x ${s.pos[0]}`);
+    for (let i = 4; i < 9; i++) near(b.ctrl[i], a.ctrl[i], TOL.drive);
+    // Known one-tick difference: on the deploy -> climb tick the engine already flies, the JS reference waits a tick.
+    if (js.auto === prev) { for (let i = 0; i < 4; i++) near(b.ctrl[i], a.ctrl[i], TOL.thrust); compared++; }
+    prev = js.auto;
+  }
+  assert.equal(js.auto, "climb"); assert.ok(compared > 600, `compared ${compared}`);
+  w.free();
+});
+
+test("parity: wasm adapter takes off and lands through the sentinels", { skip }, () => {
+  const w = createWasmController(pkg, { seed: 1, wind: true });
+  const s = state(); s.sensors = sensorsOf(s);
+  w.step(s, still); assert.equal(w.mode, "ground");
+  w.press("fly"); w.step(s, still); assert.equal(w.mode, "deploying");
+  const up = state({ fold: 0 }); up.sensors = sensorsOf(up);
+  for (let i = 0; i < 300; i++) w.step(up, still);
+  assert.equal(w.mode, "flight");
+  const cmd = w.step(up, still); assert.equal(cmd.wind.length, 3); assert.ok(cmd.wind.some((v) => v !== 0), "seeded wind is drawn");
+  w.press("fly"); w.step(up, still); assert.equal(w.mode, "landing");
+  for (let i = 0; i < 300; i++) w.step(up, still);
+  assert.equal(w.mode, "stowing", "page sends the fold sentinel once down");
+  assert.equal(PILOT_TAKEOFF, 2); w.free();
 });
 
 test("page copy: physics sim with estimated parameters, working name TBD, relative paths in every file", () => {

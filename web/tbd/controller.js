@@ -11,7 +11,11 @@
 //                          agl: m above ground (range sensor), fold: fold angle rad, battery: % left }
 //   input (pilot in):    { fwd, turn, strafe, climb, yaw }  each in [-1, 1]
 //   cmd (commands out):  { mode, auto, drive:[left, right] rad/s, thrust:[4] in [0,1] (FL FR RL RR),
-//                          force:[4] N, fold: target fold angle rad, driving: 0..1 }
+//                          force:[4] N, fold: target fold angle rad, driving: 0..1,
+//                          ctrl:[9] in tbd.xml <actuator> order (thrust FL FR RL RR, drive FL FR RL RR, fold),
+//                          wind:[3] world-frame N for xfrc_applied on body "tbd" (JS: always 0) }
+//   The wasm controller also reads state.sensors (MuJoCo sensordata[0..12]) and adds
+//   battery, powerW and engine state to cmd; see controller-wasm.js.
 //
 // The controller never touches MuJoCo; main.js copies cmd into data.ctrl and steps physics.
 // Ported 1:1 from the box prototype's flight controller and battery model.
@@ -73,6 +77,7 @@ export class Battery {
   power(f, driving = 0) { return f.reduce((s, t) => s + this.ph * Math.pow(Math.max(t, 0) / this.th, 1.5), 0) + P.avionics_w + driving * 4 * P.wheel_w; }
   step(dt, f, driving = 0) { this.lastW = this.power(f, driving); this.whUsed += this.lastW * dt / 3600; return this.pct(); }
   pct() { return Math.max(0, 100 * (1 - this.whUsed / (P.pack_wh * P.usable))); }
+  usableWh() { return P.pack_wh * P.usable; }
   minutesLeft() { return this.lastW > 1 ? (P.pack_wh * P.usable - this.whUsed) / this.lastW * 60 : 0; }
   hoverMinutes() { return P.pack_wh * P.usable / (4 * this.ph + P.avionics_w) * 60; }
 }
@@ -113,11 +118,45 @@ export function readInput(keys, pad = null, touch = null) {
 export const MODES = ['ground', 'deploying', 'flight', 'landing', 'stowing'];
 const leash = (t, p, L = 0.6) => t.map((v, i) => p[i] + clamp(v - p[i], -L, L));
 
+// Stair-hop score, same formula and bands as games/tbd (stair_score in mission.rs) so the
+// JS reference can be compared with the engine. Tilt and clearance count in climb/transit/descend.
+export const STAIR_TOP = 0.68, XLAND = 2.30, LAND_X0 = 1.92;
+export function stepHeight(x) {
+  if (x + 0.16 <= 0.80) return 0;
+  return 0.17 * clamp(Math.floor((x + 0.16 - 0.80) / 0.28) + 1, 0, 4);
+}
+export function stairScore({ landed, duration, maxTiltDeg, batteryUsed, minClearance, progressX }) {
+  if (!landed) return 100 * clamp(progressX / XLAND, 0, 1);
+  const clear = clamp(minClearance ?? 0, 0, 0.5);
+  return Math.max(0, 1000 - 25 * duration - 4 * maxTiltDeg - 8 * batteryUsed + 200 * clear);
+}
+export function createHopMetrics() {
+  let maxTilt = 0, minClear = null, landedZ = null, landedAt = null, prev = null;
+  return {
+    // Call once per physics step with the autopilot phase, pose and sim time after the step.
+    update(phase, pos, quat, t) {
+      if (phase === 'climb' || phase === 'transit' || phase === 'descend') {
+        const [r, p] = quatToRpy(...quat); maxTilt = Math.max(maxTilt, Math.abs(r), Math.abs(p));
+        if (pos[0] > 0.55 && pos[0] < LAND_X0) { const c = pos[2] - stepHeight(pos[0]); minClear = minClear === null ? c : Math.min(minClear, c); }
+      }
+      if (prev === 'touchdown' && phase === 'stow' && landedZ === null) { landedZ = pos[2]; landedAt = t; }
+      prev = phase;
+    },
+    result(t, batteryPct, x) {
+      const landed = landedZ !== null && landedZ > STAIR_TOP - 0.01;
+      const maxTiltDeg = maxTilt * 180 / Math.PI;
+      return { score: stairScore({ landed, duration: t, maxTiltDeg, batteryUsed: 100 - batteryPct, minClearance: minClear, progressX: x }),
+        landed, landedAt, maxTiltDeg, minClearance: minClear, time: t, batteryUsed: 100 - batteryPct };
+    },
+  };
+}
+
 export function createJsController() {
   const fc = new FlightController();
   let mode = 'ground', target = [0, 0, 0], yawT = 0, landTimer = 0, fold = STOW, auto = null, t = 0;
   let pending = [];
-  const out = (drive, thrust, force, driving) => ({ mode, auto: auto && auto.phase, drive, thrust, force, fold, driving });
+  const out = (drive, thrust, force, driving) => ({ mode, auto: auto && auto.phase, drive, thrust, force, fold, driving,
+    ctrl: [...thrust, drive[0], drive[1], drive[0], drive[1], fold], wind: [0, 0, 0] });
   const zero4 = () => [0, 0, 0, 0];
   const drive = (l, r) => [clamp(l, -W_MAX, W_MAX), clamp(r, -W_MAX, W_MAX)];
 

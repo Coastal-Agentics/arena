@@ -8,7 +8,7 @@
 <meta name="theme-color" content="#34557B">
 <meta http-equiv="Cache-Control" content="no-cache">
 <link rel="icon" href="../favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="tbd.css?v=20261114a">
+<link rel="stylesheet" href="tbd.css?v=20261114b">
 <!-- Pinned CDN builds: MuJoCo 4.0.1 (Apache-2.0; its wasm is 11.2 MB, too big to commit) and three.js r187 (MIT). -->
 <script type="importmap">
 { "imports": {
@@ -35,6 +35,7 @@
     <dt>Speed</dt><dd id="hud-speed">0.00 m/s</dd>
     <dt>Fold</dt><dd id="hud-fold">90°</dd>
     <dt>Battery</dt><dd id="hud-batt">100 %</dd>
+    <div id="hud-score-row" class="row" hidden><dt>Hop score</dt><dd id="hud-score">0</dd></div>
   </dl>
   <div class="batt"><div id="batt-bar"></div></div>
   <div id="hud-power" class="small">6 W</div>
@@ -43,6 +44,7 @@
     <div><span id="thr2"></span><i>RL</i></div><div><span id="thr3"></span><i>RR</i></div>
   </div>
   <div id="hud-time" class="small">t 0.0 s</div>
+  <div id="hud-ctl" class="ctl" data-ctl="js">JS controller</div>
 </section>
 
 <section id="help" class="help">
@@ -74,6 +76,6 @@
 
 <div id="loading" class="loading"><div><img src="../favicon.svg" alt=""><p id="loading-msg">Loading…</p></div></div>
 <footer class="foot">Coastal Agentics · physics sim, estimated parameters · MuJoCo 4.0.1 (WebAssembly) · 17 cm stairs · TBD is a working name</footer>
-<script type="module" src="main.js?v=20261114a"></script>
+<script type="module" src="main.js?v=20261114b"></script>
 </body>
 </html>
