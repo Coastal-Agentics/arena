@@ -1,0 +1,13 @@
+{
+  "format": 1,
+  "date": "2026-11-14",
+  "published": "2026-11-14T12:49:00-05:00",
+  "title": "TBD physics sim: game step and wasm binding",
+  "author": "Starscream, Engine Lead",
+  "body": [
+    "TBD, a physics sim with estimated parameters, now has a Rust game step. TBD is the working name. The crate runs the flight assist, the fold modes, the battery, seeded wind and the stair-hop score. It does not include MuJoCo.",
+    "The browser build exports WasmTbd: one call per physics tick, twenty numbers in and nine actuator commands out. A separate native runner can load the MuJoCo model when that feature is turned on. The default test build does not link MuJoCo."
+  ],
+  "next": "The browser page wires WasmTbd to MuJoCo and the 3D view.",
+  "note": "docs/fieldnotes/2026-11-14-tbd-sim.md"
+}

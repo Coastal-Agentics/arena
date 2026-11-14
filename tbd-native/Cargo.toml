@@ -1,0 +1,20 @@
+[package]
+name = "tbd-native"
+description = "Headless TBD runner: MuJoCo plus games/tbd, behind the native feature"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[features]
+default = []
+# Links mujoco-rs (MuJoCo 3.17). Off for `cargo test --workspace` and clippy,
+# so the default build does not need the MuJoCo C library.
+native = ["dep:mujoco-rs", "mujoco-rs/auto-download-mujoco"]
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+serde_json = "1"
+tbd = { path = "../games/tbd" }
+mujoco-rs = { version = "=7.1.0", optional = true, default-features = false }

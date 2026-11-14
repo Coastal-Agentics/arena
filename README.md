@@ -48,6 +48,10 @@ engine-wasm/   browser bindings for the viewer (wasm-bindgen), built into web/pk
 engine-py/     Python bindings (pyo3, maturin): the coastal-arena wheel, its own Cargo workspace
 games/tank/    Tank Arena rules v1: loadouts, arena and spawns, scripted policies, and the
                placeholder bots Chaser and Wanderer used by engine-cli and the viewer's built-in-bot mode
+games/tbd/     TBD flight assist and stair-hop mission (physics sim with estimated
+               parameters; no MuJoCo dependency). TBD is the working name
+tbd-native/    headless TBD runner. MuJoCo is behind `--features native` and is not
+               linked by `cargo test` or `cargo clippy`
 web/           the GitHub Pages site: viewer + field notes (static; the only generated file is
                web/fieldnotes/index.json, built from web/fieldnotes/cards/)
 docs/          charter, state, decisions, provenance card, role briefs, field notes, playbooks
@@ -67,6 +71,10 @@ Preview the site locally. The field notes page reads `web/fieldnotes/index.json`
 node scripts/fieldnotes_index.mjs        # Node 20+; writes web/fieldnotes/index.json
 python3 -m http.server -d web 8000       # open http://localhost:8000/fieldnotes.html
 ```
+
+## TBD
+
+TBD is a physics sim with estimated parameters. TBD is the working name. The MuJoCo model is `assets/tbd/` (MuJoCo 4.0.1). Game logic is `games/tbd`: one flat observation in, nine actuator commands out, called once per physics tick. The browser binding is `WasmTbd` in `web/pkg` (`games/tbd/README.md`). `tbd-native --features native` runs the same crate against MuJoCo on the machine (`tbd-native/README.md`). Third-party credits are in `THIRD_PARTY_NOTICES.md`.
 
 ## Docs
 - [Charter](docs/CHARTER.md): how the company runs
