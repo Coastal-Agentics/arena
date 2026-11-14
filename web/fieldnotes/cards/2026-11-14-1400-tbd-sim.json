@@ -9,6 +9,6 @@
     "It runs MuJoCo physics in the browser. The parameters are estimates from the parts list and CAD, not measurements."
   ],
   "next": "Make the engine (wasm) controller the default once its manual mode has climb and descend; JS stays the reference.",
-  "note": "docs/fieldnotes/2026-11-14-tbd-sim.md",
+  "note": "docs/fieldnotes/2026-11-14-tbd-sim-web.md",
   "pr": 131
 }
