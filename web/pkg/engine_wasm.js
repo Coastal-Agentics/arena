@@ -770,8 +770,9 @@ export class WasmTbd {
         wasm.__wbg_wasmtbd_free(ptr, 0);
     }
     /**
-     * [`tbd::StateView`] as JSON: mode, phase, battery, score, and
-     * `wind_force_n` (world-frame newtons for body `tbd`).
+     * [`tbd::StateView`] as JSON: mode, phase, battery, score,
+     * `wind_force_n`, `aero_force_n` and `aero_torque_nm` (world frame; add the
+     * forces, and use the torque, in `xfrc_applied` on body `tbd`).
      * @returns {string}
      */
     stateJson() {

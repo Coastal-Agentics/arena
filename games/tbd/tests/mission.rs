@@ -24,6 +24,12 @@ fn game(mission: MissionId, wind: bool) -> TbdGame {
             mission,
             wind,
             max_time_s: 30.0,
+            // The script tests the mode machine. The physics switches have their own tests.
+            voltage_sag: false,
+            ram_drag: false,
+            ground_effect: false,
+            fold_rate_limit: false,
+            ..Config::default()
         },
     )
     .unwrap()
@@ -119,6 +125,7 @@ fn same_seed_and_obs_log_reproduces_wind_and_commands() {
         mission: MissionId::StairHop,
         wind: true,
         max_time_s: 16.0,
+        ..Config::default()
     };
     let mut a = TbdGame::new(42, cfg.clone()).unwrap();
     let mut b = TbdGame::new(42, cfg.clone()).unwrap();

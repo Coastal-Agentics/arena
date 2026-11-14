@@ -148,6 +148,7 @@ mod native {
                 mission,
                 wind: !args.no_wind,
                 max_time_s: max_time,
+                ..Config::default()
             },
         )
         .map_err(|e| e.to_string())?;
@@ -166,8 +167,18 @@ mod native {
             let obs = read_obs(&data, &root)?;
             let ctrl = game.step(&obs).map_err(|e| e.to_string())?;
             data.ctrl_mut().copy_from_slice(&ctrl);
-            let force = game.state().wind_force_n;
-            data.xfrc_applied_mut()[body_id] = [force[0], force[1], force[2], 0.0, 0.0, 0.0];
+            let state = game.state();
+            let force = state.wind_force_n;
+            let aero = state.aero_force_n;
+            let torque = state.aero_torque_nm;
+            data.xfrc_applied_mut()[body_id] = [
+                force[0] + aero[0],
+                force[1] + aero[1],
+                force[2] + aero[2],
+                torque[0],
+                torque[1],
+                torque[2],
+            ];
             let state = game.state();
             let phase_changed = state.phase != last_phase;
             if phase_changed || state.tick % stride == 0 || state.over {

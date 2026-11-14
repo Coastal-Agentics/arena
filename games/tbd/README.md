@@ -17,7 +17,12 @@ const game = new WasmTbd(1n, JSON.stringify({
   dt: 0.002,            // seconds; use the model's timestep
   mission: "stair_hop", // or "manual"
   wind: true,
-  max_time_s: 16
+  max_time_s: 16,
+  voltage_sag: true,    // all four default on
+  ram_drag: true,
+  ground_effect: true,
+  fold_rate_limit: true,
+  r_cell_ohm: 0.0075    // 7.5 mΩ per cell
 }));
 
 // once per mj_step, after sensors are valid (mj_forward after a reset):
@@ -26,8 +31,9 @@ const obs = new Float64Array(tbdObsLen());
 const ctrl = game.step(obs);          // Float64Array, length tbdCtrlLen() (9)
 const state = JSON.parse(game.stateJson());
 // copy ctrl into MjData.ctrl, in order
-// state.wind_force_n is [fx, fy, fz] newtons, world frame.
-// write it to xfrc_applied on body "tbd" (torque 0), then mj_step.
+// xfrc_applied on body "tbd", world frame, before mj_step:
+//   force  = state.wind_force_n + state.aero_force_n
+//   torque = state.aero_torque_nm   (about the body centre of mass)
 
 game.reset(); // same seed and config
 game.free();
@@ -37,7 +43,21 @@ game.free();
 
 `step` throws if `obs.length` is not 20 or any value is NaN or infinite. After `state.over` is true, `step` returns the last command and does not move the clock or the wind stream.
 
-`stateJson()` fields the page needs: `mode` (`ground` | `unfolding` | `flight` | `landing` | `folding`), `phase` (the stair-hop script name, or the mode name when `mission` is `manual`), `battery_pct`, `power_w`, `score`, `timer_s`, `completed`, `landed_on_landing`, `over`, `wind_world_mps`, `wind_force_n`, `ctrl`.
+`stateJson()` fields the page needs: `mode` (`ground` | `unfolding` | `flight` | `landing` | `folding`), `phase` (the stair-hop script name, or the mode name when `mission` is `manual`), `battery_pct`, `power_w`, `score`, `timer_s`, `completed`, `landed_on_landing`, `over`, `wind_world_mps`, `wind_force_n`, `aero_force_n`, `aero_torque_nm`, `pack_voltage_v`, `pack_current_a`, `ground_effect`, `ctrl`.
+
+## Estimated physics switches
+
+All four default **on**. Set the boolean to `false` to drop that effect. Sources and the ESTIMATE marks are in `assets/tbd/PARAMS.md`.
+
+| Field | Default | What it does |
+| --- | --- | --- |
+| `voltage_sag` | `true` | `V = V_oc − I R`. `V_oc` runs linearly from 4.2 V to 3.5 V per cell across 6S. Thrust scales with `(V / 25.2 V)²`. Hover draw is about 19 A. |
+| `r_cell_ohm` | `0.0075` | Per-cell resistance, ohms (7.5 mΩ). Band 5–10 mΩ. **ESTIMATE, unsourced; fit from a logged flight or measure with a charger IR readout.** |
+| `ram_drag` | `true` | Per duct, `F ≈ ṁ V_air` opposite the in-plane airspeed. `ṁ = T / v_i`, `v_i = √(T / (2 ρ A))`, `A = π (0.038)²`. About 2–3 N total at 4 m/s, plus a small pitch moment because the ducts sit below the body centre of mass. Reported as `aero_force_n` and `aero_torque_nm`. |
+| `ground_effect` | `true` | `T_IGE / T_OGE = 1 / (1 − (R / 4h)²)`, `R = 0.038` m. `h` comes from `range_down` plus 23 mm (duct plane 37 mm, rangefinder site 14 mm), clamped to at least `R/2`. About +7% at liftoff and about 1 at 1 m. Cheeseman and Bennett, open-rotor formula, so an estimate for a duct. The ratio is also `state.ground_effect`. |
+| `fold_rate_limit` | `true` | Fold command slews at about 465°/s, so 90° takes about 0.19 s. ES08MD II no-load figure (0.10 s per 60° at 6 V, ±58° of horn travel). The XML `kp` is unchanged; a position actuator has no rate attribute. |
+
+Kept as they were: motor lag τ = 40 ms, 5.5 N per duct as an optimistic placeholder (±10–20%, open prop not the ducted D76), hover efficiency 2.3 g/W as a placeholder with range 1.8–2.5 (**ESTIMATE**).
 
 Wind is seeded from `seed` with the same ChaCha8 construction as the engine RNG. The same seed, config and observation log reproduce commands and `wind_force_n`. The controller does not cancel that force; the page applies it.
 

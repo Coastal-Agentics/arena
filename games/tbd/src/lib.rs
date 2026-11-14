@@ -31,9 +31,10 @@
 //! # Host loop
 //!
 //! The host reads MuJoCo, calls [`TbdGame::step`], writes the returned
-//! command into `ctrl`, writes [`StateView::wind_force_n`] into
-//! `xfrc_applied` on body `tbd`, then steps physics. `dt` in the config must
-//! be the model timestep (0.002 s unless the host changed it).
+//! command into `ctrl`, and writes `xfrc_applied` on body `tbd` as
+//! `[wind_force_n + aero_force_n, aero_torque_nm]` (world frame, torque about
+//! the body centre of mass). `dt` in the config must be the model timestep
+//! (0.002 s unless the host changed it).
 
 #![warn(missing_docs)]
 
@@ -43,6 +44,7 @@ pub mod math;
 pub mod mission;
 pub mod obs;
 pub mod params;
+pub mod physics;
 mod wind;
 
 pub use battery::Battery;

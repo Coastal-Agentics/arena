@@ -396,18 +396,18 @@ Source: `engine-wasm/src/tbd_api.rs`, `games/tbd`. TBD is a physics sim with est
 
 | JS | Returns | Notes |
 | --- | --- | --- |
-| `new WasmTbd(seed, configJson)` | `WasmTbd` | `seed` is a BigInt (`1n`). `configJson` is `{dt, mission, wind, max_time_s}`. `""` and `"{}"` default to `dt` 0.002, `mission` `"stair_hop"`, `wind` true, `max_time_s` 16. Throws if the JSON is not an object or `dt` / `max_time_s` are not finite and positive |
+| `new WasmTbd(seed, configJson)` | `WasmTbd` | `seed` is a BigInt (`1n`). `configJson` is `{dt, mission, wind, max_time_s, voltage_sag, r_cell_ohm, ram_drag, ground_effect, fold_rate_limit}`. `""` and `"{}"` default to `dt` 0.002, `mission` `"stair_hop"`, `wind` true, `max_time_s` 16, and the four physics switches on. Throws if the JSON is not an object or `dt` / `max_time_s` / `r_cell_ohm` are bad |
 | `tbdObsLen()` / `tbdCtrlLen()` | `number` | 20 and 9 |
 | `g.step(obs)` | `Float64Array` | One tick. `obs` is 20 floats (sensor order, then position, linear velocity, `pilot_x`, `pilot_yaw`). Returns 9 actuator commands in `tbd.xml` `<actuator>` order. Throws on a bad observation. After the mission is over, returns the last command |
-| `g.stateJson()` | `string` | Mode, phase, battery, score, `wind_force_n` (world-frame newtons on body `tbd`) |
+| `g.stateJson()` | `string` | Mode, phase, battery, score, `wind_force_n`, `aero_force_n`, `aero_torque_nm`, `pack_voltage_v`, `pack_current_a`, `ground_effect` |
 | `g.reset()` | | Same seed and config, tick 0 |
 | `g.free()` | | Release the Rust object |
 
 `mission` is `"stair_hop"` or `"manual"`. The stair-hop script ignores the pilot channels. Manual sentinels: `pilot_x >= 2` takeoff, `pilot_x <= -2` land, `pilot_yaw >= 2` fold. The layout table is in `games/tbd` (`obs` module and `games/tbd/README.md`).
 
-The page copies `step`'s return value into `MjData.ctrl`, writes `wind_force_n` into `xfrc_applied` on body `tbd` with zero torque, then calls `mj_step`. Same seed, config and observation log reproduce the commands and the wind.
+The page copies `step`'s return value into `MjData.ctrl`. `xfrc_applied` on body `tbd` is world-frame `[wind_force_n + aero_force_n, aero_torque_nm]` (torque about the body centre of mass), then `mj_step`. Same seed, config and observation log reproduce the commands, the wind and the ram drag. The formulas are estimated parameters; see `games/tbd/README.md`.
 
-`engine_wasm_bg.wasm` is 483,488 bytes (177,868 with `gzip -9 -n`) with `WasmTbd` included, up from 418,704 before this crate. Tank and racing exports are unchanged; the extra bytes are the TBD step, not a second physics engine.
+`engine_wasm_bg.wasm` is 489,873 bytes (180,332 with `gzip -9 -n`) with the physics switches included: +6,385 bytes (+2,464 gzipped) from 483,488 (177,868) before those switches, which was +64,784 from 418,704 before `WasmTbd`. Tank and racing exports are unchanged.
 
 ## Building `web/pkg`
 

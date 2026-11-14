@@ -67,6 +67,28 @@ pub const FOLD_DEPLOY: f64 = 0.0;
 pub const AIR_DENSITY: f64 = 1.225;
 /// Estimated drag area (Cd · A) for the wind disturbance only, m². Not measured.
 pub const WIND_DRAG_AREA: f64 = 0.08;
+/// Cells in series. Tattu 6S.
+pub const N_CELLS: u32 = 6;
+/// Open-circuit volts per cell at full charge.
+pub const V_CELL_FULL: f64 = 4.2;
+/// Open-circuit volts per cell at empty. Landing-voltage end of the sag curve.
+pub const V_CELL_EMPTY: f64 = 3.5;
+/// Voltage the 5.5 N placeholder is referenced to, volts. 6 × 4.2.
+pub const V_REF: f64 = N_CELLS as f64 * V_CELL_FULL;
+/// Per-cell resistance, ohms. 7.5 mΩ. ESTIMATE, unsourced. Plausible band 5–10 mΩ.
+pub const R_CELL_OHM: f64 = 0.0075;
+/// Prop disk radius, m. Gemfan D76 is 76 mm across.
+pub const DUCT_RADIUS: f64 = 0.038;
+/// Duct plane height in the body frame, m. Fold-hinge height.
+pub const DUCT_Z: f64 = 0.037;
+/// Rangefinder site height in the body frame, m (`tbd.xml` site `down`).
+pub const RANGE_SITE_Z: f64 = 0.014;
+/// Fold command rate, deg/s at the arm. About 90° in 0.19 s.
+pub const FOLD_RATE_DEG_S: f64 = 465.0;
+/// [`FOLD_RATE_DEG_S`] in rad/s.
+pub const FOLD_RATE_RAD_S: f64 = FOLD_RATE_DEG_S * std::f64::consts::PI / 180.0;
+/// Motor thrust lag in `tbd.xml`, seconds. Kept at 40 ms.
+pub const MOTOR_TAU_S: f64 = 0.040;
 
 /// Yaw-reaction sign per duct, FL FR RL RR. Matches `tbd.xml` actuator gear.
 pub const SPIN: [f64; 4] = [1.0, -1.0, -1.0, 1.0];
