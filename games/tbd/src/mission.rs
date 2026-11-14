@@ -1,6 +1,6 @@
 //! Flight-mode machine and the stair-hop mission.
 //!
-//! Modes are the five the host shows: ground, unfolding, flight, landing, folding.
+//! Modes are the five the host shows: ground, deploying, flight, landing, stowing.
 //! The stair-hop script underneath is the phase list in `validate.py`:
 //! drive → brake → deploy → climb → transit → descend → touchdown → stow →
 //! roll → settle → done. A physics sim with estimated parameters; the script
@@ -31,6 +31,8 @@ pub const CLIMB_Z: f64 = STAIR_TOP + 0.32;
 const DRIVE_RAD_S: f64 = 24.0;
 /// Manual flight speed cap, m/s. Same cruise the script uses in transit.
 const MANUAL_SPEED: f64 = 0.7;
+/// Manual climb and descend rate at full `pilot_z`, m/s.
+const MANUAL_CLIMB: f64 = 0.9;
 /// Manual yaw-rate stick scale, rad/s at full deflection.
 const MANUAL_YAW_RATE: f64 = 1.2;
 /// Altitude the manual mission holds after takeoff, m.
@@ -41,14 +43,14 @@ const MANUAL_HOLD_Z: f64 = 0.6;
 pub enum FlightMode {
     /// Arms stowed, wheels may be driven.
     Ground,
-    /// Fold command going to deployed.
-    Unfolding,
+    /// Fold command going to deployed. JSON name `deploying`.
+    Deploying,
     /// Cascade controller in closed loop.
     Flight,
     /// Descending, or down with thrust cut, waiting to fold.
     Landing,
-    /// Fold command going back to stowed.
-    Folding,
+    /// Fold command going back to stowed. JSON name `stowing`.
+    Stowing,
 }
 
 impl FlightMode {
@@ -56,10 +58,10 @@ impl FlightMode {
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Ground => "ground",
-            Self::Unfolding => "unfolding",
+            Self::Deploying => "deploying",
             Self::Flight => "flight",
             Self::Landing => "landing",
-            Self::Folding => "folding",
+            Self::Stowing => "stowing",
         }
     }
 }
@@ -102,10 +104,10 @@ impl ScriptPhase {
             Self::Drive | Self::Brake | Self::Roll | Self::Settle | Self::Done => {
                 FlightMode::Ground
             }
-            Self::Deploy => FlightMode::Unfolding,
+            Self::Deploy => FlightMode::Deploying,
             Self::Climb | Self::Transit | Self::Descend => FlightMode::Flight,
             Self::Touchdown => FlightMode::Landing,
-            Self::Stow => FlightMode::Folding,
+            Self::Stow => FlightMode::Stowing,
         }
     }
 }
@@ -228,6 +230,9 @@ impl StairHop {
     fn advance(&mut self, obs: &Obs, dt: f64, t: f64) -> Command {
         let mut reset_fc = false;
         let tp = t - self.t_phase;
+        // Flight control runs only if this tick started in the air. Entering
+        // climb from deploy on this tick does not thrust until the next tick.
+        let phase_at_start = self.phase;
 
         match self.phase {
             ScriptPhase::Drive if obs.pos[0] >= 0.42 => self.set(ScriptPhase::Brake, t),
@@ -243,7 +248,7 @@ impl StairHop {
         let mut flight: Option<Setpoint> = None;
         let mut flight_metrics = false;
         if matches!(
-            self.phase,
+            phase_at_start,
             ScriptPhase::Climb | ScriptPhase::Transit | ScriptPhase::Descend
         ) {
             match self.phase {
@@ -371,20 +376,20 @@ impl StairHop {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum ManualPhase {
     Ground,
-    Unfolding,
+    Deploying,
     Flight,
     Landing,
-    Folding,
+    Stowing,
 }
 
 impl ManualPhase {
     fn mode(self) -> FlightMode {
         match self {
             Self::Ground => FlightMode::Ground,
-            Self::Unfolding => FlightMode::Unfolding,
+            Self::Deploying => FlightMode::Deploying,
             Self::Flight => FlightMode::Flight,
             Self::Landing => FlightMode::Landing,
-            Self::Folding => FlightMode::Folding,
+            Self::Stowing => FlightMode::Stowing,
         }
     }
 
@@ -426,8 +431,8 @@ impl ManualFly {
         let age = t - self.t_phase;
 
         match self.phase {
-            ManualPhase::Ground if takeoff => self.set(ManualPhase::Unfolding, t),
-            ManualPhase::Unfolding if obs.fold < 0.04 && age > 0.4 => {
+            ManualPhase::Ground if takeoff => self.set(ManualPhase::Deploying, t),
+            ManualPhase::Deploying if obs.fold < 0.04 && age > 0.4 => {
                 self.hold = [obs.pos[0], obs.pos[1], MANUAL_HOLD_Z];
                 self.yaw_des = yaw_of(obs.quat);
                 self.v_des = [0.0; 3];
@@ -438,18 +443,22 @@ impl ManualFly {
                 self.hold = obs.pos;
                 self.set(ManualPhase::Landing, t);
             }
-            ManualPhase::Landing if fold_req && low_enough(obs) && age > 0.3 => {
-                self.set(ManualPhase::Folding, t);
+            // Touchdown with the stow stick already held folds on that tick.
+            ManualPhase::Landing if fold_req && low_enough(obs) => {
+                self.set(ManualPhase::Stowing, t);
             }
-            ManualPhase::Folding if obs.fold > FOLD_STOW - 0.05 && age > 0.2 => {
+            // Still airborne: takeoff stick returns to flight. No new edge required.
+            ManualPhase::Landing if takeoff && !low_enough(obs) => {
+                self.hold[2] = obs.pos[2];
+                reset_fc = true;
+                self.set(ManualPhase::Flight, t);
+            }
+            ManualPhase::Stowing if obs.fold > FOLD_STOW - 0.05 && age > 0.2 => {
                 self.set(ManualPhase::Ground, t);
             }
             _ => {}
         }
 
-        // Time-in-phase for the command uses the phase we are in now, so a
-        // transition tick does not also satisfy the next phase's timer.
-        let tp = t - self.t_phase;
         let phase = self.phase;
         let mut cmd = Command::ground(phase.as_str(), 0.0, 0.0, FOLD_STOW);
         cmd.mode = phase.mode();
@@ -461,18 +470,21 @@ impl ManualFly {
                 cmd.drive_right = right;
                 cmd.fold = FOLD_STOW;
             }
-            ManualPhase::Unfolding => {
+            ManualPhase::Deploying => {
                 cmd.fold = FOLD_DEPLOY;
             }
             ManualPhase::Flight => {
                 let yaw = yaw_of(obs.quat);
-                let surge = obs.pilot_x.clamp(-1.0, 1.0) * MANUAL_SPEED;
-                let yaw_rate = obs.pilot_yaw.clamp(-1.0, 1.0) * MANUAL_YAW_RATE;
+                let surge = stick_axis(obs.pilot_x) * MANUAL_SPEED;
+                let strafe = stick_axis(obs.pilot_y) * MANUAL_SPEED;
+                let climb = stick_axis(obs.pilot_z) * MANUAL_CLIMB;
+                let yaw_rate = stick_axis(obs.pilot_yaw) * MANUAL_YAW_RATE;
+                let (cy, sy) = (yaw.cos(), yaw.sin());
                 self.yaw_des = crate::math::wrap(self.yaw_des + yaw_rate * dt);
-                self.v_des = [yaw.cos() * surge, yaw.sin() * surge, 0.0];
+                self.v_des = [cy * surge - sy * strafe, sy * surge + cy * strafe, climb];
                 self.hold[0] += self.v_des[0] * dt;
                 self.hold[1] += self.v_des[1] * dt;
-                self.hold[2] = MANUAL_HOLD_Z;
+                self.hold[2] += climb * dt;
                 cmd.flight = Some(Setpoint {
                     pos: self.hold,
                     vel: self.v_des,
@@ -483,7 +495,7 @@ impl ManualFly {
                 cmd.flight_metrics = true;
             }
             ManualPhase::Landing => {
-                let on_ground = low_enough(obs) && tp > 0.3;
+                let on_ground = low_enough(obs);
                 if on_ground {
                     cmd.zero_thrust = true;
                     cmd.fold = FOLD_DEPLOY;
@@ -500,7 +512,7 @@ impl ManualFly {
                     cmd.flight_metrics = true;
                 }
             }
-            ManualPhase::Folding => {
+            ManualPhase::Stowing => {
                 cmd.fold = FOLD_STOW;
             }
         }
@@ -509,7 +521,16 @@ impl ManualFly {
 }
 
 fn low_enough(obs: &Obs) -> bool {
-    obs.pos[2] < 0.04 || (obs.range_down >= 0.0 && obs.range_down < 0.05)
+    // range_down of 0 means the channel was left unset. A real hit is positive.
+    obs.pos[2] < 0.04 || (obs.range_down > 0.0 && obs.range_down < 0.05)
+}
+
+fn stick_axis(v: f64) -> f64 {
+    if v.abs() <= 1.0 {
+        v
+    } else {
+        0.0
+    }
 }
 
 fn stick_drive(pilot_x: f64, pilot_yaw: f64) -> (f64, f64) {

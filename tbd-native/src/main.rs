@@ -258,7 +258,7 @@ mod native {
             [qvel[0], qvel[1], qvel[2]]
         };
         let sensor = data.sensordata().to_vec();
-        tbd::pack_observation(&sensor, pos, vel, 0.0, 0.0).map_err(|e| e.to_string())
+        tbd::pack_observation(&sensor, pos, vel, 0.0, 0.0, 0.0, 0.0).map_err(|e| e.to_string())
     }
 
     fn find_xml(explicit: Option<&Path>) -> Result<PathBuf, String> {

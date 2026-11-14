@@ -396,9 +396,9 @@ Source: `engine-wasm/src/tbd_api.rs`, `games/tbd`. TBD is a physics sim with est
 
 | JS | Returns | Notes |
 | --- | --- | --- |
-| `new WasmTbd(seed, configJson)` | `WasmTbd` | `seed` is a BigInt (`1n`). `configJson` is `{dt, mission, wind, max_time_s, voltage_sag, r_cell_ohm, ram_drag, ground_effect, fold_rate_limit}`. `""` and `"{}"` default to `dt` 0.002, `mission` `"stair_hop"`, `wind` true, `max_time_s` 16, and the four physics switches on. Throws if the JSON is not an object or `dt` / `max_time_s` / `r_cell_ohm` are bad |
-| `tbdObsLen()` / `tbdCtrlLen()` | `number` | 20 and 9 |
-| `g.step(obs)` | `Float64Array` | One tick. `obs` is 20 floats (sensor order, then position, linear velocity, `pilot_x`, `pilot_yaw`). Returns 9 actuator commands in `tbd.xml` `<actuator>` order. Throws on a bad observation. After the mission is over, returns the last command |
+| `new WasmTbd(seed, configJson)` | `WasmTbd` | `seed` is a Number (integer 0 through 2^53), a BigInt, or a string. A decimal string is that integer. Any other string is FNV-1a. `configJson` is `{dt, mission, wind, max_time_s, voltage_sag, r_cell_ohm, ram_drag, ground_effect, fold_rate_limit}`. `""` and `"{}"` default to `dt` 0.002, `mission` `"stair_hop"`, `wind` true, `max_time_s` 16, and the four physics switches on. Throws if the JSON is not an object or `dt` / `max_time_s` / `r_cell_ohm` are bad |
+| `tbdObsLen()` / `tbdCtrlLen()` | `number` | 22 and 9. A 20-long observation is still accepted |
+| `g.step(obs)` | `Float64Array` | One tick. `obs` is 22 floats (sensor order, then position, linear velocity, `pilot_x`, `pilot_yaw`, `pilot_y`, `pilot_z`). Returns 9 actuator commands in `tbd.xml` `<actuator>` order. Throws on a bad observation. After the mission is over, returns the last command |
 | `g.stateJson()` | `string` | Mode, phase, battery, score, `wind_force_n`, `aero_force_n`, `aero_torque_nm`, `pack_voltage_v`, `pack_current_a`, `ground_effect` |
 | `g.reset()` | | Same seed and config, tick 0 |
 | `g.free()` | | Release the Rust object |
@@ -407,7 +407,7 @@ Source: `engine-wasm/src/tbd_api.rs`, `games/tbd`. TBD is a physics sim with est
 
 The page copies `step`'s return value into `MjData.ctrl`. `xfrc_applied` on body `tbd` is world-frame `[wind_force_n + aero_force_n, aero_torque_nm]` (torque about the body centre of mass), then `mj_step`. Same seed, config and observation log reproduce the commands, the wind and the ram drag. The formulas are estimated parameters; see `games/tbd/README.md`.
 
-`engine_wasm_bg.wasm` is 489,873 bytes (180,332 with `gzip -9 -n`) with the physics switches included: +6,385 bytes (+2,464 gzipped) from 483,488 (177,868) before those switches, which was +64,784 from 418,704 before `WasmTbd`. Tank and racing exports are unchanged.
+`engine_wasm_bg.wasm` is 493,490 bytes (181,536 with `gzip -9 -n`). That is +3,617 bytes (+1,204 gzipped) from 489,873 after the manual sticks and the seed argument, which was +6,385 from 483,488 before the physics switches, which was +64,784 from 418,704 before `WasmTbd`. Tank and racing exports are unchanged.
 
 ## Building `web/pkg`
 

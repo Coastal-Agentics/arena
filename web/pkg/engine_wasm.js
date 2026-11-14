@@ -1,5 +1,20 @@
 let wasm;
 
+function addToExternrefTable0(obj) {
+    const idx = wasm.__externref_table_alloc();
+    wasm.__wbindgen_export_2.set(idx, obj);
+    return idx;
+}
+
+function handleError(f, args) {
+    try {
+        return f.apply(this, args);
+    } catch (e) {
+        const idx = addToExternrefTable0(e);
+        wasm.__wbindgen_exn_store(idx);
+    }
+}
+
 const cachedTextDecoder = (typeof TextDecoder !== 'undefined' ? new TextDecoder('utf-8', { ignoreBOM: true, fatal: true }) : { decode: () => { throw Error('TextDecoder not available') } } );
 
 if (typeof TextDecoder !== 'undefined') { cachedTextDecoder.decode(); };
@@ -16,6 +31,19 @@ function getUint8ArrayMemory0() {
 function getStringFromWasm0(ptr, len) {
     ptr = ptr >>> 0;
     return cachedTextDecoder.decode(getUint8ArrayMemory0().subarray(ptr, ptr + len));
+}
+
+function isLikeNone(x) {
+    return x === undefined || x === null;
+}
+
+let cachedDataViewMemory0 = null;
+
+function getDataViewMemory0() {
+    if (cachedDataViewMemory0 === null || cachedDataViewMemory0.buffer.detached === true || (cachedDataViewMemory0.buffer.detached === undefined && cachedDataViewMemory0.buffer !== wasm.memory.buffer)) {
+        cachedDataViewMemory0 = new DataView(wasm.memory.buffer);
+    }
+    return cachedDataViewMemory0;
 }
 
 let WASM_VECTOR_LEN = 0;
@@ -75,7 +103,7 @@ function passStringToWasm0(arg, malloc, realloc) {
 }
 
 function takeFromExternrefTable0(idx) {
-    const value = wasm.__wbindgen_export_0.get(idx);
+    const value = wasm.__wbindgen_export_2.get(idx);
     wasm.__externref_table_dealloc(idx);
     return value;
 }
@@ -331,7 +359,7 @@ export function checkRaceReplayJson(json) {
 }
 
 /**
- * Observation length (20).
+ * Observation length (22). A 20-long array is still accepted.
  * @returns {number}
  */
 export function tbdObsLen() {
@@ -752,9 +780,11 @@ const WasmTbdFinalization = (typeof FinalizationRegistry === 'undefined')
 /**
  * JS handle: `new WasmTbd(seed, configJson)`.
  *
- * `seed` is a BigInt (`1n`). wasm-bindgen 0.2.100 passes `u64` as a bigint,
- * not a Number. `configJson` is a [`tbd::Config`] object. `""` and `"{}"`
- * are the defaults: 0.002 s, mission `stair_hop`, wind on, 16 s horizon.
+ * `seed` is a JS number (integer 0 through 2^53), a BigInt, or a string.
+ * A decimal string is that integer, the same spelling the engine uses for
+ * seeds. Any other string is a stable FNV-1a. `configJson` is a
+ * [`tbd::Config`] object. `""` and `"{}"` are the defaults: 0.002 s, mission
+ * `stair_hop`, wind on, 16 s horizon, physics switches on.
  */
 export class WasmTbd {
 
@@ -788,9 +818,10 @@ export class WasmTbd {
         }
     }
     /**
-     * Build a run. Throws if `configJson` is not an object this crate accepts,
-     * or if `dt` / `max_time_s` are not finite and positive.
-     * @param {bigint} seed
+     * Build a run. `seed` is a number, a bigint, or a string. Throws if
+     * `configJson` is not an object this crate accepts, or if `dt` /
+     * `max_time_s` / `r_cell_ohm` are not usable.
+     * @param {any} seed
      * @param {string} config_json
      */
     constructor(seed, config_json) {
@@ -807,8 +838,9 @@ export class WasmTbd {
     /**
      * One physics tick.
      *
-     * `obs` is [`OBS_LEN`] floats in `tbd.xml` sensor order, then free-joint
-     * position and linear velocity, then `pilot_x` and `pilot_yaw`. Returns
+     * `obs` is [`OBS_LEN`] floats (22): sensor order, free-joint position and
+     * linear velocity, then `pilot_x`, `pilot_yaw`, `pilot_y`, `pilot_z`.
+     * A 20-long array is still accepted (`pilot_y` and `pilot_z` are 0). Returns
      * [`CTRL_LEN`] actuator commands in `<actuator>` order. Throws if the
      * length is wrong or any value is not finite. After the mission is over,
      * returns the last command and does not advance.
@@ -868,12 +900,20 @@ async function __wbg_load(module, imports) {
 function __wbg_get_imports() {
     const imports = {};
     imports.wbg = {};
+    imports.wbg.__wbg_BigInt_ddea6d2f55558acb = function() { return handleError(function (arg0) {
+        const ret = BigInt(arg0);
+        return ret;
+    }, arguments) };
+    imports.wbg.__wbg_toString_b5d4438bc26b267c = function() { return handleError(function (arg0, arg1) {
+        const ret = arg0.toString(arg1);
+        return ret;
+    }, arguments) };
     imports.wbg.__wbindgen_error_new = function(arg0, arg1) {
         const ret = new Error(getStringFromWasm0(arg0, arg1));
         return ret;
     };
     imports.wbg.__wbindgen_init_externref_table = function() {
-        const table = wasm.__wbindgen_export_0;
+        const table = wasm.__wbindgen_export_2;
         const offset = table.grow(4);
         table.set(0, undefined);
         table.set(offset + 0, undefined);
@@ -881,6 +921,20 @@ function __wbg_get_imports() {
         table.set(offset + 2, true);
         table.set(offset + 3, false);
         ;
+    };
+    imports.wbg.__wbindgen_number_get = function(arg0, arg1) {
+        const obj = arg1;
+        const ret = typeof(obj) === 'number' ? obj : undefined;
+        getDataViewMemory0().setFloat64(arg0 + 8 * 1, isLikeNone(ret) ? 0 : ret, true);
+        getDataViewMemory0().setInt32(arg0 + 4 * 0, !isLikeNone(ret), true);
+    };
+    imports.wbg.__wbindgen_string_get = function(arg0, arg1) {
+        const obj = arg1;
+        const ret = typeof(obj) === 'string' ? obj : undefined;
+        var ptr1 = isLikeNone(ret) ? 0 : passStringToWasm0(ret, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        var len1 = WASM_VECTOR_LEN;
+        getDataViewMemory0().setInt32(arg0 + 4 * 1, len1, true);
+        getDataViewMemory0().setInt32(arg0 + 4 * 0, ptr1, true);
     };
     imports.wbg.__wbindgen_throw = function(arg0, arg1) {
         throw new Error(getStringFromWasm0(arg0, arg1));
@@ -896,6 +950,7 @@ function __wbg_init_memory(imports, memory) {
 function __wbg_finalize_init(instance, module) {
     wasm = instance.exports;
     __wbg_init.__wbindgen_wasm_module = module;
+    cachedDataViewMemory0 = null;
     cachedFloat64ArrayMemory0 = null;
     cachedUint8ArrayMemory0 = null;
 

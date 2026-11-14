@@ -39,11 +39,11 @@ game.reset(); // same seed and config
 game.free();
 ```
 
-`new WasmTbd(seed, configJson)` throws if the config is not a JSON object, or if `dt` / `max_time_s` are not finite and positive. `""` and `"{}"` are the defaults (`stair_hop`, wind on, `dt` 0.002, 16 s). `seed` is a BigInt (`1n`). wasm-bindgen 0.2.100 does not accept a Number for this `u64`.
+`new WasmTbd(seed, configJson)` throws if the config is not a JSON object, or if `dt` / `max_time_s` / `r_cell_ohm` are not usable. `""` and `"{}"` are the defaults (`stair_hop`, wind on, `dt` 0.002, 16 s, physics switches on). `seed` may be a Number (integer 0 through 2^53), a BigInt, or a string. A decimal string is that integer (`"42"` and `42` and `42n` are the same seed, including integers past 2^53 written as strings). Any other string is FNV-1a over its trimmed UTF-8 bytes, the same offset and prime as the engine's state hash.
 
-`step` throws if `obs.length` is not 20 or any value is NaN or infinite. After `state.over` is true, `step` returns the last command and does not move the clock or the wind stream.
+`step` throws if `obs.length` is not 22 or 20, or any value is NaN or infinite. A 20-long array is the previous layout: `pilot_y` and `pilot_z` are 0. After `state.over` is true, `step` returns the last command and does not move the clock or the wind stream.
 
-`stateJson()` fields the page needs: `mode` (`ground` | `unfolding` | `flight` | `landing` | `folding`), `phase` (the stair-hop script name, or the mode name when `mission` is `manual`), `battery_pct`, `power_w`, `score`, `timer_s`, `completed`, `landed_on_landing`, `over`, `wind_world_mps`, `wind_force_n`, `aero_force_n`, `aero_torque_nm`, `pack_voltage_v`, `pack_current_a`, `ground_effect`, `ctrl`.
+`stateJson()` fields the page needs: `mode` (`ground` | `deploying` | `flight` | `landing` | `stowing`), `phase` (the stair-hop script name, or the mode name when `mission` is `manual`), `battery_pct`, `power_w`, `score`, `timer_s`, `completed`, `landed_on_landing`, `over`, `wind_world_mps`, `wind_force_n`, `aero_force_n`, `aero_torque_nm`, `pack_voltage_v`, `pack_current_a`, `ground_effect`, `ctrl`.
 
 ## Estimated physics switches
 
@@ -61,7 +61,7 @@ Kept as they were: motor lag τ = 40 ms, 5.5 N per duct as an optimistic placeho
 
 Wind is seeded from `seed` with the same ChaCha8 construction as the engine RNG. The same seed, config and observation log reproduce commands and `wind_force_n`. The controller does not cancel that force; the page applies it.
 
-## Observation (20) and command (9)
+## Observation (22) and command (9)
 
 Canonical names: `OBS_NAMES` and `CTRL_NAMES` in the crate (`obs` module). They follow `tbd.xml`.
 
@@ -74,8 +74,10 @@ Canonical names: `OBS_NAMES` and `CTRL_NAMES` in the crate (`obs` module). They 
 | 11 | fold angle | rad | sensor `fold_angle` (`fold_FL`) |
 | 12..14 | position x, y, z | m | free joint `root` `qpos[0..3]` (body origin, not the imu site) |
 | 15..17 | velocity x, y, z | m/s | free joint `root` `qvel[0..3]`, world frame |
-| 18 | pilot_x | 1 | page stick, `manual` only |
-| 19 | pilot_yaw | 1 | page stick, `manual` only |
+| 18 | pilot_x | 1 | manual surge, or a sentinel |
+| 19 | pilot_yaw | 1 | manual yaw, or the stow sentinel |
+| 20 | pilot_y | 1 | manual strafe, body left. Omitted (0) when `obs.length` is 20 |
+| 21 | pilot_z | 1 | manual climb rate, positive up. Omitted (0) when `obs.length` is 20 |
 
 | index | command | range | actuator |
 | --- | --- | --- | --- |
@@ -85,7 +87,18 @@ Canonical names: `OBS_NAMES` and `CTRL_NAMES` in the crate (`obs` module). They 
 
 On this model the imu site is aligned with the body, so the gyro matches the body rates the reference controller reads from `qvel[3:6]`, and the frame quaternion matches the free-joint quaternion.
 
-`stair_hop` ignores the pilot channels. `manual` uses them inside ±1: `pilot_x` drives forward (+X when both wheel sides are positive), `pilot_yaw` skids (positive speeds the right side and slows the left). Sentinels, one tick, and that channel is not also a stick: `pilot_x >= 2` takeoff, `pilot_x <= -2` land, `pilot_yaw >= 2` fold once the vehicle is down.
+`stair_hop` ignores the pilot channels. `manual` uses them inside ±1:
+
+- `pilot_x` drives forward on the ground (+X when both wheel sides are positive) and, in flight, sets forward speed (0.7 m/s at ±1).
+- `pilot_y` strafes in flight: +1 is body left at 0.7 m/s.
+- `pilot_z` is a climb rate in flight: +1 is 0.9 m/s up, −1 is 0.9 m/s down. The altitude target integrates that rate.
+- `pilot_yaw` skids on the ground (positive speeds the right side and slows the left) and, in flight, is a yaw rate.
+
+Sentinels sit outside ±1, and that channel is not also a stick on that tick:
+
+- `pilot_x >= 2` takes off (ground → deploying → flight). During landing, the same stick returns to flight while still airborne.
+- `pilot_x <= -2` starts landing.
+- `pilot_yaw >= 2` stows. If it is already held when the vehicle touches down, stowing starts on that tick. No second press.
 
 ## Score
 

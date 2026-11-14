@@ -28,6 +28,8 @@
 //! 17     vel_z         m/s      free joint root, qvel[2]
 //! 18     pilot_x       1        host stick, see below
 //! 19     pilot_yaw     1        host stick, see below
+//! 20     pilot_y       1        manual strafe, body left; 0 if the array is 20 long
+//! 21     pilot_z       1        manual climb rate; 0 if the array is 20 long
 //!
 //! control (9 f64), copied straight into MjData.ctrl
 //! index  name          range           actuator
@@ -56,14 +58,24 @@
 //! Positive `pilot_yaw` speeds the right side and slows the left (nose left).
 //!
 //! Sentinels, checked before the stick (a sentinel tick does not also drive):
-//! * `pilot_x >= 2` requests takeoff (ground → unfolding → flight);
+//! * `pilot_x >= 2` requests takeoff (ground → deploying → flight), and while
+//!   landing and still airborne it returns to flight;
 //! * `pilot_x <= -2` requests landing;
-//! * `pilot_yaw >= 2` requests folding once the vehicle is down.
+//! * `pilot_yaw >= 2` requests stowing. If it is already held at touchdown,
+//!   stowing starts on that tick.
+//!
+//! `pilot_y` and `pilot_z` are manual-only, inside ±1. `pilot_y` +1 strafes
+//! left (body +Y) at 0.7 m/s. `pilot_z` +1 climbs at 0.9 m/s and −1 descends
+//! at 0.9 m/s. The stair-hop mission ignores all four sticks.
 
 use crate::params::{FOLD_STOW, WHEEL_RAD_S};
 
-/// Length of the flat observation.
-pub const OBS_LEN: usize = 20;
+/// Length of the flat observation. Indexes 0..19 match the first layout;
+/// 20 and 21 are the manual strafe and climb sticks. A 20-long array is still
+/// accepted and those two sticks read as 0.
+pub const OBS_LEN: usize = 22;
+/// First observation length, without `pilot_y` and `pilot_z`. Still accepted.
+pub const OBS_LEN_V1: usize = 20;
 /// Length of the flat actuator command.
 pub const CTRL_LEN: usize = 9;
 /// Number of `<sensor>` values concatenated at the front of the observation.
@@ -73,7 +85,7 @@ pub const SENSOR_LEN: usize = 12;
 pub const PILOT_TAKEOFF: f64 = 2.0;
 /// `pilot_x` at or below this requests landing.
 pub const PILOT_LAND: f64 = -2.0;
-/// `pilot_yaw` at or above this requests folding.
+/// `pilot_yaw` at or above this requests stowing.
 pub const PILOT_FOLD: f64 = 2.0;
 
 /// Observation field names, index order.
@@ -98,6 +110,8 @@ pub const OBS_NAMES: [&str; OBS_LEN] = [
     "vel_z",
     "pilot_x",
     "pilot_yaw",
+    "pilot_y",
+    "pilot_z",
 ];
 
 /// Actuator command names, index order. These are the `name` attributes in
@@ -151,7 +165,10 @@ impl std::fmt::Display for StepError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Length { expected, got } => {
-                write!(f, "observation length {got}, expected {expected}")
+                write!(
+                    f,
+                    "observation length {got}, expected {expected} (or {OBS_LEN_V1})"
+                )
             }
             Self::NonFinite { index } => write!(f, "observation[{index}] is not finite"),
             Self::SensorLength { expected, got } => {
@@ -182,14 +199,18 @@ pub struct Obs {
     pub vel: [f64; 3],
     /// Longitudinal stick, or a takeoff/land sentinel.
     pub pilot_x: f64,
-    /// Yaw stick, or a fold sentinel.
+    /// Yaw stick, or a stow sentinel.
     pub pilot_yaw: f64,
+    /// Strafe stick, body left. Manual flight only.
+    pub pilot_y: f64,
+    /// Climb-rate stick, positive up. Manual flight only.
+    pub pilot_z: f64,
 }
 
 impl Obs {
-    /// Decode a flat observation.
+    /// Decode a flat observation. Length [`OBS_LEN`] or [`OBS_LEN_V1`].
     pub fn parse(obs: &[f64]) -> Result<Self, StepError> {
-        if obs.len() != OBS_LEN {
+        if obs.len() != OBS_LEN && obs.len() != OBS_LEN_V1 {
             return Err(StepError::Length {
                 expected: OBS_LEN,
                 got: obs.len(),
@@ -210,6 +231,8 @@ impl Obs {
             vel: [obs[15], obs[16], obs[17]],
             pilot_x: obs[18],
             pilot_yaw: obs[19],
+            pilot_y: if obs.len() == OBS_LEN { obs[20] } else { 0.0 },
+            pilot_z: if obs.len() == OBS_LEN { obs[21] } else { 0.0 },
         })
     }
 
@@ -225,6 +248,8 @@ impl Obs {
         o[15..18].copy_from_slice(&self.vel);
         o[18] = self.pilot_x;
         o[19] = self.pilot_yaw;
+        o[20] = self.pilot_y;
+        o[21] = self.pilot_z;
         o
     }
 }
@@ -238,6 +263,8 @@ pub fn pack_observation(
     vel: [f64; 3],
     pilot_x: f64,
     pilot_yaw: f64,
+    pilot_y: f64,
+    pilot_z: f64,
 ) -> Result<[f64; OBS_LEN], StepError> {
     if sensordata.len() != SENSOR_LEN {
         return Err(StepError::SensorLength {
@@ -261,6 +288,8 @@ pub fn pack_observation(
         vel,
         pilot_x,
         pilot_yaw,
+        pilot_y,
+        pilot_z,
     }
     .to_array()
     .pipe_finite()

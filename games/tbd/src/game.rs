@@ -153,7 +153,7 @@ pub struct StateView {
     pub time_s: f64,
     /// Decimal seed, so a JSON number is not required to hold every `u64`.
     pub seed: String,
-    /// `ground`, `unfolding`, `flight`, `landing` or `folding`.
+    /// `ground`, `deploying`, `flight`, `landing` or `stowing`.
     pub mode: &'static str,
     /// `stair_hop` or `manual`.
     pub mission: &'static str,
