@@ -56,8 +56,46 @@ The wasm run with wind matches the native reference to every printed digit. The 
 
 **What failed along the way:** the first parity test compared thrust on every tick. On the deploy → climb transition tick the engine already flies while the JS reference waits one tick, so the test now skips the thrust check on transition ticks. My first clearance expectation used the wrong step: x = 1.0 is on step 2, which is 0.34 m.
 
-**Default controller:** `?ctrl=wasm` stays **opt-in**. The engine's stair hop is reliable and matches native. But the engine's manual mode has no climb, descend or strafe channel (it holds 0.6 m), so the Space/Shift keys and the Climb/Descend touch buttons would do nothing by default. JS stays the default and the reference until manual mode gets those channels.
+**Default controller (superseded below):** `?ctrl=wasm` stayed **opt-in** at this point. The engine's stair hop is reliable and matches native. But the engine's manual mode has no climb, descend or strafe channel (it holds 0.6 m), so the Space/Shift keys and the Climb/Descend touch buttons would do nothing by default. JS stays the default and the reference until manual mode gets those channels.
 
 **Verified:** `node --test tests/web/*.test.mjs scripts/*.test.mjs` passes 85 of 85 with #132's pkg in place. With main's pkg it's 82 passed and 3 skipped. Headless runs: the earlier desktop and phone checks still pass on JS. `?ctrl=wasm` without `WasmTbd` shows "JS controller" with no console errors. With #132's pkg it runs the stair hop with wind, and manual mode drives, takes off, lands and folds.
 
-**Next:** flip the default to wasm once manual mode has climb and descend. Add the `assets/tbd` ↔ `web/tbd/model` match check.
+## Follow-up (Nov 14, later): #133 physics and manual channels
+
+**Brief:** Shockwave's [#133](https://github.com/Coastal-Agentics/arena/pull/133) is stacked on #132. It adds `pilot_y` (strafe) and `pilot_z` (climb rate), so `tbdObsLen()` is now 22, though 20 still steps. It also uses the JS mode names, accepts a Number, BigInt or string seed, and adds aero force and torque. Estimated physics is on by default: voltage sag, ram drag, ground effect and a 0.19 s fold. His native run is 529.95 at 15.360 s.
+
+**Steps**
+1. **Obs and controls:** the adapter sizes obs from `tbdObsLen()`.
+   - On a 22-slot build, Space/Shift and the Climb/Descend touch buttons map to `pilot_z`. A/D, the gamepad left stick X and the touch joystick X map to `pilot_y` in flight (strafe), while Q/E, the right stick and the new Turn L/R touch buttons map to `pilot_yaw`.
+   - On a 20-slot #132 build, A/D yaw as before and there is no climb.
+   - F while landing returns to flight on #133.
+2. **Forces:** `xfrc_applied` on body `tbd` gets force = `wind_force_n + aero_force_n` and torque = `aero_torque_nm`, both world frame.
+3. **Mode names:** #133 reports the JS names, so no translation is needed. The adapter keeps only an alias for #132's `unfolding`/`folding` so a #132 build still labels correctly.
+4. **Stow workaround:** kept on both builds. The engine never stows by itself, and the JS controller folds automatically once down, so the page holds the stow signal while landing. On #133 that takes effect on the touchdown tick. I kept the seed as a BigInt because #132 rejects a Number.
+5. **Default:** wasm runs when `../pkg` exports `WasmTbd` with `tbdObsLen() >= 22`; otherwise JS. `?ctrl=js` forces JS. `?ctrl=wasm` also allows a 20-slot build, and the status panel then reads "no climb/strafe". JS stays the test reference. The panel also shows pack voltage when the engine reports it.
+6. **Tests:** parity tests pass on both builds and skip without a pkg.
+   - The control-law check runs with #133's physics switches off; the switches don't exist on #132, so the adapter doesn't send them there.
+   - A defaults-on check only bounds the hover-thrust gap (±0.25 per duct, in normalised thrust).
+   - A #133-only test checks that climb and descend change the collective, that strafe rolls the right way, and that F aborts a landing.
+   - Totals: 87/87 pass on #133, 86 pass + 1 skip on #132, and 82 pass + 5 skip on main's pkg.
+
+**Results** (seed 1, stair hop, browser MuJoCo 4.0.1; #132 and #133 built locally with `scripts/build-wasm.sh`):
+
+| run | score | completed at | deck touchdown | peak tilt | min clearance | battery used |
+|---|---|---|---|---|---|---|
+| native #133 reference (MuJoCo 3.17, wind) | 529.95 | 15.360 s | — | — | — | — |
+| browser #133 wasm, wind | 529.87 | 15.360 s | 12.860 s | 18.12° | 0.271 m | 8.48 % |
+| browser #133 wasm, no wind | 672.76 | 10.544 s | 8.044 s | 19.63° | 0.263 m | 4.71 % |
+| browser #132 wasm, wind (earlier) | 669.15 | 10.986 s | 8.486 s | 18.88° | 0.300 m | 5.07 % |
+| browser #132 wasm, no wind | 678.31 | 10.598 s | 8.098 s | 19.58° | 0.299 m | 4.77 % |
+| browser JS, no wind | 694.60 | 9.994 s | 8.094 s | 19.31° | 0.299 m | 4.76 % |
+
+On #133 the browser is 0.08 points below native at the same completion time. With ground effect and voltage sag now in the loop, MuJoCo 4.0.1 vs 3.17 differences show up, so this is not a bit-exact match. Wind costs much more on #133: about 4.4 s longer and 143 points lower than its no-wind run, because the hop now fights the gusts with sagging thrust and ram drag.
+
+**Verified** in headless Chrome with the #133 pkg. The page picks wasm by default on desktop and phone.
+- **Desktop:** Space climbs from the 0.6 m hold to 1.4 m, D strafes 0.87 m right, A strafes back, Shift descends 0.76 m, then it lands and stows.
+- **Phone (390×844):** touch Climb reaches 1.6 m, joystick right strafes 0.8 m, Descend drops 0.88 m. All 8 touch buttons are at least 48 px and the panel clears them.
+- **Other builds:** with #132 or main's pkg, the default is "JS controller".
+- No console errors.
+
+**Next:** add the `assets/tbd` ↔ `web/tbd/model` match check.
