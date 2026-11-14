@@ -1,4 +1,4 @@
-# TBD robot sim: MuJoCo model (seed)
+# TBD vehicle model (physics sim, estimated parameters)
 
 Internal, Coastal Agentics. **Physics sim with estimated parameters, not measured.** TBD is a working name.
 
