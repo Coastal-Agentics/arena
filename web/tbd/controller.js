@@ -106,9 +106,10 @@ export function readInput(keys, pad = null, touch = null) {
     input.fwd -= pad.ly; input.turn += pad.lx; input.strafe += pad.lx;
     input.climb += -pad.ry + (pad.rt || 0) - (pad.lt || 0); input.yaw -= pad.rx;
   }
-  if (touch) {   // left joystick: up = forward, sideways = turn (skid steer on the ground, yaw in flight)
-    input.fwd -= touch.y || 0; input.turn += touch.x || 0; input.yaw -= touch.x || 0;
-    input.climb += touch.climb || 0;   // Climb / Descend buttons: +1 / -1
+  if (touch) {   // left joystick: up = forward, sideways = turn (ground) or strafe (flight); hold buttons climb/descend and turn
+    input.fwd -= touch.y || 0; input.turn += touch.x || 0; input.strafe += touch.x || 0;
+    input.climb += touch.climb || 0;            // Climb / Descend: +1 / -1
+    input.yaw += touch.yaw || 0; input.turn -= touch.yaw || 0;   // Turn left / right: +1 / -1 (also skid-turns on the ground)
   }
   for (const a of AXES) input[a] = clamp(input[a], -1, 1);
   return input;
