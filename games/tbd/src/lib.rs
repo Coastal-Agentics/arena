@@ -2,7 +2,7 @@
 //!
 //! TBD is the working name. The MuJoCo model (`assets/tbd/tbd.xml`) is the
 //! physics. This crate is the game logic that sits beside it: the cascade
-//! flight controller, the ground → unfolding → flight → landing → folding
+//! flight controller, the ground → deploying → flight → landing → stowing
 //! mode machine, the battery model, seeded wind, and the stair-hop mission.
 //! It does not link MuJoCo. The browser calls [`TbdGame::step`] once per
 //! physics tick through `WasmTbd`. A native runner can do the same with
@@ -31,9 +31,10 @@
 //! # Host loop
 //!
 //! The host reads MuJoCo, calls [`TbdGame::step`], writes the returned
-//! command into `ctrl`, writes [`StateView::wind_force_n`] into
-//! `xfrc_applied` on body `tbd`, then steps physics. `dt` in the config must
-//! be the model timestep (0.002 s unless the host changed it).
+//! command into `ctrl`, and writes `xfrc_applied` on body `tbd` as
+//! `[wind_force_n + aero_force_n, aero_torque_nm]` (world frame, torque about
+//! the body centre of mass). `dt` in the config must be the model timestep
+//! (0.002 s unless the host changed it).
 
 #![warn(missing_docs)]
 
@@ -43,6 +44,8 @@ pub mod math;
 pub mod mission;
 pub mod obs;
 pub mod params;
+pub mod physics;
+pub mod seed;
 mod wind;
 
 pub use battery::Battery;
@@ -51,8 +54,9 @@ pub use game::{Config, ConfigError, MissionId, StateView, TbdGame};
 pub use math::{quat_to_rpy, wrap};
 pub use mission::{stair_score, FlightMode, CLIMB_Z, LAND_X0, STAIR_TOP, XLAND};
 pub use obs::{
-    pack_observation, Obs, StepError, CTRL_LEN, CTRL_NAMES, OBS_LEN, OBS_NAMES, PILOT_FOLD,
-    PILOT_LAND, PILOT_TAKEOFF, SENSOR_LEN, SENSOR_SPEC,
+    pack_observation, Obs, StepError, CTRL_LEN, CTRL_NAMES, OBS_LEN, OBS_LEN_V1, OBS_NAMES,
+    PILOT_FOLD, PILOT_LAND, PILOT_TAKEOFF, SENSOR_LEN, SENSOR_SPEC,
 };
+pub use seed::{seed_from_f64, seed_from_text};
 
 mod game;

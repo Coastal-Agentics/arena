@@ -8,7 +8,8 @@ use crate::battery::Battery;
 use crate::control::{ControlOutput, FlightController};
 use crate::mission::{self, plant_of, stair_score, FlightMode};
 use crate::obs::{clip_ctrl, driving_flag, Obs, StepError, CTRL_LEN};
-use crate::params::{DT_MODEL, FOLD_STOW};
+use crate::params::{DT_MODEL, FOLD_STOW, R_CELL_OHM};
+use crate::physics::{self, FoldSlew};
 use crate::wind::Wind;
 use serde::{Deserialize, Serialize};
 
@@ -27,7 +28,8 @@ pub enum MissionId {
 ///
 /// Unknown fields are rejected. Missing fields take the defaults: `dt` 0.002 s
 /// (the `tbd.xml` timestep), mission `stair_hop`, wind on, `max_time_s` 16
-/// (the script's horizon in `validate.py`).
+/// (the script's horizon in `validate.py`). Voltage sag, ram drag, ground
+/// effect and the fold rate limit default on. See `assets/tbd/PARAMS.md`.
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Config {
@@ -43,6 +45,21 @@ pub struct Config {
     /// Stop advancing once simulated time reaches this, seconds.
     #[serde(default = "default_max_time")]
     pub max_time_s: f64,
+    /// Scale thrust with `(V / V_ref)²` as the pack sags.
+    #[serde(default = "default_true")]
+    pub voltage_sag: bool,
+    /// Per-cell resistance, ohms. Default 0.0075 (7.5 mΩ). ESTIMATE. Band 0.005–0.010.
+    #[serde(default = "default_r_cell")]
+    pub r_cell_ohm: f64,
+    /// Per-duct ram drag in forward flight, reported as `aero_force_n` and `aero_torque_nm`.
+    #[serde(default = "default_true")]
+    pub ram_drag: bool,
+    /// Cheeseman and Bennett ground effect from `range_down`.
+    #[serde(default = "default_true")]
+    pub ground_effect: bool,
+    /// Slew the fold command at the ES08MD II no-load arm rate (~0.19 s for 90°).
+    #[serde(default = "default_true")]
+    pub fold_rate_limit: bool,
 }
 
 fn default_dt() -> f64 {
@@ -54,6 +71,9 @@ fn default_true() -> bool {
 fn default_max_time() -> f64 {
     16.0
 }
+fn default_r_cell() -> f64 {
+    R_CELL_OHM
+}
 
 impl Default for Config {
     fn default() -> Self {
@@ -62,6 +82,11 @@ impl Default for Config {
             mission: MissionId::StairHop,
             wind: true,
             max_time_s: default_max_time(),
+            voltage_sag: true,
+            r_cell_ohm: default_r_cell(),
+            ram_drag: true,
+            ground_effect: true,
+            fold_rate_limit: true,
         }
     }
 }
@@ -73,6 +98,9 @@ impl Config {
         }
         if !(self.max_time_s.is_finite() && self.max_time_s > 0.0) {
             return Err(ConfigError::MaxTime);
+        }
+        if !(self.r_cell_ohm.is_finite() && self.r_cell_ohm >= 0.0) {
+            return Err(ConfigError::Resistance);
         }
         Ok(())
     }
@@ -87,6 +115,8 @@ pub enum ConfigError {
     Dt,
     /// `max_time_s` was missing a finite positive value.
     MaxTime,
+    /// `r_cell_ohm` was negative or not finite.
+    Resistance,
 }
 
 impl std::fmt::Display for ConfigError {
@@ -95,6 +125,12 @@ impl std::fmt::Display for ConfigError {
             Self::Json(s) => write!(f, "config json: {s}"),
             Self::Dt => write!(f, "dt must be a finite number greater than 0"),
             Self::MaxTime => write!(f, "max_time_s must be a finite number greater than 0"),
+            Self::Resistance => {
+                write!(
+                    f,
+                    "r_cell_ohm must be a finite number greater than or equal to 0"
+                )
+            }
         }
     }
 }
@@ -103,10 +139,12 @@ impl std::error::Error for ConfigError {}
 
 /// HUD / trace snapshot. [`TbdGame::state_json`] serializes this.
 ///
-/// `wind_force_n` is the estimated world-frame force the host should write
-/// into MuJoCo `xfrc_applied` on body `tbd` before `mj_step` (torque left at
-/// zero). `score` follows [`stair_score`] for `stair_hop` and stays 0 for
-/// `manual`.
+/// The host writes `xfrc_applied` on body `tbd` before `mj_step` as
+/// `[wind_force_n + aero_force_n, aero_torque_nm]`, all world frame. Torque is
+/// about the body centre of mass (where MuJoCo applies `xfrc_applied`).
+/// `wind_force_n` is the seeded gust. `aero_force_n` and `aero_torque_nm` are
+/// the per-duct ram drag. `score` follows [`stair_score`] for `stair_hop` and
+/// stays 0 for `manual`.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct StateView {
     /// Steps taken. 0 before the first step.
@@ -115,7 +153,7 @@ pub struct StateView {
     pub time_s: f64,
     /// Decimal seed, so a JSON number is not required to hold every `u64`.
     pub seed: String,
-    /// `ground`, `unfolding`, `flight`, `landing` or `folding`.
+    /// `ground`, `deploying`, `flight`, `landing` or `stowing`.
     pub mode: &'static str,
     /// `stair_hop` or `manual`.
     pub mission: &'static str,
@@ -134,8 +172,18 @@ pub struct StateView {
     pub hover_minutes_est: f64,
     /// Seeded wind velocity, world frame, m/s.
     pub wind_world_mps: [f64; 3],
-    /// Estimated wind force, world frame, N.
+    /// Estimated wind force, world frame, N. Gust only, not ram drag.
     pub wind_force_n: [f64; 3],
+    /// Ram-drag force, world frame, N. Zero when `ram_drag` is off.
+    pub aero_force_n: [f64; 3],
+    /// Ram-drag torque about the body COM, world frame, N·m.
+    pub aero_torque_nm: [f64; 3],
+    /// Pack terminal voltage, volts.
+    pub pack_voltage_v: f64,
+    /// Pack current, amps.
+    pub pack_current_a: f64,
+    /// `T_IGE / T_OGE` applied this step. 1 when ground effect is off or the range misses.
+    pub ground_effect: f64,
     /// Mission points. See [`stair_score`].
     pub score: f64,
     /// Mission clock, seconds (same as `time_s`).
@@ -178,6 +226,12 @@ pub struct TbdGame {
     last_pos: [f64; 3],
     last_fold: f64,
     last_output: Option<ControlOutput>,
+    fold: FoldSlew,
+    aero_force: [f64; 3],
+    aero_torque: [f64; 3],
+    pack_voltage: f64,
+    pack_current: f64,
+    ground_effect: f64,
 }
 
 impl TbdGame {
@@ -214,9 +268,11 @@ impl TbdGame {
         };
         let mut last_ctrl = [0.0; CTRL_LEN];
         last_ctrl[8] = FOLD_STOW;
+        let pack_voltage = physics::open_circuit_voltage(1.0);
         Self {
             seed,
             wind: Wind::new(seed, config.wind),
+            fold: FoldSlew::new(config.fold_rate_limit),
             config,
             fc: FlightController::new(),
             battery: Battery::new(),
@@ -230,6 +286,11 @@ impl TbdGame {
             last_pos: [0.0; 3],
             last_fold: FOLD_STOW,
             last_output: None,
+            aero_force: [0.0; 3],
+            aero_torque: [0.0; 3],
+            pack_voltage,
+            pack_current: 0.0,
+            ground_effect: 1.0,
         }
     }
 
@@ -278,18 +339,52 @@ impl TbdGame {
             self.last_output = None;
         }
         mission::write_axes(&mut ctrl, &cmd);
-        let ctrl = clip_ctrl(ctrl);
-        self.wind.sample(self.config.dt);
+        ctrl[8] = self.fold.step(ctrl[8], self.config.dt);
+        let mut ctrl = clip_ctrl(ctrl);
         let driving = driving_flag(&ctrl);
+        let u = [ctrl[0], ctrl[1], ctrl[2], ctrl[3]];
+        let ge = if self.config.ground_effect {
+            physics::duct_height_from_range(obs.range_down)
+                .map(physics::ground_effect_ratio)
+                .unwrap_or(1.0)
+        } else {
+            1.0
+        };
+        let battery = &self.battery;
+        let (u_out, f_act, volts, amps, ge_applied) = physics::scale_thrust(
+            u,
+            battery.wh_used(),
+            |f| battery.power(&f, driving),
+            self.config.r_cell_ohm,
+            self.config.voltage_sag,
+            ge,
+        );
         // On the descend → touchdown tick the script bills the controller thrust
         // even though the actuator command was zeroed.
+        let bill_script = cmd.flight.is_some() && cmd.zero_thrust;
+        if !cmd.zero_thrust {
+            ctrl[0..4].copy_from_slice(&u_out);
+        }
         let zeros = [0.0; 4];
-        let billed: &[f64] = if cmd.flight.is_some() {
+        let billed: &[f64] = if bill_script {
             &thrusts
+        } else if cmd.flight.is_some() {
+            &f_act
         } else {
             &zeros
         };
         self.battery.step(self.config.dt, billed, driving);
+        self.wind.sample(self.config.dt);
+        let (aero_f, aero_t) = if self.config.ram_drag {
+            physics::ram_drag(f_act, obs.quat, obs.vel, obs.gyro, self.wind.velocity())
+        } else {
+            ([0.0; 3], [0.0; 3])
+        };
+        self.aero_force = aero_f;
+        self.aero_torque = aero_t;
+        self.pack_voltage = volts;
+        self.pack_current = amps;
+        self.ground_effect = ge_applied;
         self.mode = cmd.mode;
         self.phase = cmd.phase;
         self.last_ctrl = ctrl;
@@ -332,6 +427,11 @@ impl TbdGame {
             hover_minutes_est: self.battery.hover_minutes(),
             wind_world_mps: self.wind.velocity(),
             wind_force_n: self.wind.force(),
+            aero_force_n: self.aero_force,
+            aero_torque_nm: self.aero_torque,
+            pack_voltage_v: self.pack_voltage,
+            pack_current_a: self.pack_current,
+            ground_effect: self.ground_effect,
             score,
             timer_s: self.time_s,
             completed: scored.completed,

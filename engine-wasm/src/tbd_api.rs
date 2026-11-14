@@ -12,9 +12,11 @@ use wasm_bindgen::prelude::*;
 
 /// JS handle: `new WasmTbd(seed, configJson)`.
 ///
-/// `seed` is a BigInt (`1n`). wasm-bindgen 0.2.100 passes `u64` as a bigint,
-/// not a Number. `configJson` is a [`tbd::Config`] object. `""` and `"{}"`
-/// are the defaults: 0.002 s, mission `stair_hop`, wind on, 16 s horizon.
+/// `seed` is a JS number (integer 0 through 2^53), a BigInt, or a string.
+/// A decimal string is that integer, the same spelling the engine uses for
+/// seeds. Any other string is a stable FNV-1a. `configJson` is a
+/// [`tbd::Config`] object. `""` and `"{}"` are the defaults: 0.002 s, mission
+/// `stair_hop`, wind on, 16 s horizon, physics switches on.
 #[wasm_bindgen]
 pub struct WasmTbd {
     inner: TbdGame,
@@ -22,19 +24,20 @@ pub struct WasmTbd {
 
 #[wasm_bindgen]
 impl WasmTbd {
-    /// Build a run. Throws if `configJson` is not an object this crate accepts,
-    /// or if `dt` / `max_time_s` are not finite and positive.
+    /// Build a run. `seed` is a number, a bigint, or a string. Throws if
+    /// `configJson` is not an object this crate accepts, or if `dt` /
+    /// `max_time_s` / `r_cell_ohm` are not usable.
     #[wasm_bindgen(constructor)]
-    pub fn new(seed: u64, config_json: &str) -> Result<WasmTbd, JsError> {
-        TbdGame::from_json(seed, config_json)
-            .map(|inner| WasmTbd { inner })
-            .map_err(|e| JsError::new(&e.to_string()))
+    pub fn new(seed: JsValue, config_json: &str) -> Result<WasmTbd, JsError> {
+        let seed = read_seed(&seed).map_err(|e| JsError::new(&e))?;
+        Self::from_u64(seed, config_json).map_err(|e| JsError::new(&e))
     }
 
     /// One physics tick.
     ///
-    /// `obs` is [`OBS_LEN`] floats in `tbd.xml` sensor order, then free-joint
-    /// position and linear velocity, then `pilot_x` and `pilot_yaw`. Returns
+    /// `obs` is [`OBS_LEN`] floats (22): sensor order, free-joint position and
+    /// linear velocity, then `pilot_x`, `pilot_yaw`, `pilot_y`, `pilot_z`.
+    /// A 20-long array is still accepted (`pilot_y` and `pilot_z` are 0). Returns
     /// [`CTRL_LEN`] actuator commands in `<actuator>` order. Throws if the
     /// length is wrong or any value is not finite. After the mission is over,
     /// returns the last command and does not advance.
@@ -45,8 +48,9 @@ impl WasmTbd {
             .map_err(|e| JsError::new(&e.to_string()))
     }
 
-    /// [`tbd::StateView`] as JSON: mode, phase, battery, score, and
-    /// `wind_force_n` (world-frame newtons for body `tbd`).
+    /// [`tbd::StateView`] as JSON: mode, phase, battery, score,
+    /// `wind_force_n`, `aero_force_n` and `aero_torque_nm` (world frame; add the
+    /// forces, and use the torque, in `xfrc_applied` on body `tbd`).
     #[wasm_bindgen(js_name = stateJson)]
     pub fn state_json(&self) -> String {
         self.inner.state_json()
@@ -58,7 +62,7 @@ impl WasmTbd {
     }
 }
 
-/// Observation length (20).
+/// Observation length (22). A 20-long array is still accepted.
 #[wasm_bindgen(js_name = tbdObsLen)]
 pub fn tbd_obs_len() -> u32 {
     OBS_LEN as u32
@@ -68,6 +72,36 @@ pub fn tbd_obs_len() -> u32 {
 #[wasm_bindgen(js_name = tbdCtrlLen)]
 pub fn tbd_ctrl_len() -> u32 {
     CTRL_LEN as u32
+}
+
+impl WasmTbd {
+    /// Same as the JS constructor once the seed is already a `u64`.
+    pub fn from_u64(seed: u64, config_json: &str) -> Result<WasmTbd, String> {
+        TbdGame::from_json(seed, config_json)
+            .map(|inner| WasmTbd { inner })
+            .map_err(|e| e.to_string())
+    }
+}
+
+fn read_seed(seed: &JsValue) -> Result<u64, String> {
+    if let Some(s) = seed.as_string() {
+        return Ok(tbd::seed_from_text(&s));
+    }
+    if let Some(n) = seed.as_f64() {
+        return tbd::seed_from_f64(n);
+    }
+    let big = js_sys::BigInt::new(seed)
+        .map_err(|_| "seed must be a number, a bigint, or a string".to_string())?;
+    let text = big
+        .to_string(10)
+        .map_err(|_| "seed bigint could not be read".to_string())?;
+    let text = text
+        .as_string()
+        .ok_or_else(|| "seed bigint could not be read".to_string())?;
+    if text.starts_with('-') {
+        return Err("seed must be a non-negative integer".into());
+    }
+    Ok(tbd::seed_from_text(&text))
 }
 
 #[cfg(test)]
@@ -85,7 +119,7 @@ mod tests {
 
     #[test]
     fn step_returns_nine_commands_and_json_state() {
-        let mut g = WasmTbd::new(1, "{}").unwrap();
+        let mut g = WasmTbd::from_u64(1, "{}").unwrap();
         assert_eq!(tbd_obs_len() as usize, OBS_LEN);
         assert_eq!(tbd_ctrl_len() as usize, CTRL_LEN);
         let ctrl = g.step(&hover_obs()).unwrap();
@@ -108,7 +142,7 @@ mod tests {
 
     #[test]
     fn manual_config_selects_the_stick_mission() {
-        let g = WasmTbd::new(3, r#"{"mission":"manual","wind":false}"#).unwrap();
+        let g = WasmTbd::from_u64(3, r#"{"mission":"manual","wind":false}"#).unwrap();
         let state: serde_json::Value = serde_json::from_str(&g.state_json()).unwrap();
         assert_eq!(state["mission"], "manual");
         assert_eq!(state["phase"], "ground");

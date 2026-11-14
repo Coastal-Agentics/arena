@@ -24,6 +24,12 @@ fn game(mission: MissionId, wind: bool) -> TbdGame {
             mission,
             wind,
             max_time_s: 30.0,
+            // The script tests the mode machine. The physics switches have their own tests.
+            voltage_sag: false,
+            ram_drag: false,
+            ground_effect: false,
+            fold_rate_limit: false,
+            ..Config::default()
         },
     )
     .unwrap()
@@ -64,12 +70,15 @@ fn stair_hop_walks_the_script_and_scores() {
     assert!(early > 0.0 && early < 100.0, "partial score {early}");
 
     until(&mut g, "deploy", plant([0.42, 0.0, 0.0], [0.0; 3], stow));
-    assert_eq!(g.state().mode, "unfolding");
+    assert_eq!(g.state().mode, "deploying");
     assert!(g.state().ctrl[8].abs() < 1e-9);
 
     until(&mut g, "climb", plant([0.42, 0.0, 0.2], [0.0; 3], 0.03));
     assert_eq!(g.state().mode, "flight");
-    assert!(g.state().ctrl[0] > 0.0, "collective is on");
+    // The tick that leaves deploy does not thrust. The next one does.
+    let flying = plant([0.42, 0.0, 0.2], [0.0; 3], 0.03);
+    let c = g.step(&flying).unwrap();
+    assert!(c[0] > 0.0, "collective is on");
 
     // Over the stairs, so clearance is measured, then up to the ceiling.
     g.step(&plant([1.0, 0.0, 1.0], [0.0; 3], 0.0)).unwrap();
@@ -84,7 +93,7 @@ fn stair_hop_walks_the_script_and_scores() {
     assert_eq!(g.state().mode, "landing");
     until(&mut g, "stow", plant([2.30, 0.0, STAIR_TOP], [0.0; 3], 0.0));
     assert!(g.state().landed_on_landing);
-    assert_eq!(g.state().mode, "folding");
+    assert_eq!(g.state().mode, "stowing");
     until(
         &mut g,
         "roll",
@@ -119,6 +128,7 @@ fn same_seed_and_obs_log_reproduces_wind_and_commands() {
         mission: MissionId::StairHop,
         wind: true,
         max_time_s: 16.0,
+        ..Config::default()
     };
     let mut a = TbdGame::new(42, cfg.clone()).unwrap();
     let mut b = TbdGame::new(42, cfg.clone()).unwrap();
@@ -192,7 +202,7 @@ fn manual_takeoff_land_and_fold() {
 
     stick[18] = PILOT_TAKEOFF;
     g.step(&stick).unwrap();
-    assert_eq!(g.state().mode, "unfolding");
+    assert_eq!(g.state().mode, "deploying");
     assert!(g.state().ctrl[8].abs() < 1e-12);
 
     let mut open = plant([0.0, 0.0, 0.05], [0.0; 3], 0.03);
@@ -207,7 +217,7 @@ fn manual_takeoff_land_and_fold() {
 
     let mut down = plant([0.0, 0.0, 0.01], [0.0; 3], 0.0);
     down[19] = PILOT_FOLD;
-    until(&mut g, "folding", down);
+    until(&mut g, "stowing", down);
     assert!((g.state().ctrl[8] - tbd::params::FOLD_STOW).abs() < 1e-9);
     let mut stowed = down;
     stowed[11] = tbd::params::FOLD_STOW;
@@ -230,7 +240,8 @@ fn rejects_bad_observation_and_config() {
     assert!(TbdGame::from_json(1, "{\"nope\":1}").is_err());
     let err = TbdGame::from_json(1, "[]").unwrap_err();
     assert!(err.to_string().contains("JSON object"), "{err}");
-    let packed = tbd::pack_observation(&[0.0; 12], [1.0, 2.0, 3.0], [0.0; 3], 0.0, 0.0).unwrap();
+    let packed =
+        tbd::pack_observation(&[0.0; 12], [1.0, 2.0, 3.0], [0.0; 3], 0.0, 0.0, 0.0, 0.0).unwrap();
     assert_eq!(&packed[12..15], &[1.0, 2.0, 3.0]);
-    assert!(tbd::pack_observation(&[0.0; 4], [0.0; 3], [0.0; 3], 0.0, 0.0).is_err());
+    assert!(tbd::pack_observation(&[0.0; 4], [0.0; 3], [0.0; 3], 0.0, 0.0, 0.0, 0.0).is_err());
 }

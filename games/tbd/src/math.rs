@@ -31,6 +31,25 @@ pub fn yaw_of(q: [f64; 4]) -> f64 {
     quat_to_rpy(q)[2]
 }
 
+/// Body-to-world rotation, row-major, from a `(w, x, y, z)` quaternion.
+pub fn quat_to_rot(q: [f64; 4]) -> [f64; 9] {
+    let [w, x, y, z] = q;
+    let (xx, yy, zz) = (x * x, y * y, z * z);
+    let (xy, xz, yz) = (x * y, x * z, y * z);
+    let (wx, wy, wz) = (w * x, w * y, w * z);
+    [
+        1.0 - 2.0 * (yy + zz),
+        2.0 * (xy - wz),
+        2.0 * (xz + wy),
+        2.0 * (xy + wz),
+        1.0 - 2.0 * (xx + zz),
+        2.0 * (yz - wx),
+        2.0 * (xz - wy),
+        2.0 * (yz + wx),
+        1.0 - 2.0 * (xx + yy),
+    ]
+}
+
 /// World-frame horizontal acceleration rotated into the yaw frame, then turned
 /// into a desired pitch (forward) and roll (left). Shared by the controller so
 /// tests can lock the tilt direction.

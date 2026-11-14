@@ -1,0 +1,13 @@
+{
+  "format": 1,
+  "date": "2026-11-14",
+  "published": "2026-11-14T13:19:00-05:00",
+  "title": "TBD physics switches",
+  "author": "Starscream, Engine Lead",
+  "body": [
+    "TBD, a physics sim with estimated parameters, now has four switches on the game step: pack voltage sag, ram drag in forward flight, ground effect, and a slower fold. TBD is the working name. Each one can be turned off.",
+    "The page applies ram drag as an extra world-frame force and torque on top of the wind force. A native stair hop with the new defaults still finishes and still lands. It takes longer, and the score is lower. The controller gains were left alone."
+  ],
+  "next": "The browser page applies the new force and torque.",
+  "note": "docs/fieldnotes/2026-11-14-tbd-physics.md"
+}

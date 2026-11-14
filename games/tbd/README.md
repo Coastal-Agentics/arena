@@ -17,7 +17,12 @@ const game = new WasmTbd(1n, JSON.stringify({
   dt: 0.002,            // seconds; use the model's timestep
   mission: "stair_hop", // or "manual"
   wind: true,
-  max_time_s: 16
+  max_time_s: 16,
+  voltage_sag: true,    // all four default on
+  ram_drag: true,
+  ground_effect: true,
+  fold_rate_limit: true,
+  r_cell_ohm: 0.0075    // 7.5 mΩ per cell
 }));
 
 // once per mj_step, after sensors are valid (mj_forward after a reset):
@@ -26,22 +31,37 @@ const obs = new Float64Array(tbdObsLen());
 const ctrl = game.step(obs);          // Float64Array, length tbdCtrlLen() (9)
 const state = JSON.parse(game.stateJson());
 // copy ctrl into MjData.ctrl, in order
-// state.wind_force_n is [fx, fy, fz] newtons, world frame.
-// write it to xfrc_applied on body "tbd" (torque 0), then mj_step.
+// xfrc_applied on body "tbd", world frame, before mj_step:
+//   force  = state.wind_force_n + state.aero_force_n
+//   torque = state.aero_torque_nm   (about the body centre of mass)
 
 game.reset(); // same seed and config
 game.free();
 ```
 
-`new WasmTbd(seed, configJson)` throws if the config is not a JSON object, or if `dt` / `max_time_s` are not finite and positive. `""` and `"{}"` are the defaults (`stair_hop`, wind on, `dt` 0.002, 16 s). `seed` is a BigInt (`1n`). wasm-bindgen 0.2.100 does not accept a Number for this `u64`.
+`new WasmTbd(seed, configJson)` throws if the config is not a JSON object, or if `dt` / `max_time_s` / `r_cell_ohm` are not usable. `""` and `"{}"` are the defaults (`stair_hop`, wind on, `dt` 0.002, 16 s, physics switches on). `seed` may be a Number (integer 0 through 2^53), a BigInt, or a string. A decimal string is that integer (`"42"` and `42` and `42n` are the same seed, including integers past 2^53 written as strings). Any other string is FNV-1a over its trimmed UTF-8 bytes, the same offset and prime as the engine's state hash.
 
-`step` throws if `obs.length` is not 20 or any value is NaN or infinite. After `state.over` is true, `step` returns the last command and does not move the clock or the wind stream.
+`step` throws if `obs.length` is not 22 or 20, or any value is NaN or infinite. A 20-long array is the previous layout: `pilot_y` and `pilot_z` are 0. After `state.over` is true, `step` returns the last command and does not move the clock or the wind stream.
 
-`stateJson()` fields the page needs: `mode` (`ground` | `unfolding` | `flight` | `landing` | `folding`), `phase` (the stair-hop script name, or the mode name when `mission` is `manual`), `battery_pct`, `power_w`, `score`, `timer_s`, `completed`, `landed_on_landing`, `over`, `wind_world_mps`, `wind_force_n`, `ctrl`.
+`stateJson()` fields the page needs: `mode` (`ground` | `deploying` | `flight` | `landing` | `stowing`), `phase` (the stair-hop script name, or the mode name when `mission` is `manual`), `battery_pct`, `power_w`, `score`, `timer_s`, `completed`, `landed_on_landing`, `over`, `wind_world_mps`, `wind_force_n`, `aero_force_n`, `aero_torque_nm`, `pack_voltage_v`, `pack_current_a`, `ground_effect`, `ctrl`.
+
+## Estimated physics switches
+
+All four default **on**. Set the boolean to `false` to drop that effect. Sources and the ESTIMATE marks are in `assets/tbd/PARAMS.md`.
+
+| Field | Default | What it does |
+| --- | --- | --- |
+| `voltage_sag` | `true` | `V = V_oc − I R`. `V_oc` runs linearly from 4.2 V to 3.5 V per cell across 6S. Thrust scales with `(V / 25.2 V)²`. Hover draw is about 19 A. |
+| `r_cell_ohm` | `0.0075` | Per-cell resistance, ohms (7.5 mΩ). Band 5–10 mΩ. **ESTIMATE, unsourced; fit from a logged flight or measure with a charger IR readout.** |
+| `ram_drag` | `true` | Per duct, `F ≈ ṁ V_air` opposite the in-plane airspeed. `ṁ = T / v_i`, `v_i = √(T / (2 ρ A))`, `A = π (0.038)²`. About 2–3 N total at 4 m/s, plus a small pitch moment because the ducts sit below the body centre of mass. Reported as `aero_force_n` and `aero_torque_nm`. |
+| `ground_effect` | `true` | `T_IGE / T_OGE = 1 / (1 − (R / 4h)²)`, `R = 0.038` m. `h` comes from `range_down` plus 23 mm (duct plane 37 mm, rangefinder site 14 mm), clamped to at least `R/2`. About +7% at liftoff and about 1 at 1 m. Cheeseman and Bennett, open-rotor formula, so an estimate for a duct. The ratio is also `state.ground_effect`. |
+| `fold_rate_limit` | `true` | Fold command slews at about 465°/s, so 90° takes about 0.19 s. ES08MD II no-load figure (0.10 s per 60° at 6 V, ±58° of horn travel). The XML `kp` is unchanged; a position actuator has no rate attribute. |
+
+Kept as they were: motor lag τ = 40 ms, 5.5 N per duct as an optimistic placeholder (±10–20%, open prop not the ducted D76), hover efficiency 2.3 g/W as a placeholder with range 1.8–2.5 (**ESTIMATE**).
 
 Wind is seeded from `seed` with the same ChaCha8 construction as the engine RNG. The same seed, config and observation log reproduce commands and `wind_force_n`. The controller does not cancel that force; the page applies it.
 
-## Observation (20) and command (9)
+## Observation (22) and command (9)
 
 Canonical names: `OBS_NAMES` and `CTRL_NAMES` in the crate (`obs` module). They follow `tbd.xml`.
 
@@ -54,8 +74,10 @@ Canonical names: `OBS_NAMES` and `CTRL_NAMES` in the crate (`obs` module). They 
 | 11 | fold angle | rad | sensor `fold_angle` (`fold_FL`) |
 | 12..14 | position x, y, z | m | free joint `root` `qpos[0..3]` (body origin, not the imu site) |
 | 15..17 | velocity x, y, z | m/s | free joint `root` `qvel[0..3]`, world frame |
-| 18 | pilot_x | 1 | page stick, `manual` only |
-| 19 | pilot_yaw | 1 | page stick, `manual` only |
+| 18 | pilot_x | 1 | manual surge, or a sentinel |
+| 19 | pilot_yaw | 1 | manual yaw, or the stow sentinel |
+| 20 | pilot_y | 1 | manual strafe, body left. Omitted (0) when `obs.length` is 20 |
+| 21 | pilot_z | 1 | manual climb rate, positive up. Omitted (0) when `obs.length` is 20 |
 
 | index | command | range | actuator |
 | --- | --- | --- | --- |
@@ -65,7 +87,18 @@ Canonical names: `OBS_NAMES` and `CTRL_NAMES` in the crate (`obs` module). They 
 
 On this model the imu site is aligned with the body, so the gyro matches the body rates the reference controller reads from `qvel[3:6]`, and the frame quaternion matches the free-joint quaternion.
 
-`stair_hop` ignores the pilot channels. `manual` uses them inside ±1: `pilot_x` drives forward (+X when both wheel sides are positive), `pilot_yaw` skids (positive speeds the right side and slows the left). Sentinels, one tick, and that channel is not also a stick: `pilot_x >= 2` takeoff, `pilot_x <= -2` land, `pilot_yaw >= 2` fold once the vehicle is down.
+`stair_hop` ignores the pilot channels. `manual` uses them inside ±1:
+
+- `pilot_x` drives forward on the ground (+X when both wheel sides are positive) and, in flight, sets forward speed (0.7 m/s at ±1).
+- `pilot_y` strafes in flight: +1 is body left at 0.7 m/s.
+- `pilot_z` is a climb rate in flight: +1 is 0.9 m/s up, −1 is 0.9 m/s down. The altitude target integrates that rate.
+- `pilot_yaw` skids on the ground (positive speeds the right side and slows the left) and, in flight, is a yaw rate.
+
+Sentinels sit outside ±1, and that channel is not also a stick on that tick:
+
+- `pilot_x >= 2` takes off (ground → deploying → flight). During landing, the same stick returns to flight while still airborne.
+- `pilot_x <= -2` starts landing.
+- `pilot_yaw >= 2` stows. If it is already held when the vehicle touches down, stowing starts on that tick. No second press.
 
 ## Score
 

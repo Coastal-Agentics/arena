@@ -40,7 +40,8 @@ fn actuators_and_sensors_match_the_model_file() {
     assert_eq!(sensors, spec_names);
     let width: usize = SENSOR_SPEC.iter().map(|(_, w)| *w).sum();
     assert_eq!(width, SENSOR_LEN);
-    assert_eq!(OBS_LEN, SENSOR_LEN + 3 + 3 + 2);
+    assert_eq!(OBS_LEN, SENSOR_LEN + 3 + 3 + 4);
+    assert_eq!(tbd::OBS_LEN_V1, 20);
     assert_eq!(OBS_NAMES.len(), OBS_LEN);
     assert!(xml.contains("timestep=\"0.002\""));
     assert!(xml.contains("meshdir=\"meshes\""));
