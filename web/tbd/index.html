@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>TBD sim · Arena · Coastal Agentics</title>
+<meta name="description" content="TBD (working name): a playable physics sim of a hybrid drive-and-fly vehicle. MuJoCo physics with estimated parameters, not measured.">
+<meta name="theme-color" content="#34557B">
+<meta http-equiv="Cache-Control" content="no-cache">
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="tbd.css?v=20261114b">
+<!-- Pinned CDN builds: MuJoCo 4.0.1 (Apache-2.0; its wasm is 11.2 MB, too big to commit) and three.js r187 (MIT). -->
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.187.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.187.0/examples/jsm/",
+  "mujoco": "https://cdn.jsdelivr.net/npm/@mujoco/mujoco@4.0.1/mujoco.js"
+} }
+</script>
+</head>
+<body>
+<canvas id="view" aria-label="3D view of the sim"></canvas>
+
+<header class="bar">
+  <a class="back" href="../play/" aria-label="Back to the Arena play hub">← Play</a>
+  <div class="title"><strong>TBD</strong> <span>working name · physics sim of a hybrid drive-and-fly vehicle</span></div>
+  <div class="honest">MuJoCo physics · estimated parameters, not measured</div>
+</header>
+
+<section class="hud" aria-live="polite">
+  <div id="hud-mode" class="mode" data-mode="ground">Ground · drive</div>
+  <dl>
+    <dt>Altitude</dt><dd id="hud-alt">0.00 m</dd>
+    <dt>Height</dt><dd id="hud-z">0.00 m</dd>
+    <dt>Speed</dt><dd id="hud-speed">0.00 m/s</dd>
+    <dt>Fold</dt><dd id="hud-fold">90°</dd>
+    <dt>Battery</dt><dd id="hud-batt">100 %</dd>
+    <div id="hud-score-row" class="row" hidden><dt>Hop score</dt><dd id="hud-score">0</dd></div>
+  </dl>
+  <div class="batt"><div id="batt-bar"></div></div>
+  <div id="hud-power" class="small">6 W</div>
+  <div class="thr" title="Duct thrust (FL FR RL RR)">
+    <div><span id="thr0"></span><i>FL</i></div><div><span id="thr1"></span><i>FR</i></div>
+    <div><span id="thr2"></span><i>RL</i></div><div><span id="thr3"></span><i>RR</i></div>
+  </div>
+  <div id="hud-time" class="small">t 0.0 s</div>
+  <div id="hud-ctl" class="ctl" data-ctl="js">JS controller</div>
+</section>
+
+<section id="help" class="help">
+  <h2>Controls</h2>
+  <table>
+    <tr><th>F</th><td>Unfold and take off · land and fold</td></tr>
+    <tr><th>W A S D</th><td>Drive and turn (ground) · fly forward, back, left, right (flight)</td></tr>
+    <tr><th>Space / Shift</th><td>Climb / descend</td></tr>
+    <tr><th>Q / E</th><td>Turn left / right in flight</td></tr>
+    <tr><th>G</th><td>Autopilot stair hop demo</td></tr>
+    <tr><th>C</th><td>Chase or orbit camera</td></tr>
+    <tr><th>R · P · H</th><td>Reset · pause · hide help</td></tr>
+  </table>
+  <p class="small">Gamepad: left stick drive or fly, right stick turn and climb, A fly/land, X hop, B reset, Y camera.
+  Flight is assisted: centred sticks hold position.</p>
+</section>
+
+<div id="touch" class="touch" hidden>
+  <div id="stick" class="stick" aria-label="Joystick: drive and turn"><div id="knob" class="knob"></div></div>
+  <div class="pads">
+    <button type="button" data-hold="climb" aria-label="Climb">▲<small>Climb</small></button>
+    <button type="button" data-act="fly" class="primary" aria-label="Fold or fly"><span id="fly-label">Fly</span><small>Fold/fly</small></button>
+    <button type="button" data-hold="descend" aria-label="Descend">▼<small>Descend</small></button>
+    <button type="button" data-act="hop" aria-label="Autopilot hop">Hop<small>Autopilot</small></button>
+    <button type="button" data-act="camera" aria-label="Camera">Cam<small>View</small></button>
+    <button type="button" data-act="reset" aria-label="Reset">Reset<small>Start</small></button>
+  </div>
+</div>
+
+<div id="loading" class="loading"><div><img src="../favicon.svg" alt=""><p id="loading-msg">Loading…</p></div></div>
+<footer class="foot">Coastal Agentics · physics sim, estimated parameters · MuJoCo 4.0.1 (WebAssembly) · 17 cm stairs · TBD is a working name</footer>
+<script type="module" src="main.js?v=20261114b"></script>
+</body>
+</html>
