@@ -6,8 +6,8 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { toCreasedNormals } from 'three/addons/utils/BufferGeometryUtils.js';
 import loadMujoco from 'mujoco';
-import { createJsController, createHopMetrics, Battery, readInput, deadzone, quatToRpy, KEY_ACTIONS, PAD_ACTIONS, KEY_AXES } from './controller.js?v=20261114b';
-import { pickController } from './controller-wasm.js?v=20261114b';
+import { createJsController, createHopMetrics, Battery, readInput, deadzone, quatToRpy, KEY_ACTIONS, PAD_ACTIONS, KEY_AXES } from './controller.js?v=20261114c';
+import { pickController } from './controller-wasm.js?v=20261114c';
 
 const $ = id => document.getElementById(id);
 const status = msg => { $('loading-msg').textContent = msg; console.log('[tbd]', msg); };
@@ -21,9 +21,9 @@ status('Loading MuJoCo physics (about 11 MB, first visit only)…');
 const mj = await loadMujoco();
 status('Loading TBD model…');
 mj.FS.mkdir('/tbd'); mj.FS.mkdir('/tbd/meshes');
-mj.FS.writeFile('/tbd/tbd.xml', await (await fetch('model/tbd.xml?v=20261114b')).text());
+mj.FS.writeFile('/tbd/tbd.xml', await (await fetch('model/tbd.xml?v=20261114c')).text());
 await Promise.all(MESHES.map(async n => {
-  const buf = await (await fetch(`model/meshes/${n}.stl?v=20261114b`)).arrayBuffer();
+  const buf = await (await fetch(`model/meshes/${n}.stl?v=20261114c`)).arrayBuffer();
   mj.FS.writeFile(`/tbd/meshes/${n}.stl`, new Uint8Array(buf));
 }));
 const model = mj.MjModel.from_xml_path('/tbd/tbd.xml');
@@ -127,7 +127,7 @@ addEventListener('keydown', e => {
   if (KEY_AXES[e.code] || KEY_ACTIONS[e.code]) keys.add(e.code);
 });
 addEventListener('keyup', e => keys.delete(e.code));
-addEventListener('blur', () => { keys.clear(); touch.x = touch.y = touch.climb = 0; });
+addEventListener('blur', () => { keys.clear(); touch.x = touch.y = touch.climb = touch.yaw = 0; for (const h in holds) holds[h] = false; });
 let padPrev = {};
 function readPad() {
   const pad = [...(navigator.getGamepads?.() || [])].find(p => p);
@@ -141,8 +141,8 @@ function readPad() {
   return { lx: deadzone(pad.axes[0]), ly: deadzone(pad.axes[1]), rx: deadzone(pad.axes[2] ?? 0), ry: deadzone(pad.axes[3] ?? 0), lt: pad.buttons[6]?.value || 0, rt: pad.buttons[7]?.value || 0 };
 }
 
-const touch = { x: 0, y: 0, climb: 0, active: false };
-const holds = { climb: false, descend: false };
+const touch = { x: 0, y: 0, climb: 0, yaw: 0 };
+const holds = { climb: false, descend: false, yawl: false, yawr: false };
 function setupTouch() {
   const coarse = matchMedia('(pointer: coarse)').matches || params.get('touch') === '1';
   const ui = $('touch');
@@ -209,8 +209,9 @@ function physicsStep(input) {
   const wasAuto = ctl.auto;
   const cmd = ctl.step(sense(), input);
   ACT_IDS.forEach((a, i) => (data.ctrl[a] = cmd.ctrl[i]));
-  const xf = data.xfrc_applied, w = cmd.wind || [0, 0, 0];   // world-frame wind force on body "tbd", no torque
-  for (let i = 0; i < 6; i++) xf[6 * BODY + i] = i < 3 ? w[i] : 0;
+  // world frame on body "tbd": force = wind (+ engine aero), torque = engine aero
+  const xf = data.xfrc_applied, w = cmd.wind || [0, 0, 0], tq = cmd.torque || [0, 0, 0];
+  for (let i = 0; i < 3; i++) { xf[6 * BODY + i] = w[i]; xf[6 * BODY + 3 + i] = tq[i]; }
   mj.mj_step(model, data); simTime += DT;
   bat.step(DT, cmd.force, cmd.driving); lastCmd = cmd;
   if (hop && !hop.result && wasAuto) trackHop(cmd);
@@ -267,13 +268,14 @@ function hud() {
   $('batt-bar').classList.toggle('low', batt < 25);
   const watts = lastCmd && lastCmd.powerW !== undefined ? lastCmd.powerW : bat.lastW;
   const rem = watts > 1 ? batt / 100 * bat.usableWh() / watts * 60 : 0;
-  $('hud-power').textContent = `${watts.toFixed(0)} W · ${rem > 99 ? '>99' : rem.toFixed(1)} min left at this draw`;
+  const volts = lastCmd && lastCmd.engine && lastCmd.engine.pack_voltage_v;
+  $('hud-power').textContent = `${watts.toFixed(0)} W${volts ? ` · ${volts.toFixed(1)} V` : ''} · ${rem > 99 ? '>99' : rem.toFixed(1)} min left at this draw`;
   const sc = liveScore();
   $('hud-score-row').hidden = sc === null; $('hud-score').textContent = sc === null ? '' : `${sc.toFixed(1)}${hop && hop.result ? ' (final)' : ''}`;
   $('hud-fold').textContent = `${(data.qpos[FOLD_Q] * 180 / Math.PI).toFixed(0)}°`;
   (lastCmd ? lastCmd.thrust : [0, 0, 0, 0]).forEach((u, i) => ($(`thr${i}`).style.height = `${Math.round(u * 100)}%`));
   $('hud-time').textContent = `t ${simTime.toFixed(1)} s · ${rtf.toFixed(2)}× real time`;
-  $('hud-ctl').textContent = ctl.name === 'wasm' ? 'wasm controller (engine)' : 'JS controller';
+  $('hud-ctl').textContent = ctl.name === 'wasm' ? `wasm controller (engine${ctl.hasManualControls ? '' : ', no climb/strafe'})` : 'JS controller';
   $('hud-ctl').dataset.ctl = ctl.name;
   $('fly-label').textContent = mode === 'ground' || mode === 'stowing' ? 'Fly' : 'Land';
 }
@@ -288,6 +290,7 @@ let last = performance.now(), acc = 0;
 function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
   touch.climb = (holds.climb ? 1 : 0) - (holds.descend ? 1 : 0);
+  touch.yaw = (holds.yawl ? 1 : 0) - (holds.yawr ? 1 : 0);
   const input = readInput(keys, readPad(), touch);
   if (!paused) {
     acc += dt; let n = 0;

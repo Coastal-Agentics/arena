@@ -8,7 +8,7 @@
     "TBD (a working name) is a playable physics sim of a hybrid drive-and-fly vehicle at /arena/tbd/. Drive it on four wheels, unfold the ducts to fly with assisted hover, or run the autopilot stair hop. It works with keys, a gamepad, or touch on a phone.",
     "It runs MuJoCo physics in the browser. The parameters are estimates from the parts list and CAD, not measurements."
   ],
-  "next": "Make the engine (wasm) controller the default once its manual mode has climb and descend; JS stays the reference.",
+  "next": "The page now picks the engine controller when web/pkg has its manual controls; next, a check that the model copies match.",
   "note": "docs/fieldnotes/2026-11-14-tbd-sim-web.md",
   "pr": 131
 }

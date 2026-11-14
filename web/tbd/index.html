@@ -8,7 +8,7 @@
 <meta name="theme-color" content="#34557B">
 <meta http-equiv="Cache-Control" content="no-cache">
 <link rel="icon" href="../favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="tbd.css?v=20261114b">
+<link rel="stylesheet" href="tbd.css?v=20261114c">
 <!-- Pinned CDN builds: MuJoCo 4.0.1 (Apache-2.0; its wasm is 11.2 MB, too big to commit) and three.js r187 (MIT). -->
 <script type="importmap">
 { "imports": {
@@ -51,7 +51,8 @@
   <h2>Controls</h2>
   <table>
     <tr><th>F</th><td>Unfold and take off · land and fold</td></tr>
-    <tr><th>W A S D</th><td>Drive and turn (ground) · fly forward, back, left, right (flight)</td></tr>
+    <tr><th>W / S</th><td>Drive or fly forward / back</td></tr>
+    <tr><th>A / D</th><td>Turn (ground) · strafe left / right (flight)</td></tr>
     <tr><th>Space / Shift</th><td>Climb / descend</td></tr>
     <tr><th>Q / E</th><td>Turn left / right in flight</td></tr>
     <tr><th>G</th><td>Autopilot stair hop demo</td></tr>
@@ -63,12 +64,14 @@
 </section>
 
 <div id="touch" class="touch" hidden>
-  <div id="stick" class="stick" aria-label="Joystick: drive and turn"><div id="knob" class="knob"></div></div>
+  <div id="stick" class="stick" aria-label="Joystick: drive and turn on the ground, fly and strafe in flight"><div id="knob" class="knob"></div></div>
   <div class="pads">
     <button type="button" data-hold="climb" aria-label="Climb">▲<small>Climb</small></button>
     <button type="button" data-act="fly" class="primary" aria-label="Fold or fly"><span id="fly-label">Fly</span><small>Fold/fly</small></button>
     <button type="button" data-hold="descend" aria-label="Descend">▼<small>Descend</small></button>
+    <button type="button" data-hold="yawl" aria-label="Turn left">⟲<small>Turn L</small></button>
     <button type="button" data-act="hop" aria-label="Autopilot hop">Hop<small>Autopilot</small></button>
+    <button type="button" data-hold="yawr" aria-label="Turn right">⟳<small>Turn R</small></button>
     <button type="button" data-act="camera" aria-label="Camera">Cam<small>View</small></button>
     <button type="button" data-act="reset" aria-label="Reset">Reset<small>Start</small></button>
   </div>
@@ -76,6 +79,6 @@
 
 <div id="loading" class="loading"><div><img src="../favicon.svg" alt=""><p id="loading-msg">Loading…</p></div></div>
 <footer class="foot">Coastal Agentics · physics sim, estimated parameters · MuJoCo 4.0.1 (WebAssembly) · 17 cm stairs · TBD is a working name</footer>
-<script type="module" src="main.js?v=20261114b"></script>
+<script type="module" src="main.js?v=20261114c"></script>
 </body>
 </html>
