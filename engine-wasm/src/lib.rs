@@ -13,6 +13,11 @@
 //! Separately, [`check_replay`] (JS `checkReplayJson`) re-simulates a replay file for the
 //! native-vs-wasm parity check (`scripts/check-parity.mjs`, `tests/parity.rs`).
 //!
+//! [`WasmTbd`] (JS `WasmTbd`) is the TBD physics sim with estimated parameters: one
+//! `step(obs)` per MuJoCo tick. TBD is the working name. The page owns MuJoCo; this
+//! binding only returns actuator commands and a JSON state (including the wind force
+//! the page should apply).
+//!
 //! **Builds** (the per-game part of a Nyborg): `games()`, `catalogJson(game)`,
 //! `defaultBuild(game)` and `validateBuild(game, buildJson)` dispatch on the game id
 //! through `GAMES`, one entry per game crate in the shared [`game_catalog`] shape
@@ -37,11 +42,13 @@ use tank::{loadout, Behavior, Chaser, Loadout, MatchSpec, Preset, TankSpec, Wand
 use wasm_bindgen::prelude::*;
 
 mod race;
+mod tbd_api;
 pub use race::{
     check_race_replay, check_race_replay_json, CarSetupView, CarView, GateView, PointView,
     RaceOutcomeView, RaceReplayCheck, RaceSetupView, RaceStateView, RaceViewer, TrackView,
     WasmRace,
 };
+pub use tbd_api::{tbd_ctrl_len, tbd_obs_len, WasmTbd};
 
 /// Built-in bots the viewer can pit against each other.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

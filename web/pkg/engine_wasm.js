@@ -330,6 +330,45 @@ export function checkRaceReplayJson(json) {
     }
 }
 
+/**
+ * Observation length (20).
+ * @returns {number}
+ */
+export function tbdObsLen() {
+    const ret = wasm.tbdObsLen();
+    return ret >>> 0;
+}
+
+/**
+ * Actuator-command length (9).
+ * @returns {number}
+ */
+export function tbdCtrlLen() {
+    const ret = wasm.tbdCtrlLen();
+    return ret >>> 0;
+}
+
+let cachedFloat64ArrayMemory0 = null;
+
+function getFloat64ArrayMemory0() {
+    if (cachedFloat64ArrayMemory0 === null || cachedFloat64ArrayMemory0.byteLength === 0) {
+        cachedFloat64ArrayMemory0 = new Float64Array(wasm.memory.buffer);
+    }
+    return cachedFloat64ArrayMemory0;
+}
+
+function passArrayF64ToWasm0(arg, malloc) {
+    const ptr = malloc(arg.length * 8, 8) >>> 0;
+    getFloat64ArrayMemory0().set(arg, ptr / 8);
+    WASM_VECTOR_LEN = arg.length;
+    return ptr;
+}
+
+function getArrayF64FromWasm0(ptr, len) {
+    ptr = ptr >>> 0;
+    return getFloat64ArrayMemory0().subarray(ptr / 8, ptr / 8 + len);
+}
+
 const WasmMatchFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_wasmmatch_free(ptr >>> 0, 1));
@@ -707,6 +746,93 @@ export class WasmRace {
     }
 }
 
+const WasmTbdFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_wasmtbd_free(ptr >>> 0, 1));
+/**
+ * JS handle: `new WasmTbd(seed, configJson)`.
+ *
+ * `seed` is a BigInt (`1n`). wasm-bindgen 0.2.100 passes `u64` as a bigint,
+ * not a Number. `configJson` is a [`tbd::Config`] object. `""` and `"{}"`
+ * are the defaults: 0.002 s, mission `stair_hop`, wind on, 16 s horizon.
+ */
+export class WasmTbd {
+
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        WasmTbdFinalization.unregister(this);
+        return ptr;
+    }
+
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_wasmtbd_free(ptr, 0);
+    }
+    /**
+     * [`tbd::StateView`] as JSON: mode, phase, battery, score, and
+     * `wind_force_n` (world-frame newtons for body `tbd`).
+     * @returns {string}
+     */
+    stateJson() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.wasmtbd_stateJson(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * Build a run. Throws if `configJson` is not an object this crate accepts,
+     * or if `dt` / `max_time_s` are not finite and positive.
+     * @param {bigint} seed
+     * @param {string} config_json
+     */
+    constructor(seed, config_json) {
+        const ptr0 = passStringToWasm0(config_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.wasmtbd_new(seed, ptr0, len0);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        this.__wbg_ptr = ret[0] >>> 0;
+        WasmTbdFinalization.register(this, this.__wbg_ptr, this);
+        return this;
+    }
+    /**
+     * One physics tick.
+     *
+     * `obs` is [`OBS_LEN`] floats in `tbd.xml` sensor order, then free-joint
+     * position and linear velocity, then `pilot_x` and `pilot_yaw`. Returns
+     * [`CTRL_LEN`] actuator commands in `<actuator>` order. Throws if the
+     * length is wrong or any value is not finite. After the mission is over,
+     * returns the last command and does not advance.
+     * @param {Float64Array} obs
+     * @returns {Float64Array}
+     */
+    step(obs) {
+        const ptr0 = passArrayF64ToWasm0(obs, wasm.__wbindgen_malloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.wasmtbd_step(this.__wbg_ptr, ptr0, len0);
+        if (ret[3]) {
+            throw takeFromExternrefTable0(ret[2]);
+        }
+        var v2 = getArrayF64FromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 8, 8);
+        return v2;
+    }
+    /**
+     * Same seed and config, back to tick 0.
+     */
+    reset() {
+        wasm.wasmtbd_reset(this.__wbg_ptr);
+    }
+}
+
 async function __wbg_load(module, imports) {
     if (typeof Response === 'function' && module instanceof Response) {
         if (typeof WebAssembly.instantiateStreaming === 'function') {
@@ -769,6 +895,7 @@ function __wbg_init_memory(imports, memory) {
 function __wbg_finalize_init(instance, module) {
     wasm = instance.exports;
     __wbg_init.__wbindgen_wasm_module = module;
+    cachedFloat64ArrayMemory0 = null;
     cachedUint8ArrayMemory0 = null;
 
 
