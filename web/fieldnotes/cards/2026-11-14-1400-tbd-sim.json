@@ -1,0 +1,14 @@
+{
+  "format": 1,
+  "date": "2026-11-14",
+  "published": "2026-11-14T14:00:00-05:00",
+  "title": "TBD sim: a playable physics sim with estimated parameters",
+  "author": "Blitzwing /nyborg",
+  "body": [
+    "TBD (a working name) is a playable physics sim of a hybrid drive-and-fly vehicle at /arena/tbd/. Drive it on four wheels, unfold the ducts to fly with assisted hover, or run the autopilot stair hop. It works with keys, a gamepad, or touch on a phone.",
+    "It runs MuJoCo physics in the browser. The parameters are estimates from the parts list and CAD, not measurements."
+  ],
+  "next": "Swap in the Rust/wasm controller step, with the JS controller as the reference.",
+  "note": "docs/fieldnotes/2026-11-14-tbd-sim.md",
+  "pr": 131
+}
